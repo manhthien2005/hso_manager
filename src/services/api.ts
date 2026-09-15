@@ -8,6 +8,7 @@ import type {
   ViewerSession,
 } from "@/lib/types";
 import { mockApi } from "@/services/mock-api";
+import { supabaseApi } from "@/services/supabase-api";
 
 /**
  * Data-access contract for the whole UI.
@@ -96,4 +97,7 @@ export function describeError(error: unknown): string {
 }
 
 /** The only place the implementation is chosen. */
-export const api: ZeusApi = mockApi;
+// Switch: mockApi ↔ supabaseApi — no component imports change.
+export const api: ZeusApi = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? supabaseApi   // Supabase credentials present → use real backend
+  : mockApi;      // Fallback for local dev without .env.local
