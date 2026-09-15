@@ -7,10 +7,9 @@ import { pendingKey, useZeusStore } from "@/store/zeus-store";
 import { useToast } from "@/store/toast-store";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
-import { SEED_CREDENTIALS } from "@/services/seed-data";
 
 /**
- * Mock login. Supabase Auth replaces `api.login` only; this form stays.
+ * Login page — Supabase Auth (email + password).
  * Already-signed-in users are bounced to the dashboard.
  */
 export default function LoginPage() {
@@ -55,7 +54,8 @@ export default function LoginPage() {
         >
           <TextField
             name="username"
-            label="Username / Email"
+            label="Email"
+            type="email"
             autoComplete="username"
             autoFocus
             value={username}
@@ -81,13 +81,6 @@ export default function LoginPage() {
           <Button type="submit" variant="primary" busy={busy} className="w-full">
             {busy ? "Signing in…" : "Login"}
           </Button>
-
-          <p className="border-t border-border pt-4 text-center text-[11px] text-muted">
-            Demo credentials —{" "}
-            <span className="font-mono text-foreground">
-              {SEED_CREDENTIALS.username} / {SEED_CREDENTIALS.password}
-            </span>
-          </p>
         </form>
       </div>
     </div>
