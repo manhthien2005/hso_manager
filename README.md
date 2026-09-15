@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zeus Knight Cloud — Web UI
 
-## Getting Started
+Control panel for managing Knight Online VPS fleets on Railway. Phase 1:
+complete UI/UX running on **mock data** — no Supabase, no Zeus Agent, no noVNC.
 
-First, run the development server:
+Every screen is clickable and behaves like the real product: buttons show
+loading states, commands resolve after a fake latency, state updates live, and
+success/error toasts fire.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Stack   Next.js 16 (App Router) · TypeScript strict · Tailwind CSS 4
+Deps    next, react, react-dom  — no UI kit, no chart lib, no animation lib
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run it
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Sign in with the demo credentials shown on the login screen:
 
-## Learn More
+```
+zeus / zeus1234
+```
 
-To learn more about Next.js, take a look at the following resources:
+Any other combination is rejected with a real error toast, so the failure path
+is testable too.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Other commands:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build        # production build
+npm start            # serve the production build
+npm run lint         # eslint, warnings are failures (--max-warnings=0)
+npx tsc --noEmit     # type check
+```
 
-## Deploy on Vercel
+The session lives in `sessionStorage`, so a reload keeps you signed in and a new
+tab does not.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## What to look at
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Route | Shows |
+| --- | --- |
+| `/login` | Mock auth, inline + toast errors |
+| `/` | Fleet summary, one card per VPS, live metrics |
+| `/device/[deviceId]` | VPS detail: CPU/RAM bars, uptime, agent versions, accounts |
+| `/device/[deviceId]/accounts` | Account list with status filter chips |
+| `/device/[deviceId]/viewer` | noVNC placeholder frame, connect/disconnect |
+| `/account/[accountId]/config` | Schema-driven config form, validation, save |
+| `/settings` | Device registry: IDs, regions, versions, viewer tunnels |
+
+Mock fleet: 2 VPS (one online, one offline) and 6 accounts spread across
+`running`, `starting`, `stopped`, `error` and `offline`, so every visual state is
+reachable from the sidebar.
+
+Things worth clicking:
+
+- **Stop / Start / Restart** on any account — spinner, latency, status change, toast.
+- **Restart on Account 04** (already `error`) — the mock fails it, showing the error
+  path and leaving the account in `error`.
+- **Commands on SG-KNIGHT-02** — disabled with an explanation, because the device is offline.
+- **Memory Limit 4096 → Save** — rejected by the over-commit rule, which computes
+  real free RAM instead of a hardcoded threshold.
+- **Clear the Character field → Save** — schema validation, per-field messages,
+  save blocked.
+- **Mobile (≤1024px)** — sidebar collapses into a drawer; cards stack; the config
+  action bar stays pinned.
+
+CPU and RAM drift every 4s from the mock's metrics simulation, driven through the
+same `onUpdate` subscription that Supabase Realtime will use later.
+
+## Layout
+
+```
+src/
+├── app/
+│   ├── (app)/          authenticated routes (route group; no URL segment)
+│   │   ├── layout.tsx          AuthGate + sidebar/drawer shell
+│   │   ├── page.tsx            dashboard
+│   │   ├── device/[deviceId]/  page · accounts/ · viewer/
+│   │   ├── account/[accountId]/config/
+│   │   └── settings/
+│   ├── login/
+│   ├── layout.tsx      root layout (Server Component) + theme
+│   └── globals.css     design tokens
+├── components/
+│   ├── ui/             button · card · field · status (the whole kit)
+│   ├── accounts/       account-card · config-field
+│   ├── devices/        device-card
+│   ├── app-shell.tsx   AuthGate, sidebar, drawer, topbar
+│   ├── page-header.tsx
+│   ├── not-found-panel.tsx
+│   └── providers.tsx   client provider boundary
+├── hooks/              use-account-command
+├── lib/
+│   ├── types.ts        every shared domain type
+│   ├── config-schema.ts  form sections, validation, draft mapping
+│   └── format.ts       bytes/uptime/relative-time helpers
+├── services/
+│   ├── api.ts          ZeusApi contract + the single implementation choice
+│   ├── mock-api.ts     in-memory implementation
+│   └── seed-data.ts    the mock fleet
+└── store/              zeus-store (data + pending flags) · toast-store
+```
+
+Data flows one way: `services` → `store` → `components`. Components never import
+`services/mock-api.ts` and never read seed data directly — only `services/api.ts`.
+
+See [`docs/UI_IMPLEMENTATION.md`](docs/UI_IMPLEMENTATION.md) for routes, the data
+model, the mock API contract, and exactly where Supabase plugs in.
+`ZEUS_ARCHITECTURE.md` covers the wider system (agents, Docker node, Supabase schema).
+
+## Design tokens
+
+Dark-only, semantic tokens in `src/app/globals.css` — `--surface`, `--border`,
+`--accent`, `--online`, `--danger`, … Components never hardcode hex values.
+
+`--accent-fill` is a deliberately darker companion to `--accent`: `#4c8dff` reads
+well as text (6.1:1) but only reaches 3.2:1 under a white label, so filled
+buttons use the darker shade. All text pairings meet WCAG AA (≥4.5:1) and
+non-text components meet ≥3:1.
+
+## Scope
+
+Out of scope for this phase, by design: Zeus Agent, Docker Knight node,
+Java/MicroEmulator, a separate backend, real noVNC, real VPS connections,
+polling, WebSockets.
