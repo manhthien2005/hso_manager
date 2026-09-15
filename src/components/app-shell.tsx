@@ -28,6 +28,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: <IconGrid />, exact: true },
+  { href: "/pair", label: "Pair device", icon: <IconPlug /> },
   { href: "/settings", label: "Settings", icon: <IconGear /> },
 ];
 
@@ -235,6 +236,16 @@ function IconMenu() {
   return (
     <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
       <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+
+
+function IconPlug() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path d="M6 1v3M10 1v3M4 4h8l-1 5H5L4 4zM6 9v2a2 2 0 0 0 4 0V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
