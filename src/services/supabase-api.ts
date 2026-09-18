@@ -20,6 +20,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import { sanitizeViewerUrl } from "@/lib/format";
 import type {
   Account,
   AccountConfig,
@@ -34,7 +35,6 @@ import type {
   SendCommandInput,
   CommandResult,
   UpdateListener,
-  Update,
 } from "@/services/api";
 import { ApiError } from "@/services/api";
 import type { Database } from "@/lib/database.types";
@@ -45,10 +45,7 @@ type RuntimeRow = Database["public"]["Tables"]["account_runtime"]["Row"];
 
 // ── mappers ──────────────────────────────────────────────────────────────────
 
-function mapDevice(
-  row: DeviceRow,
-  runtime?: Pick<RuntimeRow, "cpu_pct" | "ram_mb"> | null
-): Device {
+function mapDevice(row: DeviceRow): Device {
   const metrics: DeviceMetrics = {
     cpu: row.cpu_pct ?? 0,
     ramUsedMb: row.ram_used_mb ?? 0,
@@ -136,6 +133,7 @@ function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
 
 class SupabaseApi implements ZeusApi {
   // ── auth ─────────────────────────────────────────────────────────────────
+
 
   async getSession(): Promise<User | null> {
     const { data } = await supabase.auth.getSession();
@@ -318,10 +316,19 @@ class SupabaseApi implements ZeusApi {
       .eq("id", deviceId)
       .maybeSingle() as { data: { id: string; viewer_url: string | null; viewer_expires_at: string | null } | null; error: unknown };
     if (!data?.viewer_url) return null;
+
+    // Validate lease has not expired
+    const expiresAt = data.viewer_expires_at ? new Date(data.viewer_expires_at).getTime() : Infinity;
+    if (expiresAt <= Date.now()) {
+      return null;
+    }
+
+    const url = sanitizeViewerUrl(data.viewer_url);
+
     return {
       id: `viewer-${deviceId}`,
       deviceId,
-      url: data.viewer_url,
+      url,
       transport: "novnc" as const,
       state: "connected" as const,
       createdAt: Date.now(),
@@ -330,31 +337,60 @@ class SupabaseApi implements ZeusApi {
   }
 
   async connectViewer(deviceId: string): Promise<ViewerSession> {
-    await supabase.from("commands").insert({
+    console.log("[viewer] request open-viewer start, deviceId:", deviceId);
+
+    // 1. Check if an active, unexpired viewer session already exists
+    const active = await this.getViewerSession(deviceId);
+    if (active) {
+      console.log("[viewer] active session already available:", active.url);
+      return active;
+    }
+
+    // 2. Insert open-viewer command into commands table
+    const { error: cmdError } = await supabase.from("commands").insert({
       device_id: deviceId,
       type: "open-viewer",
       status: "queued",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
-    const session = await this.getViewerSession(deviceId);
-    return session ?? {
-      id: `viewer-${deviceId}`,
-      deviceId,
-      url: null,
-      transport: "novnc" as const,
-      state: "connecting" as const,
-      createdAt: Date.now(),
-      reason: "Command sent, waiting for agent",
-    };
+
+    if (cmdError) {
+      console.error("[viewer] failed to insert open-viewer command:", cmdError);
+      throw new ApiError("SEND_COMMAND", cmdError.message);
+    }
+
+    console.log("[viewer] open-viewer command created, waiting for agent to populate viewer_url...");
+
+    // 3. Bounded polling for agent to populate devices.viewer_url (up to 15s)
+    const pollIntervalMs = 1000;
+    const maxAttempts = 15;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      const session = await this.getViewerSession(deviceId);
+      if (session?.url) {
+        console.log("[viewer] viewer_url received from agent:", session.url);
+        return session;
+      }
+    }
+
+    console.error("[viewer] timed out waiting for viewer_url from agent");
+    throw new ApiError("TIMEOUT", "Viewer tunnel timed out waiting for agent");
   }
 
   async disconnectViewer(deviceId: string): Promise<ViewerSession> {
-    await supabase.from("commands").insert({
+    console.log("[viewer] request close-viewer start, deviceId:", deviceId);
+    const { error: cmdError } = await supabase.from("commands").insert({
       device_id: deviceId,
       type: "close-viewer",
       status: "queued",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
+
+    if (cmdError) {
+      console.error("[viewer] failed to insert close-viewer command:", cmdError);
+      throw new ApiError("SEND_COMMAND", cmdError.message);
+    }
+
     return {
       id: `viewer-${deviceId}`,
       deviceId,

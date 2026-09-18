@@ -16,6 +16,7 @@ import {
   type SendCommandInput,
   type Update,
 } from "@/services/api";
+import { sanitizeViewerUrl } from "@/lib/format";
 import type {
   Account,
   AccountConfig,
@@ -137,6 +138,36 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         if (current[index] === device) return current;
         return current.map((item, i) => (i === index ? device : item));
       });
+      if (device.viewer_url) {
+        setViewerSessions((current) => ({
+          ...current,
+          [device.deviceId]: {
+            id: `viewer-${device.deviceId}`,
+            deviceId: device.deviceId,
+            url: sanitizeViewerUrl(device.viewer_url),
+            transport: "novnc" as const,
+            state: "connected" as const,
+            createdAt: Date.now(),
+            reason: null,
+          },
+        }));
+      } else {
+        setViewerSessions((current) => {
+          if (!current[device.deviceId]) return current;
+          return {
+            ...current,
+            [device.deviceId]: {
+              id: `viewer-${device.deviceId}`,
+              deviceId: device.deviceId,
+              url: null,
+              transport: "novnc" as const,
+              state: "closed" as const,
+              createdAt: Date.now(),
+              reason: null,
+            },
+          };
+        });
+      }
     }
     if (update.account) {
       const account = update.account;

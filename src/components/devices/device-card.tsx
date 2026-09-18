@@ -69,7 +69,7 @@ export function DeviceCard({ device, accounts }: { device: Device; accounts: Acc
         <ButtonLink href={`${detailHref}/accounts`} variant="primary" className="flex-1">
           Manage
         </ButtonLink>
-        <ButtonLink href={detailHref} className="flex-1">
+        <ButtonLink href={`${detailHref}/viewer`} className="flex-1">
           View
         </ButtonLink>
       </div>

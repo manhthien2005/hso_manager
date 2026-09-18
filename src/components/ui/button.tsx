@@ -68,6 +68,8 @@ interface ButtonLinkProps {
   disabled?: boolean;
   className?: string;
   children: ReactNode;
+  target?: string;
+  rel?: string;
 }
 
 export function ButtonLink({
@@ -78,6 +80,8 @@ export function ButtonLink({
   disabled = false,
   className = "",
   children,
+  target,
+  rel,
 }: ButtonLinkProps) {
   const classes = disabled
     ? `${buttonClass(variant, size, className)} pointer-events-none opacity-50`
@@ -86,6 +90,8 @@ export function ButtonLink({
   return (
     <Link
       href={href}
+      target={target}
+      rel={rel}
       className={classes}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : undefined}

@@ -81,6 +81,7 @@ export default function PairPage() {
     setError(null);
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: rpcError } = await supabase.rpc("claim_device", { code: fullCode } as any);
 
       if (rpcError) {

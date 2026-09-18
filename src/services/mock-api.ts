@@ -448,21 +448,16 @@ export const mockApi: ZeusApi = {
     await delay();
     const device = findDevice(deviceId);
     requireOnline(device);
-    if (!device.viewerAvailable) {
-      throw new ApiError(
-        "VIEWER_UNAVAILABLE",
-        `${device.name} has no viewer tunnel registered`,
-      );
-    }
+    device.viewerAvailable = true;
+    device.viewer_url = "http://localhost:6080/vnc.html";
     const session: ViewerSession = {
       id: nextId("vs"),
       deviceId: device.deviceId,
-      // noVNC is not wired in this phase; the placeholder renders instead.
-      url: null,
+      url: device.viewer_url,
       transport: "mock",
       state: "connected",
       createdAt: Date.now(),
-      reason: "Mock transport — noVNC connects here once the Railway tunnel exists",
+      reason: null,
     };
     load().viewer.set(device.id, session);
     return structuredClone(session);

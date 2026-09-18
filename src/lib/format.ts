@@ -125,3 +125,23 @@ export function formatQuota(snap: PlayerSnapshot): string {
   return String(snap.quota);
 }
 
+/**
+ * Normalizes a viewer URL and strips any malformed host/port query params
+ * (e.g. host=https://... which causes noVNC to attempt wss://https//...).
+ */
+export function sanitizeViewerUrl(rawUrl: string | null | undefined): string | null {
+  if (!rawUrl) return null;
+  try {
+    const parsed = new URL(rawUrl);
+    const hostParam = parsed.searchParams.get("host");
+    if (hostParam && (hostParam.startsWith("http://") || hostParam.startsWith("https://"))) {
+      parsed.searchParams.delete("host");
+      parsed.searchParams.delete("port");
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+
