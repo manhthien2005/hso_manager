@@ -39,6 +39,7 @@ import type {
   Device,
   DeviceMetrics,
   PlayerSnapshot,
+  UpdateAccountInput,
   User,
   ViewerSession,
 } from "@/lib/types";
@@ -364,6 +365,111 @@ class SupabaseApi implements ZeusApi {
     }
 
     return account;
+  }
+
+  async updateAccount(input: UpdateAccountInput): Promise<Account> {
+    // 1. Basic input validation
+    if (!input.accountId || typeof input.accountId !== "string" || input.accountId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account ID is required");
+    }
+    if (!input.label || typeof input.label !== "string" || input.label.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account label must not be empty");
+    }
+    if (
+      typeof input.serverIndex !== "number" ||
+      !Number.isInteger(input.serverIndex) ||
+      input.serverIndex < 0 ||
+      input.serverIndex > 7
+    ) {
+      throw new ApiError(
+        "INVALID_ACCOUNT_INPUT",
+        "Server index must be an integer between 0 and 7",
+      );
+    }
+
+    let usernameArg: string | null = null;
+    let secretSealedArg: Record<string, unknown> | null = null;
+
+    if (input.credentials !== undefined) {
+      const { username, password } = input.credentials;
+      if (!username || typeof username !== "string" || username.trim().length === 0) {
+        throw new ApiError("INVALID_ACCOUNT_INPUT", "Username must not be empty");
+      }
+      if (!password || typeof password !== "string" || password.length === 0) {
+        throw new ApiError("INVALID_ACCOUNT_INPUT", "Password must not be empty");
+      }
+
+      // 1. Resolve current account to obtain target deviceId
+      const account = await this.getAccount(input.accountId);
+      if (!account) {
+        throw new ApiError("NOT_FOUND", `Account ${input.accountId} not found`);
+      }
+
+      // 2. Fetch canonical device sealing pubkey RPC
+      const { data: pubkey, error: pubkeyError } = await supabase.rpc(
+        "get_device_sealing_pubkey",
+        {
+          p_device_id: account.deviceId,
+        },
+      );
+      if (pubkeyError) {
+        throw new ApiError("FETCH_SEALING_KEY", pubkeyError.message);
+      }
+      if (!pubkey || typeof pubkey !== "string" || pubkey.trim().length === 0) {
+        throw new ApiError(
+          "FETCH_SEALING_KEY",
+          `Device ${account.deviceId} has no valid sealing public key`,
+        );
+      }
+
+      // 3. Seal credentials in browser
+      let sealed: SealedCredentials;
+      try {
+        sealed = await sealCredentials(pubkey, username, password);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to seal credentials";
+        throw new ApiError("SEAL_CREDENTIALS", message);
+      }
+
+      usernameArg = username;
+      secretSealedArg = sealed as unknown as Record<string, unknown>;
+    }
+
+    // 4. Call atomic update_game_account RPC
+    const { data: updatedId, error: updateError } = await supabase.rpc(
+      "update_game_account",
+      {
+        p_account_id: input.accountId,
+        p_label: input.label.trim(),
+        p_server_index: input.serverIndex,
+        p_username: usernameArg,
+        p_secret_sealed: secretSealedArg,
+      },
+    );
+
+    if (updateError) {
+      throw new ApiError("UPDATE_ACCOUNT", updateError.message);
+    }
+    if (!updatedId) {
+      throw new ApiError("UPDATE_ACCOUNT", "update_game_account returned no account ID");
+    }
+    if (updatedId !== input.accountId) {
+      throw new ApiError(
+        "UPDATE_ACCOUNT",
+        `Returned account ID mismatch: expected ${input.accountId}, got ${updatedId}`,
+      );
+    }
+
+    // 5. Re-fetch the account using existing canonical path
+    const updatedAccount = await this.getAccount(input.accountId);
+    if (!updatedAccount) {
+      throw new ApiError(
+        "FETCH_ACCOUNT",
+        `Updated account ${input.accountId} could not be retrieved`,
+      );
+    }
+
+    return updatedAccount;
   }
 
   async updateAccountConfig(

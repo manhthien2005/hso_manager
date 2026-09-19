@@ -26,6 +26,7 @@ export interface Database {
           uptime_s: number | null;
           viewer_url: string | null;
           viewer_expires_at: string | null;
+          next_slot_index: number;
           last_seen: string | null;
           created_at: string;
         };
@@ -140,6 +141,16 @@ export interface Database {
           p_control: Record<string, unknown>;
         };
         Returns: string; // uuid của account vừa tạo
+      };
+      update_game_account: {
+        Args: {
+          p_account_id: string;
+          p_label: string;
+          p_server_index: number;
+          p_username?: string | null;
+          p_secret_sealed?: Record<string, unknown> | null;
+        };
+        Returns: string; // uuid của account vừa cập nhật
       };
     };
     Enums: Record<string, never>;

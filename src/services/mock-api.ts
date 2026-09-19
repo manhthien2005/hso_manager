@@ -5,6 +5,7 @@ import {
   type CreateAccountInput,
   type SendCommandInput,
   type Update,
+  type UpdateAccountInput,
   type UpdateListener,
   type ZeusApi,
 } from "@/services/api";
@@ -475,6 +476,55 @@ export const mockApi: ZeusApi = {
     load().accounts.push(newAccount);
     emit({ account: newAccount });
     return structuredClone(newAccount);
+  },
+
+  async updateAccount(input: UpdateAccountInput) {
+    await delay();
+    if (!input.accountId || typeof input.accountId !== "string" || input.accountId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account ID is required");
+    }
+    if (!input.label || typeof input.label !== "string" || input.label.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account label must not be empty");
+    }
+    if (
+      typeof input.serverIndex !== "number" ||
+      !Number.isInteger(input.serverIndex) ||
+      input.serverIndex < 0 ||
+      input.serverIndex > 7
+    ) {
+      throw new ApiError(
+        "INVALID_ACCOUNT_INPUT",
+        "Server index must be an integer between 0 and 7",
+      );
+    }
+
+    const current = findAccount(input.accountId);
+
+    const patch: Partial<Account> = {
+      label: input.label.trim(),
+      serverId: input.serverIndex,
+      config: {
+        ...current.config,
+        serverId: input.serverIndex,
+      },
+    };
+
+    if (input.credentials !== undefined) {
+      const { username, password } = input.credentials;
+      if (!username || typeof username !== "string" || username.trim().length === 0) {
+        throw new ApiError("INVALID_ACCOUNT_INPUT", "Username must not be empty");
+      }
+      if (!password || typeof password !== "string" || password.length === 0) {
+        throw new ApiError("INVALID_ACCOUNT_INPUT", "Password must not be empty");
+      }
+      patch.config = {
+        ...patch.config!,
+        accountName: username,
+      };
+    }
+
+    const updated = setAccount(input.accountId, patch);
+    return structuredClone(updated);
   },
 
   async updateAccountConfig(accountId, input) {

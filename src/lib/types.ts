@@ -109,6 +109,16 @@ export interface CreateAccountInput {
   serverIndex: number;
 }
 
+export interface UpdateAccountInput {
+  accountId: string;
+  label: string;
+  serverIndex: number;
+  credentials?: {
+    username: string;
+    password: string;
+  };
+}
+
 export interface AccountConfig {
   accountName: string;
   characterName: string;

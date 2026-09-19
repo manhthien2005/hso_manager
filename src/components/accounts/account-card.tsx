@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { Account } from "@/lib/types";
 import { useAccountCommand } from "@/hooks/use-account-command";
@@ -7,6 +8,7 @@ import { AccountStatusBadge } from "@/components/ui/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TelemetryPanel } from "@/components/accounts/telemetry-panel";
+import { EditAccountModal } from "@/components/accounts/edit-account-modal";
 import { formatServerDisplay } from "@/lib/game-servers";
 
 /**
@@ -27,6 +29,7 @@ export function AccountCard({
   disabledReason?: string;
 }) {
   const { run, busyWith } = useAccountCommand(account.id);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const actionsDisabled = disabledReason !== undefined || account.status === "offline";
 
   return (
@@ -83,13 +86,30 @@ export function AccountCard({
         >
           Restart
         </Button>
-        <Link
-          href={`/account/${account.id}/config`}
-          className="ml-auto inline-flex h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium text-muted transition-colors hover:text-foreground"
-        >
-          Configure
-        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setIsEditOpen(true)}
+          >
+            Edit
+          </Button>
+          <Link
+            href={`/account/${account.id}/config`}
+            className="inline-flex h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium text-muted transition-colors hover:text-foreground"
+          >
+            Configure
+          </Link>
+        </div>
       </div>
+
+      {isEditOpen ? (
+        <EditAccountModal
+          account={account}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
     </Card>
   );
 }
