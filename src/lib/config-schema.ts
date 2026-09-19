@@ -106,12 +106,19 @@ export interface ConfigFieldAction extends ConfigFieldBase {
   buttonLabel: string;
 }
 
+export interface ConfigFieldTravelMap extends ConfigFieldBase {
+  type: "travel-map";
+  min?: number;
+  max?: number;
+}
+
 export type ConfigField =
   | ConfigFieldToggle
   | ConfigFieldNumber
   | ConfigFieldSelect
   | ConfigFieldFlags
-  | ConfigFieldAction;
+  | ConfigFieldAction
+  | ConfigFieldTravelMap;
 
 export interface ConfigSection {
   id: string;
@@ -236,9 +243,9 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
         {
           path: "nav.target",
           label: "Nav Target Map",
-          type: "number",
+          type: "travel-map",
           min: -1,
-          max: 9999,
+          max: 135,
           help: "Map ID to travel to. -1 = off. Agent clears this when destination is reached.",
         },
         {
@@ -566,7 +573,7 @@ export function validateDraft(
         continue;
       }
 
-      if (field.type === "number") {
+      if (field.type === "number" || field.type === "travel-map") {
         const n = Number(raw);
         if (raw === "" || raw === undefined || Number.isNaN(n)) {
           errors[field.path] = `${field.label} must be a number`;

@@ -1,0 +1,126 @@
+/**
+ * Game Map Catalog
+ *
+ * Source:
+ * Client: Zeus_Knight.jar
+ * CTL_VERSION: 13
+ * MAP_MAX: 136
+ */
+
+export interface GameMapOption {
+  readonly id: number;
+  readonly name: string;
+  readonly travelSupported: boolean;
+  readonly notes?: string;
+}
+
+export const GAME_MAPS: readonly GameMapOption[] = [
+  { id: 0, name: "Ngôi Làng Nhỏ", travelSupported: true, notes: "Khu tân thủ xuất phát" },
+  { id: 1, name: "Làng Sói Trắng", travelSupported: true, notes: "Thị trấn trung tâm, hồi sinh, đá dịch chuyển" },
+  { id: 2, name: "Khu mỏ", travelSupported: true },
+  { id: 3, name: "Bìa Rừng", travelSupported: true },
+  { id: 4, name: "Hang Lửa", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 5, name: "Rừng Ảo Giác", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 6, name: "Khe Vực", travelSupported: true },
+  { id: 7, name: "Cánh Đồng Sói", travelSupported: true, notes: "Ngã rẽ lớn Region 1" },
+  { id: 8, name: "Thung Lũng Kỳ Bí", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 9, name: "Hồ Ký Ức", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 10, name: "Bãi Đất Trống", travelSupported: true },
+  { id: 11, name: "Bờ Biển", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 12, name: "Vực Đá", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 13, name: "Rặng Đá Ngầm", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 14, name: "Nghĩa Địa Tàu Đắm", travelSupported: true },
+  { id: 15, name: "Đầm Lầy", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 16, name: "Đền Cổ", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 17, name: "Hang Dơi", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 18, name: "Hang Sói Quỷ", travelSupported: true, notes: "Cửa hang nối Region 1 và 2" },
+  { id: 19, name: "Cửa Biển", travelSupported: true, notes: "Bến phà Haku nối sang map 67" },
+  { id: 20, name: "Sa Mạc", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 21, name: "Đồi Cát", travelSupported: true, notes: "Đường mê cung mazeChain" },
+  { id: 22, name: "Vực Lún", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 23, name: "Hố Tử Thần", travelSupported: true },
+  { id: 24, name: "Nghĩa địa cát", travelSupported: true, notes: "Trung tâm sa mạc, có đá dịch chuyển" },
+  { id: 25, name: "Rừng Chết", travelSupported: true },
+  { id: 26, name: "Suối Ma", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 27, name: "Thung Lũng Đá", travelSupported: true },
+  { id: 28, name: "Boss Guardian", travelSupported: true, notes: "Vùng Boss ngoài trời" },
+  { id: 29, name: "Hầm Mộ Tầng 1", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 30, name: "Hầm Mộ Tầng 2", travelSupported: true },
+  { id: 31, name: "Hầm Mộ Tầng 3", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 32, name: "Hầm mộ quái vật", travelSupported: true, notes: "Phòng boss Mummy" },
+  { id: 33, name: "Thành Phố Kho Báu", travelSupported: true, notes: "Thị trấn trung tâm Region 2, có đá dịch chuyển" },
+  { id: 34, name: "Khu phía Tây", travelSupported: true },
+  { id: 35, name: "Khu phía Đông", travelSupported: true },
+  { id: 36, name: "Đấu Trường", travelSupported: true, notes: "Đấu trường phụ nối từ map 33" },
+  { id: 37, name: "Rừng cao nguyên", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 38, name: "Con đường hiểm trở", travelSupported: true, notes: "Đường mê cung mazeChain" },
+  { id: 39, name: "Vách đá cheo leo", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 40, name: "Núi Cầu Vòng", travelSupported: true },
+  { id: 41, name: "Lối lên Thượng giới", travelSupported: true, notes: "Đường mê cung mazeChain, có đá dịch chuyển" },
+  { id: 42, name: "Đèo hoang sơ", travelSupported: true },
+  { id: 43, name: "Đường xuống lòng đất", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 44, name: "Cây cầu ma ám", travelSupported: true },
+  { id: 45, name: "Cổng vào Hạ giới", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 46, name: "Đấu Trường", travelSupported: true, notes: "Đấu trường phụ nối từ map 33" },
+  { id: 47, name: "Đồi xác chết", travelSupported: true },
+  { id: 48, name: "Ngã tư tử thần", travelSupported: false, notes: "Phó bản chính (vào qua NPC Phó chỉ huy Map 1)" },
+  { id: 49, name: "Phó bản mới", travelSupported: false, notes: "Phó bản sự kiện" },
+  { id: 50, name: "Khu vườn", travelSupported: true, notes: "Vườn nối từ Map 1, có đá dịch chuyển" },
+  { id: 51, name: "Cổng thiên đàng", travelSupported: true, notes: "Đích nối từ map 41" },
+  { id: 52, name: "Cổng địa ngục", travelSupported: true, notes: "Nối 45 và 62" },
+  { id: 53, name: "Chuẩn bị (Ánh sáng)", travelSupported: false, notes: "Phòng chờ chiến trường" },
+  { id: 54, name: "Làng ánh sáng", travelSupported: false, notes: "Làng phe phái ánh sáng" },
+  { id: 55, name: "Chuẩn bị (Gió)", travelSupported: false, notes: "Phòng chờ chiến trường" },
+  { id: 56, name: "Làng gió", travelSupported: false, notes: "Làng phe phái gió" },
+  { id: 57, name: "Chuẩn bị (Sét)", travelSupported: false, notes: "Phòng chờ chiến trường" },
+  { id: 58, name: "Làng sét", travelSupported: false, notes: "Làng phe phái sét" },
+  { id: 59, name: "Chuẩn bị (Lửa)", travelSupported: false, notes: "Phòng chờ chiến trường" },
+  { id: 60, name: "Làng lửa", travelSupported: false, notes: "Làng phe phái lửa" },
+  { id: 61, name: "Chiến trường", travelSupported: false, notes: "Chiến trường phe phái tổng" },
+  { id: 62, name: "Địa ngục tầng 1", travelSupported: true, notes: "Nối từ Cổng địa ngục 52" },
+  { id: 63, name: "Rừng medusa", travelSupported: true },
+  { id: 64, name: "Rừng Chimera", travelSupported: true },
+  { id: 65, name: "Rừng quái vật", travelSupported: true },
+  { id: 66, name: "Thác reo", travelSupported: true },
+  { id: 67, name: "Thành phố cảng", travelSupported: true, notes: "Thị trấn Region 3, bến phà Haku, có đá dịch chuyển" },
+  { id: 68, name: "Khu bờ nam", travelSupported: true },
+  { id: 69, name: "Khu bờ bắc", travelSupported: true },
+  { id: 70, name: "Khu bờ tây", travelSupported: true },
+  { id: 71, name: "Rừng chuột", travelSupported: true },
+  { id: 72, name: "Rừng hoa đỏ", travelSupported: true },
+  { id: 73, name: "Vịnh Caribe", travelSupported: true },
+  { id: 74, name: "Mê cung", travelSupported: true, notes: "Cửa vào Mê cung, có đá dịch chuyển" },
+  { id: 75, name: "Mê cung tầng 1", travelSupported: true },
+  { id: 76, name: "Mê cung tầng 2", travelSupported: true },
+  { id: 77, name: "Mê cung tầng 3", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 78, name: "Mê cung tầng 4", travelSupported: true },
+  { id: 79, name: "Mê cung tầng cuối", travelSupported: true, notes: "Tầng cuối nối sang Cổng trắng 92" },
+  { id: 80, name: "Thi đấu", travelSupported: false, notes: "Đấu trường giải đấu" },
+  { id: 81, name: "Bản đồ 81 (Chưa đặt tên)", travelSupported: false, notes: "Chuỗi rỗng trong df.gE[81]" },
+  { id: 82, name: "Khu mua bán", travelSupported: false, notes: "Khu chợ phi chiến đấu" },
+  { id: 83, name: "Cửa đông", travelSupported: false, notes: "Cổng phụ thị trấn" },
+  { id: 84, name: "Cửa tây", travelSupported: false, notes: "Cổng phụ thị trấn" },
+  { id: 85, name: "Cửa nam", travelSupported: false, notes: "Cổng phụ thị trấn" },
+  { id: 86, name: "Cửa bắc", travelSupported: false, notes: "Cổng phụ thị trấn" },
+  { id: 87, name: "Đấu trường", travelSupported: false, notes: "Đấu trường tự do" },
+  { id: 88, name: "Map 88", travelSupported: false, notes: "Slot dự phòng client" },
+  { id: 89, name: "Map 89", travelSupported: false, notes: "Slot dự phòng client" },
+  { id: 90, name: "Map 90", travelSupported: false, notes: "Slot dự phòng client" },
+  { id: 91, name: "Map 91", travelSupported: false, notes: "Slot dự phòng client" },
+  { id: 92, name: "Cổng trắng", travelSupported: true, notes: "Cửa ngõ vùng Núi Tuyết nối từ 79" },
+  { id: 93, name: "Thị trấn mùa đông", travelSupported: true, notes: "Thị trấn Núi Tuyết, có đá dịch chuyển" },
+  { id: 94, name: "Thung lũng băng giá", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 95, name: "Chân núi tuyết", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 96, name: "Đèo băng giá", travelSupported: true, notes: "Đường mê cung mazeChain, có đá dịch chuyển" },
+  { id: 97, name: "Vực thẳm sương mù", travelSupported: true, notes: "Có đá dịch chuyển" },
+  { id: 98, name: "Trạm núi tuyết", travelSupported: true, notes: "Điểm cuối Núi Tuyết, có đá dịch chuyển" },
+  { id: 127, name: "UNKNOWN (Bản đồ 127)", travelSupported: false, notes: "Đích cụt một chiều từ 135, không có tên trong client" },
+  { id: 135, name: "Làng Phủ Sương", travelSupported: false, notes: "Map xuất phát một chiều (ra map 1 và 127), không thể route tới" },
+] as const;
+
+export const GAME_MAP_BY_ID = new Map<number, GameMapOption>(
+  GAME_MAPS.map((map) => [map.id, map]),
+);
+
+export const TRAVEL_SUPPORTED_MAPS: readonly GameMapOption[] =
+  GAME_MAPS.filter((map) => map.travelSupported);
