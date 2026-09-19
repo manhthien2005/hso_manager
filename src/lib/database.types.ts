@@ -1,9 +1,7 @@
 /**
- * Auto-generated database types cho Supabase.
- * Cập nhật bằng: npx supabase gen types typescript --project-id wuyxkksihkmsmwuiuvdk > src/lib/database.types.ts
- *
- * Hiện tại viết tay từ schema 001_zeus_schema.sql.
- * Sau khi Supabase CLI available, generate tự động.
+ * Hand-maintained database types for Supabase.
+ * Note: devices.pubkey BYTEA REST serialization is non-canonical.
+ * Use get_device_sealing_pubkey() RPC for canonical cryptographic input.
  */
 
 export interface Database {
@@ -109,10 +107,26 @@ export interface Database {
       claim_device: {
         Args: {
           code: string;
-          device_name: string;
-          device_pubkey: string; // bytea → base64
         };
         Returns: string; // uuid của device
+      };
+      get_device_sealing_pubkey: {
+        Args: {
+          p_device_id: string;
+        };
+        Returns: string; // canonical one-line base64 SEC1 uncompressed P-256 pubkey
+      };
+      create_game_account: {
+        Args: {
+          p_device_id: string;
+          p_label: string;
+          p_username: string;
+          p_secret_sealed: Record<string, unknown>;
+          p_server_index: number;
+          p_control_version: number;
+          p_control: Record<string, unknown>;
+        };
+        Returns: string; // uuid của account vừa tạo
       };
     };
   };
