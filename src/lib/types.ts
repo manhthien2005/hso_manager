@@ -270,4 +270,3 @@ export interface SealedCredentials {
   nonce: string;
   ct: string;
 }
-
