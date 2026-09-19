@@ -21,6 +21,13 @@
 
 import { supabase } from "@/lib/supabase";
 import { sanitizeViewerUrl } from "@/lib/format";
+import { sealCredentials, type SealedCredentials } from "@/lib/credential-sealing";
+import {
+  CONTROL_SCHEMA,
+  defaultControlDraft,
+  draftToControlRecord,
+  validateDraft,
+} from "@/lib/config-schema";
 import type {
   Account,
   AccountConfig,
@@ -28,6 +35,7 @@ import type {
   Command,
   CommandStatus,
   CommandType,
+  CreateAccountInput,
   Device,
   DeviceMetrics,
   User,
@@ -243,6 +251,115 @@ class SupabaseApi implements ZeusApi {
       account_runtime: RuntimeRow | null;
     };
     return mapAccount(acc, rt);
+  }
+
+  async createAccount(input: CreateAccountInput): Promise<Account> {
+    // 1. Basic input validation
+    if (!input.deviceId || typeof input.deviceId !== "string" || input.deviceId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Device ID is required");
+    }
+    if (!input.label || typeof input.label !== "string" || input.label.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account label must not be empty");
+    }
+    if (!input.username || typeof input.username !== "string" || input.username.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Username must not be empty");
+    }
+    if (!input.password || typeof input.password !== "string" || input.password.length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Password must not be empty");
+    }
+    if (
+      typeof input.serverIndex !== "number" ||
+      !Number.isInteger(input.serverIndex) ||
+      input.serverIndex < 0 ||
+      input.serverIndex > 7
+    ) {
+      throw new ApiError(
+        "INVALID_ACCOUNT_INPUT",
+        "Server index must be an integer between 0 and 7",
+      );
+    }
+
+    // 2. Load and validate target device
+    const device = await this.getDevice(input.deviceId);
+    if (!device) {
+      throw new ApiError("NOT_FOUND", `Device ${input.deviceId} not found`);
+    }
+
+    const ctlVersion = device.jar_ctl_version;
+    if (ctlVersion === null || ctlVersion <= 0 || !CONTROL_SCHEMA[ctlVersion]) {
+      throw new ApiError(
+        "UNSUPPORTED_CTL_VERSION",
+        `Device ${input.deviceId} has unsupported or missing CTL version (${ctlVersion ?? "null"})`,
+      );
+    }
+
+    // 3. Build and validate canonical default control block
+    const draft = defaultControlDraft();
+    const validationErrors = validateDraft(draft, ctlVersion);
+    if (Object.keys(validationErrors).length > 0) {
+      throw new ApiError(
+        "INVALID_CONTROL_DEFAULT",
+        `Default control block is invalid for CTL version ${ctlVersion}: ${Object.values(validationErrors).join(", ")}`,
+      );
+    }
+    const control = draftToControlRecord(draft);
+
+    // 4. Fetch canonical device sealing pubkey RPC
+    const { data: pubkey, error: pubkeyError } = await supabase.rpc(
+      "get_device_sealing_pubkey",
+      {
+        p_device_id: input.deviceId,
+      },
+    );
+    if (pubkeyError) {
+      throw new ApiError("FETCH_SEALING_KEY", pubkeyError.message);
+    }
+    if (!pubkey || typeof pubkey !== "string" || pubkey.trim().length === 0) {
+      throw new ApiError(
+        "FETCH_SEALING_KEY",
+        `Device ${input.deviceId} has no valid sealing public key`,
+      );
+    }
+
+    // 5. Seal credentials in browser
+    let sealed: SealedCredentials;
+    try {
+      sealed = await sealCredentials(pubkey, input.username, input.password);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to seal credentials";
+      throw new ApiError("SEAL_CREDENTIALS", message);
+    }
+
+    // 6. Call atomic create_game_account RPC
+    const { data: newAccountId, error: createError } = await supabase.rpc(
+      "create_game_account",
+      {
+        p_device_id: input.deviceId,
+        p_label: input.label,
+        p_username: input.username,
+        p_secret_sealed: sealed as unknown as Record<string, unknown>,
+        p_server_index: input.serverIndex,
+        p_control_version: ctlVersion,
+        p_control: control,
+      },
+    );
+    if (createError) {
+      throw new ApiError("CREATE_ACCOUNT", createError.message);
+    }
+    if (!newAccountId) {
+      throw new ApiError("CREATE_ACCOUNT", "create_game_account returned no account ID");
+    }
+
+    // 7. Fetch newly-created Account with runtime
+    const account = await this.getAccount(newAccountId);
+    if (!account) {
+      throw new ApiError(
+        "FETCH_ACCOUNT",
+        `Created account ${newAccountId} could not be retrieved`,
+      );
+    }
+
+    return account;
   }
 
   async updateAccountConfig(

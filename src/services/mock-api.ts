@@ -2,11 +2,19 @@ import {
   ApiError,
   CommandFailedError,
   type CommandResult,
+  type CreateAccountInput,
   type SendCommandInput,
   type Update,
   type UpdateListener,
   type ZeusApi,
 } from "@/services/api";
+import {
+  CONTROL_SCHEMA,
+  defaultAccountConfig,
+  defaultControlDraft,
+  draftToControlRecord,
+  validateDraft,
+} from "@/lib/config-schema";
 import {
   SEED_ACCOUNTS,
   SEED_CREDENTIALS,
@@ -401,6 +409,72 @@ export const mockApi: ZeusApi = {
     ensureTick();
     const account = load().accounts.find((item) => item.id === accountId);
     return account ? structuredClone(account) : null;
+  },
+
+  async createAccount(input: CreateAccountInput) {
+    await delay();
+    if (!input.deviceId || typeof input.deviceId !== "string" || input.deviceId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Device ID is required");
+    }
+    if (!input.label || typeof input.label !== "string" || input.label.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account label must not be empty");
+    }
+    if (!input.username || typeof input.username !== "string" || input.username.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Username must not be empty");
+    }
+    if (!input.password || typeof input.password !== "string" || input.password.length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Password must not be empty");
+    }
+    if (
+      typeof input.serverIndex !== "number" ||
+      !Number.isInteger(input.serverIndex) ||
+      input.serverIndex < 0 ||
+      input.serverIndex > 7
+    ) {
+      throw new ApiError(
+        "INVALID_ACCOUNT_INPUT",
+        "Server index must be an integer between 0 and 7",
+      );
+    }
+
+    const device = findDevice(input.deviceId);
+    const ctlVersion = device.jar_ctl_version;
+    if (ctlVersion === null || ctlVersion <= 0 || !CONTROL_SCHEMA[ctlVersion]) {
+      throw new ApiError(
+        "UNSUPPORTED_CTL_VERSION",
+        `Device ${input.deviceId} has unsupported or missing CTL version (${ctlVersion ?? "null"})`,
+      );
+    }
+
+    const draft = defaultControlDraft();
+    const errors = validateDraft(draft, ctlVersion);
+    if (Object.keys(errors).length > 0) {
+      throw new ApiError(
+        "INVALID_CONTROL_DEFAULT",
+        `Default control block is invalid for CTL version ${ctlVersion}`,
+      );
+    }
+    const control = draftToControlRecord(draft);
+
+    const newAccount: Account = {
+      id: nextId("acc"),
+      deviceId: device.deviceId,
+      label: input.label.trim(),
+      status: "stopped",
+      characterName: null,
+      serverId: input.serverIndex,
+      ramMb: null,
+      pid: null,
+      config: defaultAccountConfig(input.username),
+      control,
+      control_version: ctlVersion,
+      config_status: null,
+      snapshot: null,
+    };
+
+    load().accounts.push(newAccount);
+    emit({ account: newAccount });
+    return structuredClone(newAccount);
   },
 
   async updateAccountConfig(accountId, input) {

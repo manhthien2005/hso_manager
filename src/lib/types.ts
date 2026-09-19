@@ -98,6 +98,14 @@ export interface AccountControlUpdate {
   controlVersion: number;
 }
 
+export interface CreateAccountInput {
+  deviceId: string;
+  label: string;
+  username: string;
+  password: string;
+  serverIndex: number;
+}
+
 export interface AccountConfig {
   accountName: string;
   characterName: string;

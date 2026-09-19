@@ -22,6 +22,7 @@ import type {
   Account,
   AccountControlUpdate,
   CommandType,
+  CreateAccountInput,
   Device,
   User,
   ViewerSession,
@@ -56,6 +57,9 @@ export const pendingKey = {
   viewer(deviceId: string) {
     return `viewer:${deviceId}`;
   },
+  accountCreate(deviceId: string) {
+    return `account:create:${deviceId}`;
+  },
 } as const;
 
 interface ZeusStoreValue {
@@ -76,6 +80,7 @@ interface ZeusStoreValue {
   reloadFleet(): Promise<void>;
   refreshDevice(deviceId: string): Promise<Device>;
   runCommand(input: SendCommandInput): Promise<CommandResult>;
+  createAccount(input: CreateAccountInput): Promise<Account>;
   saveConfig(accountId: string, input: AccountControlUpdate): Promise<Account>;
 
   connectViewer(deviceId: string): Promise<ViewerSession>;
@@ -281,6 +286,14 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
             throw error;
           }
         });
+      },
+
+      async createAccount(input) {
+        const created = await track(pendingKey.accountCreate(input.deviceId), () =>
+          api.createAccount(input),
+        );
+        applyUpdate({ account: created });
+        return created;
       },
 
       async saveConfig(accountId, input) {

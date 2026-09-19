@@ -34,6 +34,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["devices"]["Insert"]>;
+        Relationships: [];
       };
       accounts: {
         Row: {
@@ -61,6 +62,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["accounts"]["Insert"]>;
+        Relationships: [];
       };
       account_runtime: {
         Row: {
@@ -81,6 +83,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["account_runtime"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "account_runtime_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: true;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       commands: {
         Row: {
@@ -101,8 +112,10 @@ export interface Database {
           expires_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["commands"]["Insert"]>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
     Functions: {
       claim_device: {
         Args: {
@@ -129,5 +142,7 @@ export interface Database {
         Returns: string; // uuid của account vừa tạo
       };
     };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

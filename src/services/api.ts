@@ -3,12 +3,15 @@ import type {
   AccountControlUpdate,
   Command,
   CommandType,
+  CreateAccountInput,
   Device,
   User,
   ViewerSession,
 } from "@/lib/types";
 import { mockApi } from "@/services/mock-api";
 import { supabaseApi } from "@/services/supabase-api";
+
+export type { CreateAccountInput };
 
 /**
  * Data-access contract for the whole UI.
@@ -31,6 +34,7 @@ export interface ZeusApi {
 
   getAccounts(deviceId?: string): Promise<Account[]>;
   getAccount(accountId: string): Promise<Account | null>;
+  createAccount(input: CreateAccountInput): Promise<Account>;
   updateAccountConfig(
     accountId: string,
     input: AccountControlUpdate,
