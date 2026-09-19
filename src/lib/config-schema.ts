@@ -586,7 +586,7 @@ export function validateDraft(
         field.type === "game-map"
       ) {
         const n = Number(raw);
-        if (raw === "" || raw === undefined || Number.isNaN(n)) {
+        if (raw === "" || raw === undefined || raw === null || Number.isNaN(n)) {
           errors[field.path] = `${field.label} must be a number`;
           continue;
         }

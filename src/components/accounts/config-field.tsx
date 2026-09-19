@@ -79,6 +79,7 @@ export function ConfigFieldInput({
     const hasValidNum =
       value !== "" &&
       value !== undefined &&
+      value !== null &&
       !Number.isNaN(numValue) &&
       Number.isInteger(numValue);
 
@@ -136,6 +137,7 @@ export function ConfigFieldInput({
     const hasValidNum =
       value !== "" &&
       value !== undefined &&
+      value !== null &&
       !Number.isNaN(numValue) &&
       Number.isInteger(numValue);
 

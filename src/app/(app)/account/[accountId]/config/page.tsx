@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { ConfigFieldInput } from "@/components/accounts/config-field";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
@@ -80,6 +80,11 @@ function ConfigForm({
       ? controlRecordToDraft(account.control)
       : defaultControlDraft(),
   );
+  const draftRef = useRef<ConfigDraft>(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
   const [errors, setErrors] = useState<ConfigErrors>({});
   const [touched, setTouched] = useState(false);
   const saving = isPending(pendingKey.config(account.id));
@@ -96,14 +101,16 @@ function ConfigForm({
   const versionMismatch = account.config_status === "version_mismatch";
 
   function handleChange(path: ConfigPath, value: ConfigValue) {
-    const next = { ...draft, [path]: value };
+    const next = { ...draftRef.current, [path]: value };
+    draftRef.current = next;
     setDraft(next);
     if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0));
   }
 
   async function handleSave() {
     if (jarCtlVersion === null || !sections) return;
-    const nextErrors = validateDraft(draft, jarCtlVersion);
+    const currentDraft = draftRef.current;
+    const nextErrors = validateDraft(currentDraft, jarCtlVersion);
     setErrors(nextErrors);
     setTouched(true);
     if (Object.keys(nextErrors).length > 0) {
@@ -111,7 +118,7 @@ function ConfigForm({
       return;
     }
     try {
-      const control = draftToControlRecord(draft);
+      const control = draftToControlRecord(currentDraft);
       await saveConfig(account.id, {
         control,
         controlVersion: jarCtlVersion,
@@ -128,11 +135,11 @@ function ConfigForm({
   }
 
   function handleReset() {
-    setDraft(
-      account.control
-        ? controlRecordToDraft(account.control)
-        : defaultControlDraft(),
-    );
+    const next = account.control
+      ? controlRecordToDraft(account.control)
+      : defaultControlDraft();
+    draftRef.current = next;
+    setDraft(next);
     setErrors({});
     setTouched(false);
   }
