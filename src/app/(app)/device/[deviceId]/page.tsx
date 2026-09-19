@@ -10,12 +10,12 @@ import { DeviceStatusBadge, MetricBar } from "@/components/ui/status";
 import { describeError } from "@/services/api";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
 import { useToast } from "@/store/toast-store";
-import { formatRam, formatRelativeTime, formatUptime } from "@/lib/format";
+import { buildVncUrl, formatRam, formatRelativeTime, formatUptime } from "@/lib/format";
 import type { Device } from "@/lib/types";
 
 /**
  * VPS detail: identity, live metrics, viewer availability, account list and
- * Refresh / Open Viewer / Manage accounts actions.
+ * Refresh / Open VNC / Manage accounts actions.
  *
  * Route param is `deviceId` (the agent fingerprint), matching the sidebar and
  * the viewer route; the internal `id` is never in a URL.
@@ -45,6 +45,8 @@ export default function DeviceDetailPage({
   const accounts = accountsOf(device.deviceId);
   const online = device.status === "online";
   const busy = isPending(pendingKey.device(device.deviceId));
+  const vncUrl = buildVncUrl(device.viewer_url);
+  const vncAvailable = online && Boolean(vncUrl);
 
   async function handleRefresh() {
     try {
@@ -72,12 +74,15 @@ export default function DeviceDetailPage({
               Refresh
             </Button>
             <ButtonLink
-              href={`/device/${device.deviceId}/viewer`}
+              href={vncUrl ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
               size="sm"
-              variant={online ? "primary" : "secondary"}
-              disabled={!online}
+              variant={vncAvailable ? "primary" : "secondary"}
+              disabled={!vncAvailable}
+              title={!online ? "Node offline" : !vncUrl ? "VNC URL is not available for this node." : "Open VNC in new tab"}
             >
-              Open Viewer
+              Open VNC
             </ButtonLink>
             <ButtonLink href={`/device/${device.deviceId}/accounts`} size="sm">
               Manage accounts
@@ -89,8 +94,14 @@ export default function DeviceDetailPage({
       {!online ? (
         <Card className="mb-4 border-warning/40 bg-warning/8 px-4 py-3">
           <p className="text-sm text-warning">
-            {device.name} is offline. Commands and the viewer are unavailable until the agent
+            {device.name} is offline. Commands and VNC are unavailable until the agent
             reconnects — last heartbeat {formatRelativeTime(device.lastSeen)}.
+          </p>
+        </Card>
+      ) : !vncUrl ? (
+        <Card className="mb-4 border-warning/40 bg-warning/8 px-4 py-3">
+          <p className="text-sm text-warning">
+            VNC URL is not available for this node.
           </p>
         </Card>
       ) : null}
@@ -129,14 +140,14 @@ export default function DeviceDetailPage({
                   <dl className="divide-y divide-border border-t border-border pt-2">
                     <FactRow label="Uptime" value={formatUptime(device.metrics.uptimeSeconds)} mono />
                     <FactRow label="Last seen" value={formatRelativeTime(device.lastSeen)} />
-                    <FactRow label="Viewer" value={device.viewerAvailable ? "Available" : "No tunnel"} />
+                    <FactRow label="VNC" value={vncUrl ? "Available" : "Not configured"} />
                   </dl>
                 </>
               ) : (
                 <dl className="divide-y divide-border">
                   <FactRow label="Last seen" value={formatRelativeTime(device.lastSeen)} />
                   <FactRow label="Uptime" value="—" mono />
-                  <FactRow label="Viewer" value="Unavailable" />
+                  <FactRow label="VNC" value="Node offline" />
                 </dl>
               )}
             </div>

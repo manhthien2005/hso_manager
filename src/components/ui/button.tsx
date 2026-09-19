@@ -70,6 +70,7 @@ interface ButtonLinkProps {
   children: ReactNode;
   target?: string;
   rel?: string;
+  title?: string;
 }
 
 export function ButtonLink({
@@ -82,19 +83,41 @@ export function ButtonLink({
   children,
   target,
   rel,
+  title,
 }: ButtonLinkProps) {
   const classes = disabled
     ? `${buttonClass(variant, size, className)} pointer-events-none opacity-50`
     : buttonClass(variant, size, className);
 
+  const isExternal = href.startsWith("http://") || href.startsWith("https://");
+  const effectiveRel = rel ?? (target === "_blank" ? "noopener noreferrer" : undefined);
+
+  if (isExternal) {
+    return (
+      <a
+        href={disabled ? undefined : href}
+        target={target}
+        rel={effectiveRel}
+        className={classes}
+        aria-disabled={disabled || undefined}
+        tabIndex={disabled ? -1 : undefined}
+        title={title}
+      >
+        {icon}
+        {children}
+      </a>
+    );
+  }
+
   return (
     <Link
-      href={href}
+      href={disabled ? "#" : href}
       target={target}
-      rel={rel}
+      rel={effectiveRel}
       className={classes}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : undefined}
+      title={title}
     >
       {icon}
       {children}

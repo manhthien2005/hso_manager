@@ -1,18 +1,20 @@
 import Link from "next/link";
 import type { Account, Device } from "@/lib/types";
-import { formatRam, formatRelativeTime, formatUptime } from "@/lib/format";
+import { buildVncUrl, formatRam, formatRelativeTime, formatUptime } from "@/lib/format";
 import { AccountStatusBadge, DeviceStatusBadge, MetricBar } from "@/components/ui/status";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 
 /**
  * Dashboard VPS card. Mirrors the spec layout: name + status on top, metrics,
- * then the account rows, then [Manage] / [View].
+ * then the account rows, then [Manage] / [Open VNC].
  * Offline devices drop metrics for "Last seen" since there is nothing live.
  */
 export function DeviceCard({ device, accounts }: { device: Device; accounts: Account[] }) {
   const online = device.status === "online";
   const detailHref = `/device/${device.deviceId}`;
+  const vncUrl = buildVncUrl(device.viewer_url);
+  const vncAvailable = online && Boolean(vncUrl);
 
   return (
     <Card className="flex flex-col">
@@ -69,8 +71,15 @@ export function DeviceCard({ device, accounts }: { device: Device; accounts: Acc
         <ButtonLink href={`${detailHref}/accounts`} variant="primary" className="flex-1">
           Manage
         </ButtonLink>
-        <ButtonLink href={`${detailHref}/viewer`} className="flex-1">
-          View
+        <ButtonLink
+          href={vncUrl ?? "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          disabled={!vncAvailable}
+          className="flex-1"
+          title={!online ? "Node offline" : !vncUrl ? "VNC URL is not available for this node." : "Open VNC in new tab"}
+        >
+          Open VNC
         </ButtonLink>
       </div>
     </Card>
