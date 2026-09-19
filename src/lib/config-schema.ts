@@ -112,13 +112,20 @@ export interface ConfigFieldTravelMap extends ConfigFieldBase {
   max?: number;
 }
 
+export interface ConfigFieldGameMap extends ConfigFieldBase {
+  type: "game-map";
+  min?: number;
+  max?: number;
+}
+
 export type ConfigField =
   | ConfigFieldToggle
   | ConfigFieldNumber
   | ConfigFieldSelect
   | ConfigFieldFlags
   | ConfigFieldAction
-  | ConfigFieldTravelMap;
+  | ConfigFieldTravelMap
+  | ConfigFieldGameMap;
 
 export interface ConfigSection {
   id: string;
@@ -455,9 +462,9 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
         {
           path: "atk.map",
           label: "Map ID",
-          type: "number",
+          type: "game-map",
           min: 0,
-          max: 65535,
+          max: 255,
           help: "0 = no spot set.",
         },
         {
@@ -573,7 +580,11 @@ export function validateDraft(
         continue;
       }
 
-      if (field.type === "number" || field.type === "travel-map") {
+      if (
+        field.type === "number" ||
+        field.type === "travel-map" ||
+        field.type === "game-map"
+      ) {
         const n = Number(raw);
         if (raw === "" || raw === undefined || Number.isNaN(n)) {
           errors[field.path] = `${field.label} must be a number`;

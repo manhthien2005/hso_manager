@@ -24,6 +24,8 @@ import {
   formatAtkstate,
   formatStuck,
   formatQuota,
+  formatTelemetryMap,
+  formatTravelGoal,
   healthOf,
 } from "@/lib/format";
 
@@ -157,7 +159,7 @@ export function TelemetryPanel({ account }: { account: Account }) {
             label="MP"
             value={`${snap.mp} / ${snap.mpmax}`}
           />
-          <Row id="telemetry-map" label="Map" value={String(snap.map)} />
+          <Row id="telemetry-map" label="Map" value={formatTelemetryMap(snap.map)} />
           <Row id="telemetry-zone" label="Zone" value={String(snap.zone)} />
           {/* gold/gem: dash until opcode 16 delivers the wallet — C4.2 */}
           <Row id="telemetry-gold" label="Gold" value={formatGold(snap.gold)} />
@@ -176,6 +178,7 @@ export function TelemetryPanel({ account }: { account: Account }) {
           {snap.travel !== 0 ? (
             <Row id="telemetry-travelstate" label="Travel" value={String(snap.travelstate)} />
           ) : null}
+          <Row id="telemetry-travelgoal" label="Travel Goal" value={formatTravelGoal(snap.travelgoal)} />
 
           {/* Dungeon state — only when dungeon module active */}
           {snap.dungeonstate !== 0 ? (

@@ -8,7 +8,13 @@ import type {
   ConfigPath,
   ConfigValue,
 } from "@/lib/config-schema";
-import { GAME_MAP_BY_ID, TRAVEL_SUPPORTED_MAPS } from "@/lib/game-maps";
+import {
+  GAME_MAPS,
+  GAME_MAP_BY_ID,
+  TRAVEL_SUPPORTED_MAPS,
+  formatGameMap,
+  getGameMap,
+} from "@/lib/game-maps";
 import { SelectField, TextField, ToggleField } from "@/components/ui/field";
 
 /**
@@ -16,7 +22,7 @@ import { SelectField, TextField, ToggleField } from "@/components/ui/field";
  * The config page owns draft state and validation; this only maps
  * `ConfigField.type` to an input and reports raw values back.
  *
- * Supported types: toggle, number, select, flags, action, travel-map.
+ * Supported types: toggle, number, select, flags, action, travel-map, game-map.
  * Number values stay numbers in the draft (not strings), so validation
  * compares numeric ranges directly without a parse step.
  */
@@ -119,6 +125,50 @@ export function ConfigFieldInput({
         error={error}
         options={options}
         value={hasValidNum ? String(numValue) : "-1"}
+        disabled={disabled}
+        onChange={(e) => set(Number(e.target.value))}
+      />
+    );
+  }
+
+  if (field.type === "game-map") {
+    const numValue = typeof value === "number" ? value : Number(value);
+    const hasValidNum =
+      value !== "" &&
+      value !== undefined &&
+      !Number.isNaN(numValue) &&
+      Number.isInteger(numValue);
+
+    let diagnosticOption: { value: string; label: string } | null = null;
+    if (hasValidNum && !GAME_MAP_BY_ID.has(numValue)) {
+      diagnosticOption = {
+        value: String(numValue),
+        label: formatGameMap(numValue),
+      };
+    }
+
+    const options = [
+      ...(diagnosticOption ? [diagnosticOption] : []),
+      ...GAME_MAPS.map((m) => ({
+        value: String(m.id),
+        label: `[${m.id}] ${m.name}`,
+      })),
+    ];
+
+    const currentMap = hasValidNum ? getGameMap(numValue) : undefined;
+    const selectedNotes = currentMap?.notes;
+    const effectiveHelp = selectedNotes
+      ? `${field.help ? `${field.help} · ` : ""}${selectedNotes}`
+      : field.help;
+
+    return (
+      <SelectField
+        id={id}
+        label={field.label}
+        help={effectiveHelp}
+        error={error}
+        options={options}
+        value={hasValidNum ? String(numValue) : "0"}
         disabled={disabled}
         onChange={(e) => set(Number(e.target.value))}
       />

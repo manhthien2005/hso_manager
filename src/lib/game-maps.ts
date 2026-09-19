@@ -124,3 +124,15 @@ export const GAME_MAP_BY_ID = new Map<number, GameMapOption>(
 
 export const TRAVEL_SUPPORTED_MAPS: readonly GameMapOption[] =
   GAME_MAPS.filter((map) => map.travelSupported);
+
+export function getGameMap(id: number): GameMapOption | undefined {
+  return GAME_MAP_BY_ID.get(id);
+}
+
+export function formatGameMap(id: number): string {
+  const map = GAME_MAP_BY_ID.get(id);
+  if (map) {
+    return `[${map.id}] ${map.name}`;
+  }
+  return `Unknown map [${id}]`;
+}

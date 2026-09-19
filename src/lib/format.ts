@@ -3,6 +3,7 @@
  */
 
 import type { Account, HealthStatus, PlayerSnapshot } from "@/lib/types";
+import { formatGameMap } from "@/lib/game-maps";
 
 export function formatRelativeTime(timestamp: number | null, now = Date.now()): string {
   if (timestamp === null) return "never";
@@ -125,6 +126,24 @@ export function formatStuck(stuck: number): string | null {
 export function formatQuota(snap: PlayerSnapshot): string {
   if (snap.quota <= 0) return "0 (limit reached)";
   return String(snap.quota);
+}
+
+/**
+ * Format snapshot map ID.
+ * -1 = loading / current map unavailable.
+ */
+export function formatTelemetryMap(mapId: number | null | undefined): string {
+  if (mapId === undefined || mapId === null || mapId === -1) return "Loading";
+  return formatGameMap(mapId);
+}
+
+/**
+ * Format travel destination map ID.
+ * -1 = no active destination / arrived.
+ */
+export function formatTravelGoal(goalId: number | null | undefined): string {
+  if (goalId === undefined || goalId === null || goalId === -1) return "—";
+  return formatGameMap(goalId);
 }
 
 /**
