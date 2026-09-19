@@ -126,22 +126,80 @@ export function formatQuota(snap: PlayerSnapshot): string {
 }
 
 /**
- * Normalizes a viewer URL and strips any malformed host/port query params
- * (e.g. host=https://... which causes noVNC to attempt wss://https//...).
+ * Normalizes a raw viewer/VNC URL, base domain, or complete noVNC address
+ * into the canonical noVNC URL for direct browser navigation.
+ *
+ * Guarantees:
+ * - Appends /vnc.html if missing or base path only
+ * - Injects canonical noVNC WebSocket parameters:
+ *   - host: parsed.hostname (never contains protocol)
+ *   - port: explicit URL port or default (443 for HTTPS, 80 for HTTP)
+ *   - encrypt: 1 for HTTPS, 0 for HTTP
+ *   - path: preserves existing path or defaults to 'websockify'
+ * - Preserves unrelated existing query parameters (e.g. autoconnect, resize)
+ * - Actively overrides stale browser localStorage settings in noVNC 1.0.0
  */
 export function sanitizeViewerUrl(rawUrl: string | null | undefined): string | null {
   if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
   try {
-    const parsed = new URL(rawUrl);
-    const hostParam = parsed.searchParams.get("host");
-    if (hostParam && (hostParam.startsWith("http://") || hostParam.startsWith("https://"))) {
-      parsed.searchParams.delete("host");
-      parsed.searchParams.delete("port");
+    if (trimmed.includes("://") && !trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      return null;
+    }
+
+    const parsed = new URL(
+      trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        ? trimmed
+        : `https://${trimmed}`
+    );
+    if (!parsed.hostname) return null;
+
+    const isHttps = parsed.protocol === "https:";
+    const isHttp = parsed.protocol === "http:";
+    if (!isHttps && !isHttp) return null;
+
+    // Ensure canonical noVNC page when path is empty or root
+    if (parsed.pathname === "" || parsed.pathname === "/") {
+      parsed.pathname = "/vnc.html";
+    }
+
+    // Force canonical WebSocket connection parameters
+    parsed.searchParams.set("host", parsed.hostname);
+    parsed.searchParams.set("port", parsed.port || (isHttps ? "443" : "80"));
+    parsed.searchParams.set("encrypt", isHttps ? "1" : "0");
+
+    if (!parsed.searchParams.get("path")) {
+      parsed.searchParams.set("path", "websockify");
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds canonical noVNC URL with default UI parameters (autoconnect=1, resize=scale).
+ */
+export function buildVncUrl(rawUrl: string | null | undefined): string | null {
+  const sanitized = sanitizeViewerUrl(rawUrl);
+  if (!sanitized) return null;
+
+  try {
+    const parsed = new URL(sanitized);
+    if (!parsed.searchParams.has("autoconnect")) {
+      parsed.searchParams.set("autoconnect", "1");
+    }
+    if (!parsed.searchParams.has("resize")) {
+      parsed.searchParams.set("resize", "scale");
     }
     return parsed.toString();
   } catch {
-    return rawUrl;
+    return sanitized;
   }
 }
+
 
 
