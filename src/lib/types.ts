@@ -131,7 +131,12 @@ export type CommandType =
   | "open-viewer"
   | "close-viewer";
 
-export type CommandStatus = "queued" | "running" | "success" | "failed";
+export type CommandStatus =
+  | "queued"
+  | "running"
+  | "success"
+  | "failed"
+  | "expired";
 
 /** Write intent sent to the Supabase `commands` table; the agent drains it. */
 export interface Command {

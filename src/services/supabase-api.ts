@@ -9,7 +9,7 @@
  * - Realtime: subscribe `devices`, `accounts`, `account_runtime`, `commands` qua
  *   supabase.channel() — Supabase JS SDK tự lo Phoenix protocol.
  * - Write path (sendCommand, updateAccountConfig): INSERT/PATCH qua PostgREST.
- * - No polling: `onUpdate` drives từ realtime, không có setInterval.
+ * - State synchronization: `onUpdate` drives từ realtime, command execution awaits terminal status via sequential polling.
  *
  * ## Mapping DB → frontend types
  *
@@ -25,6 +25,9 @@ import type {
   Account,
   AccountConfig,
   AccountControlUpdate,
+  Command,
+  CommandStatus,
+  CommandType,
   Device,
   DeviceMetrics,
   User,
@@ -37,12 +40,13 @@ import type {
   CommandResult,
   UpdateListener,
 } from "@/services/api";
-import { ApiError } from "@/services/api";
+import { ApiError, CommandFailedError } from "@/services/api";
 import type { Database } from "@/lib/database.types";
 
 type DeviceRow = Database["public"]["Tables"]["devices"]["Row"];
 type AccountRow = Database["public"]["Tables"]["accounts"]["Row"];
 type RuntimeRow = Database["public"]["Tables"]["account_runtime"]["Row"];
+type CommandRow = Database["public"]["Tables"]["commands"]["Row"];
 
 // ── mappers ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +131,19 @@ function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
     control_version: acc.control_version,
     config_status: rt?.config_status ?? null,
     snapshot: (rt?.snapshot as import("@/lib/types").PlayerSnapshot | null) ?? null,
+  };
+}
+
+function mapCommand(row: CommandRow): Command {
+  return {
+    id: row.id,
+    accountId: row.account_id ?? "",
+    deviceId: row.device_id,
+    type: row.type as CommandType,
+    status: row.status as CommandStatus,
+    createdAt: new Date(row.created_at).getTime(),
+    finishedAt: row.finished_at ? new Date(row.finished_at).getTime() : null,
+    message: row.message ?? null,
   };
 }
 
@@ -281,42 +298,123 @@ class SupabaseApi implements ZeusApi {
   // ── commands ──────────────────────────────────────────────────────────────
 
   async sendCommand({ accountId, type }: SendCommandInput): Promise<CommandResult> {
-    // Get account + device first.
+    const COMMAND_POLL_INTERVAL_MS = 400;
+    const COMMAND_TIMEOUT_MS = 30_000;
+
+    // 1. Get account + device first to validate ownership & existence.
     const account = await this.getAccount(accountId);
     if (!account) throw new ApiError("NOT_FOUND", `Account ${accountId} not found`);
     const device = await this.getDevice(account.deviceId);
     if (!device) throw new ApiError("NOT_FOUND", `Device ${account.deviceId} not found`);
 
-    // Insert command row.
-    const { data, error } = await supabase
-      .from("commands")
+    // 2. Insert command row with status = "queued".
+    const { data: insertedRow, error: insertError } = await (
+      supabase.from("commands") as unknown as {
+        insert(values: {
+          device_id: string;
+          account_id: string;
+          type: string;
+          status: string;
+        }): {
+          select(): {
+            single(): Promise<{
+              data: CommandRow | null;
+              error: import("@supabase/supabase-js").PostgrestError | null;
+            }>;
+          };
+        };
+      }
+    )
       .insert({
         device_id: account.deviceId,
         account_id: accountId,
         type,
         status: "queued",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+      })
       .select()
-      .single() as { data: Database["public"]["Tables"]["commands"]["Row"] | null; error: import("@supabase/supabase-js").PostgrestError | null };
+      .single();
 
-    if (error) throw new ApiError("SEND_COMMAND", error.message);
-    const row = data!;
+    if (insertError) throw new ApiError("SEND_COMMAND", insertError.message);
+    if (!insertedRow) throw new ApiError("SEND_COMMAND", "Failed to insert command");
 
-    return {
-      command: {
-        id: row.id,
-        type: row.type as import("@/lib/types").CommandType,
-        status: row.status as import("@/lib/types").CommandStatus,
-        createdAt: new Date(row.created_at).getTime(),
-        finishedAt: row.finished_at ? new Date(row.finished_at).getTime() : null,
-        message: row.message ?? null,
-        accountId: row.account_id ?? accountId,
-        deviceId: row.device_id,
-      },
-      account,
-      device,
+    const commandId = insertedRow.id;
+
+    // 3. Wait for terminal command state via sequential polling.
+    const startTime = Date.now();
+    let terminalRow: CommandRow | null = null;
+
+    while (Date.now() - startTime < COMMAND_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, COMMAND_POLL_INTERVAL_MS));
+
+      const { data: cmdRow, error: pollError } = (await supabase
+        .from("commands")
+        .select("*")
+        .eq("id", commandId)
+        .maybeSingle()) as {
+          data: CommandRow | null;
+          error: import("@supabase/supabase-js").PostgrestError | null;
+        };
+
+      if (pollError) {
+        throw new ApiError("FETCH_COMMAND", pollError.message);
+      }
+
+      if (!cmdRow) {
+        throw new ApiError("NOT_FOUND", `Command ${commandId} not found`);
+      }
+
+      const status = cmdRow.status;
+      if (status === "success" || status === "failed" || status === "expired") {
+        terminalRow = cmdRow;
+        break;
+      }
+
+      if (status === "queued" || status === "running") {
+        continue;
+      }
+
+      throw new ApiError("UNSUPPORTED_STATUS", `Unsupported command status: ${status}`);
+    }
+
+    // 4. Web timeout: command is still non-terminal. Do NOT mutate or delete the DB row.
+    if (!terminalRow) {
+      throw new ApiError(
+        "COMMAND_TIMEOUT",
+        `Command ${type} timed out waiting for execution. The command is still pending and may execute later.`
+      );
+    }
+
+    // 5. Fetch fresh Account & Device post-command.
+    const freshAccount = await this.getAccount(accountId);
+    if (!freshAccount) throw new ApiError("NOT_FOUND", `Account ${accountId} not found after command execution`);
+    const freshDevice = await this.getDevice(freshAccount.deviceId);
+    if (!freshDevice) throw new ApiError("NOT_FOUND", `Device ${freshAccount.deviceId} not found after command execution`);
+
+    const command = mapCommand(terminalRow);
+    const result: CommandResult = {
+      command,
+      account: freshAccount,
+      device: freshDevice,
     };
+
+    // 6. Terminal status branches:
+    if (terminalRow.status === "success") {
+      return result;
+    }
+
+    if (terminalRow.status === "failed") {
+      const failureMessage =
+        command.message ?? `${type} failed on ${freshDevice.name}`;
+      throw new CommandFailedError(failureMessage, result);
+    }
+
+    if (terminalRow.status === "expired") {
+      const expiredMessage =
+        command.message ?? `Command ${type} expired before execution on ${freshDevice.name}`;
+      throw new CommandFailedError(expiredMessage, result);
+    }
+
+    throw new ApiError("UNSUPPORTED_STATUS", `Unsupported command status: ${terminalRow.status}`);
   }
 
   // ── viewer ────────────────────────────────────────────────────────────────

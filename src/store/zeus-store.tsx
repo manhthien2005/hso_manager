@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   api,
+  CommandFailedError,
   type CommandResult,
   type SendCommandInput,
   type Update,
@@ -264,10 +265,22 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         return track(pendingKey.device(deviceId), () => api.refreshDevice(deviceId));
       },
 
-      runCommand({ accountId, type }) {
-        return track(pendingKey.command(accountId, type), () =>
-          api.sendCommand({ accountId, type }),
-        );
+      async runCommand({ accountId, type }) {
+        return track(pendingKey.command(accountId, type), async () => {
+          try {
+            const result = await api.sendCommand({ accountId, type });
+            applyUpdate({ account: result.account, device: result.device });
+            return result;
+          } catch (error) {
+            if (error instanceof CommandFailedError) {
+              applyUpdate({
+                account: error.result.account,
+                device: error.result.device,
+              });
+            }
+            throw error;
+          }
+        });
       },
 
       async saveConfig(accountId, input) {
