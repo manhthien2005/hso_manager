@@ -5,21 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
 import { CONTROL_SCHEMA } from "@/lib/config-schema";
+import { SERVER_OPTIONS } from "@/lib/game-servers";
 import type { Account, Device } from "@/lib/types";
 import { describeError, isApiError } from "@/services/api";
 import { useToast } from "@/store/toast-store";
 import { useZeusStore } from "@/store/zeus-store";
-
-const SERVER_OPTIONS = [
-  { value: 0, label: "Server 0" },
-  { value: 1, label: "Server 1" },
-  { value: 2, label: "Server 2" },
-  { value: 3, label: "Server 3" },
-  { value: 4, label: "Server 4" },
-  { value: 5, label: "Server 5" },
-  { value: 6, label: "Server 6" },
-  { value: 7, label: "Server 7" },
-];
 
 type SubmitMode = "create" | "create-start" | null;
 
@@ -92,10 +82,9 @@ export function CreateAccountForm({
     if (
       typeof serverIndex !== "number" ||
       !Number.isInteger(serverIndex) ||
-      serverIndex < 0 ||
-      serverIndex > 7
+      !SERVER_OPTIONS.some((server) => server.value === serverIndex)
     ) {
-      newErrors.serverIndex = "Server index must be an integer between 0 and 7";
+      newErrors.serverIndex = "Please select a valid game server";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -218,7 +207,7 @@ export function CreateAccountForm({
           <SelectField
             id="create-account-server"
             label="Server"
-            options={SERVER_OPTIONS}
+            options={[...SERVER_OPTIONS]}
             value={serverIndex}
             onChange={(e) => {
               setServerIndex(Number(e.target.value));

@@ -7,6 +7,7 @@ import { AccountStatusBadge } from "@/components/ui/status";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TelemetryPanel } from "@/components/accounts/telemetry-panel";
+import { formatServerDisplay } from "@/lib/game-servers";
 
 /**
  * Account row per the spec: label, status, character, server, RAM, PID and the
@@ -40,7 +41,7 @@ export function AccountCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
         <Fact label="Character" value={account.characterName ?? "—"} />
-        <Fact label="Server" value={account.serverId === null ? "—" : String(account.serverId)} />
+        <Fact label="Server" value={formatServerDisplay(account.serverId)} />
         <Fact label="RAM" value={account.ramMb === null ? "—" : `${Math.round(account.ramMb)} MB`} />
         <Fact label="PID" value={account.pid === null ? "—" : String(account.pid)} />
       </dl>
