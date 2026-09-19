@@ -2,9 +2,10 @@
 
 import { use, useState } from "react";
 import { AccountCard } from "@/components/accounts/account-card";
+import { CreateAccountForm } from "@/components/accounts/create-account-form";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
 import { DeviceStatusBadge } from "@/components/ui/status";
 import { useZeusStore } from "@/store/zeus-store";
@@ -33,6 +34,8 @@ export default function DeviceAccountsPage({
   const { deviceId } = use(params);
   const { devices, accountsOf } = useZeusStore();
   const [filter, setFilter] = useState<AccountStatus | "all">("all");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const device = devices.find((item) => item.deviceId === deviceId);
   if (device === undefined) {
@@ -81,16 +84,39 @@ export default function DeviceAccountsPage({
           </span>
         }
         actions={
-          <ButtonLink
-            href={`/device/${device.deviceId}/viewer`}
-            size="sm"
-            variant="primary"
-            disabled={device.status !== "online"}
-          >
-            Open Viewer
-          </ButtonLink>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isSubmitting}
+              onClick={() => setIsCreateOpen((open) => !open)}
+            >
+              {isCreateOpen ? "Cancel" : "Add Account"}
+            </Button>
+            <ButtonLink
+              href={`/device/${device.deviceId}/viewer`}
+              size="sm"
+              variant="primary"
+              disabled={device.status !== "online"}
+            >
+              Open Viewer
+            </ButtonLink>
+          </div>
         }
       />
+
+      {isCreateOpen ? (
+        <div className="mb-6">
+          <CreateAccountForm
+            device={device}
+            onClose={() => {
+              setIsCreateOpen(false);
+              setIsSubmitting(false);
+            }}
+            onSubmittingChange={setIsSubmitting}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap gap-2">
         {chips.map((option) => {
@@ -117,7 +143,18 @@ export default function DeviceAccountsPage({
         <Card>
           <EmptyState
             title="No accounts yet"
-            hint="Accounts appear here once the Zeus Agent registers them on this VPS."
+            hint="Add a game account to manage it on this device."
+            action={
+              !isCreateOpen ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsCreateOpen(true)}
+                >
+                  Add Account
+                </Button>
+              ) : undefined
+            }
           />
         </Card>
       ) : (
