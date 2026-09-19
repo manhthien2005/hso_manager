@@ -19,7 +19,7 @@ import {
 import { sanitizeViewerUrl } from "@/lib/format";
 import type {
   Account,
-  AccountConfig,
+  AccountControlUpdate,
   CommandType,
   Device,
   User,
@@ -75,7 +75,7 @@ interface ZeusStoreValue {
   reloadFleet(): Promise<void>;
   refreshDevice(deviceId: string): Promise<Device>;
   runCommand(input: SendCommandInput): Promise<CommandResult>;
-  saveConfig(accountId: string, config: AccountConfig): Promise<Account>;
+  saveConfig(accountId: string, input: AccountControlUpdate): Promise<Account>;
 
   connectViewer(deviceId: string): Promise<ViewerSession>;
   disconnectViewer(deviceId: string): Promise<ViewerSession>;
@@ -270,10 +270,12 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         );
       },
 
-      saveConfig(accountId, config) {
-        return track(pendingKey.config(accountId), () =>
-          api.updateAccountConfig(accountId, config),
+      async saveConfig(accountId, input) {
+        const updated = await track(pendingKey.config(accountId), () =>
+          api.updateAccountConfig(accountId, input),
         );
+        applyUpdate({ account: updated });
+        return updated;
       },
 
       async connectViewer(deviceId) {
@@ -299,6 +301,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [
     accounts,
+    applyUpdate,
     devices,
     loadFleet,
     loadingFleet,

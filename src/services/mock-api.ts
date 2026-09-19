@@ -403,36 +403,21 @@ export const mockApi: ZeusApi = {
     return account ? structuredClone(account) : null;
   },
 
-  async updateAccountConfig(accountId, config) {
+  async updateAccountConfig(accountId, input) {
     await delay();
     const account = findAccount(accountId);
     const device = findDevice(account.deviceId);
     requireOnline(device);
 
-    // Free RAM = total - used, plus whatever this account already holds, so
-    // re-saving an unchanged limit always passes while a genuine over-commit
-    // does not.
-    const freeMb =
-      device.metrics.ramTotalMb - device.metrics.ramUsedMb + (account.ramMb ?? 0);
-    if (config.memoryLimitMb > freeMb) {
-      throw new ApiError(
-        "MEMORY_OVER_COMMIT",
-        `${device.name} has only ${freeMb} MB free — ${config.memoryLimitMb} MB requested`,
-      );
-    }
-
-    const live = account.status !== "stopped";
     const updated = setAccount(accountId, {
-      config,
-      // Character/server follow the config so the list updates visibly.
-      characterName: live ? config.characterName : null,
-      serverId: live ? config.serverId : null,
+      control: input.control,
+      control_version: input.controlVersion,
     });
     recordCommand(
       updated,
       "apply-config",
       "success",
-      `Config saved for ${config.accountName}`,
+      `Control v${input.controlVersion} saved for ${account.label}`,
     );
     return structuredClone(updated);
   },

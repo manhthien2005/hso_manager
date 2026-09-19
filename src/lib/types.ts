@@ -93,6 +93,11 @@ export interface Account {
   snapshot: PlayerSnapshot | null;
 }
 
+export interface AccountControlUpdate {
+  control: Record<string, unknown>;
+  controlVersion: number;
+}
+
 export interface AccountConfig {
   accountName: string;
   characterName: string;

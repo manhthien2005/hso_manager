@@ -82,11 +82,13 @@ function ConfigForm({
   );
   const [errors, setErrors] = useState<ConfigErrors>({});
   const [touched, setTouched] = useState(false);
-
   const saving = isPending(pendingKey.config(account.id));
+  const persistedDraft = account.control
+    ? controlRecordToDraft(account.control)
+    : defaultControlDraft();
   const dirty =
-    JSON.stringify(draftToControlRecord(draft)) !==
-    JSON.stringify(account.control ?? defaultControlDraft());
+    JSON.stringify(controlRecordToDraft(draftToControlRecord(draft))) !==
+    JSON.stringify(persistedDraft);
   const offline = device?.status !== "online";
   const errorCount = Object.keys(errors).length;
 
@@ -109,10 +111,11 @@ function ConfigForm({
       return;
     }
     try {
-      // saveConfig receives the control record + control_version.
-      // The legacy `AccountConfig` path is kept in the store for mock-api compat;
-      // the Supabase implementation will ignore it and use `control`.
-      await saveConfig(account.id, account.config);
+      const control = draftToControlRecord(draft);
+      await saveConfig(account.id, {
+        control,
+        controlVersion: jarCtlVersion,
+      });
       setTouched(false);
       push(
         "success",

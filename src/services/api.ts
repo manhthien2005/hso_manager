@@ -1,6 +1,6 @@
 import type {
   Account,
-  AccountConfig,
+  AccountControlUpdate,
   Command,
   CommandType,
   Device,
@@ -31,7 +31,10 @@ export interface ZeusApi {
 
   getAccounts(deviceId?: string): Promise<Account[]>;
   getAccount(accountId: string): Promise<Account | null>;
-  updateAccountConfig(accountId: string, config: AccountConfig): Promise<Account>;
+  updateAccountConfig(
+    accountId: string,
+    input: AccountControlUpdate,
+  ): Promise<Account>;
 
   sendCommand(input: SendCommandInput): Promise<CommandResult>;
 

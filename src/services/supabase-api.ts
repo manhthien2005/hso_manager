@@ -24,6 +24,7 @@ import { sanitizeViewerUrl } from "@/lib/format";
 import type {
   Account,
   AccountConfig,
+  AccountControlUpdate,
   Device,
   DeviceMetrics,
   User,
@@ -229,19 +230,26 @@ class SupabaseApi implements ZeusApi {
 
   async updateAccountConfig(
     accountId: string,
-    config: AccountConfig
+    input: AccountControlUpdate,
   ): Promise<Account> {
     // config_version bump signals the agent that new config needs applying.
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = (await supabase
       .from("accounts")
       .select("config_version")
       .eq("id", accountId)
-      .single() as { data: { config_version: number } | null };
+      .maybeSingle()) as {
+        data: { config_version: number } | null;
+        error: import("@supabase/supabase-js").PostgrestError | null;
+      };
 
-    const nextVersion = (existing?.config_version ?? 0) + 1;
+    if (lookupError) throw new ApiError("FETCH_ACCOUNT", lookupError.message);
+    if (!existing) throw new ApiError("NOT_FOUND", `Account ${accountId} not found`);
+
+    const nextVersion = (existing.config_version ?? 0) + 1;
 
     const updatePayload = {
-      control: config as unknown as Record<string, unknown>,
+      control: input.control,
+      control_version: input.controlVersion,
       config_version: nextVersion,
       updated_at: new Date().toISOString(),
     };
@@ -250,19 +258,23 @@ class SupabaseApi implements ZeusApi {
       .from("accounts") as unknown as {
         update(v: typeof updatePayload): {
           eq(col: string, val: string): {
-            select(q: string): { single(): Promise<{ data: (AccountRow & { account_runtime: RuntimeRow | null }) | null; error: import("@supabase/supabase-js").PostgrestError | null }> }
-          }
-        }
+            select(q: string): {
+              single(): Promise<{
+                data: (AccountRow & { account_runtime: RuntimeRow | null }) | null;
+                error: import("@supabase/supabase-js").PostgrestError | null;
+              }>;
+            };
+          };
+        };
       })
       .update(updatePayload)
       .eq("id", accountId)
       .select("*, account_runtime(*)")
       .single();
 
-
-
     if (error) throw new ApiError("UPDATE_CONFIG", error.message);
-    const { account_runtime: rt, ...acc } = data!;
+    if (!data) throw new ApiError("NOT_FOUND", `Account ${accountId} not found after update`);
+    const { account_runtime: rt, ...acc } = data;
     return mapAccount(acc, rt);
   }
 
