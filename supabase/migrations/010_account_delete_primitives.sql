@@ -37,16 +37,40 @@
 --        but desired_state = 'stopped' is an additional mandatory consistency invariant.
 --
 -- Concurrency safety:
---   The accounts row is locked FOR UPDATE before any validation occurs.
---   PostgreSQL FK enforcement on commands INSERT acquires a KEY SHARE lock on the
---   referenced accounts row.  FOR UPDATE conflicts with KEY SHARE, therefore any
---   concurrent INSERT INTO commands WHERE account_id = p_account_id BLOCKS until
---   this transaction commits or rolls back.
---   If this transaction commits (deletes the account), the concurrent INSERT gets
---   a FK violation and fails — no zombie command is inserted.
---   If this transaction rolls back, the concurrent INSERT proceeds normally.
---   This makes the deletion decision transactional around concurrent lifecycle
---   command insertion without any additional primitives.
+--   Two-tier row-level locking enforces transactional race-freedom:
+--
+--   Lock Order:
+--     1. owned accounts row FOR UPDATE
+--     2. all existing commands rows for that account FOR UPDATE
+--     3. validate stop proof
+--     4. stale-proof check
+--     5. active-command check
+--     6. desired_state hard gate
+--     7. DELETE account
+--
+--   1. Account row lock (new command INSERT serialization):
+--      PostgreSQL FK enforcement on commands INSERT acquires a KEY SHARE lock on
+--      the referenced accounts row. FOR UPDATE conflicts with KEY SHARE, therefore
+--      any concurrent INSERT INTO commands WHERE account_id = p_account_id BLOCKS
+--      until this transaction commits or rolls back.
+--      If this transaction commits (deletes the account), the concurrent INSERT
+--      gets a FK violation and fails — no zombie command is inserted.
+--      If this transaction rolls back, the concurrent INSERT proceeds normally.
+--
+--   2. Command row locks (existing command UPDATE serialization):
+--      While the account row lock blocks new INSERTs, it does not block UPDATEs
+--      to pre-existing command rows. Locking all existing commands rows FOR UPDATE
+--      freezes their state and serializes against concurrent mutations (such as
+--      Agent finish_command updating status / finished_at).
+--      Under Read Committed:
+--        - If an Agent UPDATE is already in progress, Delete waits for it to commit,
+--          then validates the resulting committed state (stale-proof or active guard
+--          will catch any completed/in-flight lifecycle change).
+--        - If Delete acquires the lock first, the Agent UPDATE blocks. Delete's
+--          active guard detects queued commands and aborts/rolls back, unblocking
+--          the Agent afterward.
+--
+--   No table-wide locks and no advisory locks are used.
 --
 -- Slot high-water:
 --   devices.next_slot_index is NEVER modified. The deleted slot is permanently
@@ -125,7 +149,25 @@ BEGIN
     RAISE EXCEPTION 'account not found or not owned by caller (account_id=%)', p_account_id;
   END IF;
 
-  -- ── 4. Validate the supplied Stop command proof ──────────────────────────
+  -- ── 4. Lock all existing command rows for account FOR UPDATE (Lock Order 2)
+  --
+  -- Lock Order 2: all existing commands rows for that account FOR UPDATE
+  --   Freezes the state of all pre-existing commands for this account, serializing
+  --   against concurrent mutations by the Agent (e.g. finish_command updating
+  --   status or finished_at).
+  --   Under Read Committed:
+  --     - If an Agent UPDATE is already in progress, this statement blocks until
+  --       that UPDATE commits, ensuring subsequent validation steps inspect the
+  --       resulting committed state (e.g. committed finished_at / status).
+  --     - If Delete locks the rows first, any concurrent Agent UPDATE blocks until
+  --       Delete completes. If Delete rejects and rolls back, the Agent UPDATE
+  --       proceeds afterward.
+  PERFORM 1
+  FROM public.commands
+  WHERE account_id = p_account_id
+  FOR UPDATE;
+
+  -- ── 5. Validate the supplied Stop command proof (Lock Order 3) ───────────
   --
   -- The command must exist and satisfy ALL of:
   --   type        = 'stop'
@@ -134,7 +176,7 @@ BEGIN
   --   account_id  = p_account_id           (not another account's stop)
   --   device_id   = target account.device_id (not another device's stop)
   --
-  -- We load finished_at for use in the stale-proof check (step 5).
+  -- We load finished_at for use in the stale-proof check (step 6).
   SELECT finished_at
   INTO v_proof_finished_at
   FROM public.commands
@@ -152,7 +194,7 @@ BEGIN
       p_stop_command_id, p_account_id, v_account_device_id;
   END IF;
 
-  -- ── 5. Stale-proof check — no later lifecycle command invalidates proof ──
+  -- ── 6. Stale-proof check — no later lifecycle command invalidates proof (Lock Order 4)
   --
   -- Stale-proof rule:
   --   A start or restart command invalidates the supplied Stop proof if either:
@@ -164,7 +206,7 @@ BEGIN
   --   command may have been created before the stop finished (created_at < stop.finished_at)
   --   but completed after the stop (finished_at > stop.finished_at).
   --   Queued/running commands have finished_at = NULL; they remain protected by the
-  --   active-command guard in step 6.
+  --   active-command guard in step 7.
   --   A later 'stop' command does not invalidate the proof (it reinforces it),
   --   so 'stop' is excluded from this check.
   SELECT COUNT(*)
@@ -184,12 +226,12 @@ BEGIN
       v_stale_count, v_proof_finished_at, p_account_id;
   END IF;
 
-  -- ── 6. Active command guard — no queued or running commands ─────────────
+  -- ── 7. Active command guard — no queued or running commands (Lock Order 5)
   --
   -- Belt-and-suspenders: catches any command (of any type) currently in-flight
-  -- for this account.  A concurrent Start INSERT is already serialised by the
-  -- FOR UPDATE lock in step 3, but a Start that was already queued before we
-  -- acquired the lock must also be caught here.
+  -- for this account.  A concurrent Start INSERT is serialized by the
+  -- FOR UPDATE lock on accounts in step 3.  Pre-existing commands are frozen
+  -- by the FOR UPDATE lock on commands in step 4.
   SELECT COUNT(*)
   INTO v_active_count
   FROM public.commands
@@ -203,11 +245,11 @@ BEGIN
       v_active_count, p_account_id;
   END IF;
 
-  -- ── 7. Desired-state consistency invariant (hard gate) ───────────────────
+  -- ── 8. Desired-state consistency invariant (hard gate) (Lock Order 6) ───
   --
   -- accounts.desired_state must be 'stopped'.
   --
-  -- The successful Stop command proof (steps 4–6) remains the authoritative
+  -- The successful Stop command proof (steps 5–7) remains the authoritative
   -- process-stop proof. However, accounts.desired_state = 'stopped' is an
   -- additional mandatory consistency invariant:
   --   Start   → desired_state = 'running'
@@ -227,7 +269,7 @@ BEGIN
       v_account_desired_state, p_account_id;
   END IF;
 
-  -- ── 8. Hard delete — FK CASCADE removes child rows atomically ───────────
+  -- ── 9. Hard delete — FK CASCADE removes child rows atomically (Lock Order 7)
   --
   -- The single DELETE on accounts cascades to:
   --   - account_runtime  (account_id → accounts.id ON DELETE CASCADE)
@@ -238,7 +280,7 @@ BEGIN
   DELETE FROM public.accounts
   WHERE id = p_account_id;
 
-  -- ── 9. Return the deleted account ID ────────────────────────────────────
+  -- ── 10. Return the deleted account ID ───────────────────────────────────
   RETURN p_account_id;
 END;
 $$;
