@@ -232,9 +232,6 @@ async function runCommand({ accountId, type }: SendCommandInput): Promise<Comman
   const device = findDevice(account.deviceId);
   requireOnline(device);
 
-  if (type === "stop" && account.status === "stopped") {
-    throw new ApiError("ALREADY_STOPPED", `${account.label} is already stopped`);
-  }
   if (type === "start" && account.status === "running") {
     throw new ApiError("ALREADY_RUNNING", `${account.label} is already running`);
   }
@@ -544,6 +541,98 @@ export const mockApi: ZeusApi = {
       `Control v${input.controlVersion} saved for ${account.label}`,
     );
     return structuredClone(updated);
+  },
+
+  async deleteAccount(accountId: string, stopCommandId: string): Promise<string> {
+    await delay();
+    if (!accountId || typeof accountId !== "string" || accountId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account ID is required");
+    }
+    if (!stopCommandId || typeof stopCommandId !== "string" || stopCommandId.trim().length === 0) {
+      throw new ApiError("INVALID_STOP_COMMAND_INPUT", "Stop command ID is required");
+    }
+
+    const current = load();
+    const account = current.accounts.find((a) => a.id === accountId);
+    if (!account) {
+      throw new ApiError("ACCOUNT_NOT_FOUND", `Account ${accountId} not found`);
+    }
+
+    // 1. Validate Stop command proof
+    const cmd = current.commands.find((c) => c.id === stopCommandId);
+    if (!cmd) {
+      throw new ApiError("INVALID_STOP_PROOF", `Stop command ${stopCommandId} not found`);
+    }
+    if (cmd.accountId !== accountId) {
+      throw new ApiError(
+        "INVALID_STOP_PROOF",
+        `Stop command ${stopCommandId} does not belong to account ${accountId}`,
+      );
+    }
+    if (cmd.deviceId !== account.deviceId) {
+      throw new ApiError(
+        "INVALID_STOP_PROOF",
+        `Stop command ${stopCommandId} does not belong to device ${account.deviceId}`,
+      );
+    }
+    if (cmd.type !== "stop") {
+      throw new ApiError(
+        "INVALID_STOP_PROOF",
+        `Command ${stopCommandId} is type "${cmd.type}", expected "stop"`,
+      );
+    }
+    if (cmd.status !== "success") {
+      throw new ApiError(
+        "INVALID_STOP_PROOF",
+        `Stop command ${stopCommandId} status is "${cmd.status}", expected "success"`,
+      );
+    }
+    if (cmd.finishedAt === null || cmd.finishedAt === undefined) {
+      throw new ApiError("INVALID_STOP_PROOF", `Stop command ${stopCommandId} has no finishedAt`);
+    }
+
+    const proofFinishedAt = cmd.finishedAt;
+
+    // 2. Stale proof check: no start/restart command with createdAt > proofFinishedAt or finishedAt >= proofFinishedAt
+    const staleCommand = current.commands.find(
+      (c) =>
+        c.accountId === accountId &&
+        (c.type === "start" || c.type === "restart") &&
+        (c.createdAt > proofFinishedAt ||
+          (c.finishedAt !== null && c.finishedAt >= proofFinishedAt)),
+    );
+    if (staleCommand) {
+      throw new ApiError(
+        "STALE_STOP_PROOF",
+        `Stop proof is stale: later or same-time start/restart command ${staleCommand.id} exists`,
+      );
+    }
+
+    // 3. Active command check: no queued or running commands for account
+    const activeCommand = current.commands.find(
+      (c) => c.accountId === accountId && (c.status === "queued" || c.status === "running"),
+    );
+    if (activeCommand) {
+      throw new ApiError(
+        "ACTIVE_COMMANDS_EXIST",
+        `Active command ${activeCommand.id} exists for account ${accountId}`,
+      );
+    }
+
+    // 4. Account lifecycle state check (mock parity for desired_state = 'stopped')
+    if (account.status !== "stopped") {
+      throw new ApiError(
+        "INVALID_ACCOUNT_STATE",
+        `Account status is "${account.status}", expected "stopped"`,
+      );
+    }
+
+    // 5. Cascade: remove account and account-specific commands
+    current.accounts = current.accounts.filter((a) => a.id !== accountId);
+    current.commands = current.commands.filter((c) => c.accountId !== accountId);
+
+    emit({ deletedAccountId: accountId });
+    return accountId;
   },
 
   sendCommand: runCommand,

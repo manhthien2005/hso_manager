@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import type { Account } from "@/lib/types";
 import { useAccountCommand } from "@/hooks/use-account-command";
 import { AccountStatusBadge } from "@/components/ui/status";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TelemetryPanel } from "@/components/accounts/telemetry-panel";
 import { EditAccountModal } from "@/components/accounts/edit-account-modal";
+import { DeleteAccountModal } from "@/components/accounts/delete-account-modal";
 import { formatServerDisplay } from "@/lib/game-servers";
+import { pendingKey, useZeusStore } from "@/store/zeus-store";
 
 /**
  * Account row per the spec: label, status, character, server, RAM, PID and the
- * Stop / Restart / Configure actions.
+ * Stop / Restart / Configure / Edit / Delete actions.
  *
  * `disabledReason` lets a parent (offline device) kill the actions with an
  * explanation instead of letting each click fail through the API.
@@ -29,7 +30,19 @@ export function AccountCard({
   disabledReason?: string;
 }) {
   const { run, busyWith } = useAccountCommand(account.id);
+  const { isPending } = useZeusStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  const isDeleting = isPending(pendingKey.accountDelete(account.id));
+  const isStarting = isPending(pendingKey.command(account.id, "start"));
+  const isStopping = isPending(pendingKey.command(account.id, "stop"));
+  const isRestarting = isPending(pendingKey.command(account.id, "restart"));
+  const isUpdating = isPending(pendingKey.accountUpdate(account.id));
+  const isConfiguring = isPending(pendingKey.config(account.id));
+
+  const isCommandBusy = isStarting || isStopping || isRestarting;
+  const isAnyMutationPending = isDeleting || isCommandBusy || isUpdating || isConfiguring;
   const actionsDisabled = disabledReason !== undefined || account.status === "offline";
 
   return (
@@ -64,7 +77,7 @@ export function AccountCard({
             size="sm"
             variant="primary"
             busy={busyWith("start")}
-            disabled={actionsDisabled}
+            disabled={actionsDisabled || isDeleting || isAnyMutationPending}
             onClick={() => run("start")}
           >
             Start
@@ -73,7 +86,7 @@ export function AccountCard({
         <Button
           size="sm"
           busy={busyWith("stop")}
-          disabled={actionsDisabled || account.status === "stopped"}
+          disabled={actionsDisabled || account.status === "stopped" || isDeleting || isAnyMutationPending}
           onClick={() => run("stop")}
         >
           Stop
@@ -81,7 +94,7 @@ export function AccountCard({
         <Button
           size="sm"
           busy={busyWith("restart")}
-          disabled={actionsDisabled || account.status === "stopped"}
+          disabled={actionsDisabled || account.status === "stopped" || isDeleting || isAnyMutationPending}
           onClick={() => run("restart")}
         >
           Restart
@@ -90,16 +103,28 @@ export function AccountCard({
           <Button
             size="sm"
             variant="secondary"
+            disabled={actionsDisabled || isDeleting || isAnyMutationPending}
             onClick={() => setIsEditOpen(true)}
           >
             Edit
           </Button>
-          <Link
+          <ButtonLink
             href={`/account/${account.id}/config`}
-            className="inline-flex h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium text-muted transition-colors hover:text-foreground"
+            size="sm"
+            variant="secondary"
+            disabled={isDeleting}
           >
             Configure
-          </Link>
+          </ButtonLink>
+          <Button
+            size="sm"
+            variant="danger"
+            busy={isDeleting}
+            disabled={actionsDisabled || isDeleting || isAnyMutationPending}
+            onClick={() => setIsDeleteOpen(true)}
+          >
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -108,6 +133,14 @@ export function AccountCard({
           account={account}
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
+        />
+      ) : null}
+
+      {isDeleteOpen ? (
+        <DeleteAccountModal
+          account={account}
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
         />
       ) : null}
     </Card>

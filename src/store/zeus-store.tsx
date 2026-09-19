@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   api,
+  ApiError,
   CommandFailedError,
   type CommandResult,
   type SendCommandInput,
@@ -64,6 +65,9 @@ export const pendingKey = {
   accountUpdate(accountId: string) {
     return `account:update:${accountId}`;
   },
+  accountDelete(accountId: string) {
+    return `account:delete:${accountId}`;
+  },
 } as const;
 
 interface ZeusStoreValue {
@@ -87,6 +91,7 @@ interface ZeusStoreValue {
   createAccount(input: CreateAccountInput): Promise<Account>;
   updateAccount(input: UpdateAccountInput): Promise<Account>;
   saveConfig(accountId: string, input: AccountControlUpdate): Promise<Account>;
+  deleteAccount(accountId: string): Promise<string>;
 
   connectViewer(deviceId: string): Promise<ViewerSession>;
   disconnectViewer(deviceId: string): Promise<ViewerSession>;
@@ -107,6 +112,9 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
   const [viewerSessions, setViewerSessions] = useState<Record<string, ViewerSession>>({});
   const [loadingFleet, setLoadingFleet] = useState(false);
   const [pending, setPending] = useState<Record<string, boolean>>({});
+
+  // Provider-lifetime tombstone preventing stale async updates or reloadFleet from resurrecting deleted accounts.
+  const deletedAccountIdsRef = useRef<Set<string>>(new Set());
 
   // Guards every async write so an unmounted provider can't set state.
   const mounted = useRef(true);
@@ -141,6 +149,13 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
 
   const applyUpdate = useCallback((update: Update) => {
     if (!mounted.current) return;
+
+    if (update.deletedAccountId) {
+      const deletedId = update.deletedAccountId;
+      deletedAccountIdsRef.current.add(deletedId);
+      setAccounts((current) => current.filter((item) => item.id !== deletedId));
+    }
+
     if (update.device) {
       const device = update.device;
       setDevices((current) => {
@@ -180,8 +195,13 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     }
+
     if (update.account) {
       const account = update.account;
+      // CRITICAL: If account was deleted/tombstoned, ignore stale update!
+      if (deletedAccountIdsRef.current.has(account.id)) {
+        return;
+      }
       setAccounts((current) => {
         const index = current.findIndex((item) => item.id === account.id);
         if (index === -1) return [...current, account];
@@ -207,8 +227,11 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         nextDevices.map((device) => api.getViewerSession(device.deviceId)),
       );
       if (!mounted.current) return;
+      const filteredAccounts = nextAccounts.filter(
+        (acc) => !deletedAccountIdsRef.current.has(acc.id),
+      );
       setDevices(nextDevices);
-      setAccounts(nextAccounts);
+      setAccounts(filteredAccounts);
       setViewerSessions(
         Object.fromEntries(
           sessions
@@ -240,6 +263,27 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
     setViewerSessions((current) => ({ ...current, [deviceId]: session }));
   }, []);
 
+  const executeCommand = useCallback(
+    async (accountId: string, type: CommandType): Promise<CommandResult> => {
+      return track(pendingKey.command(accountId, type), async () => {
+        try {
+          const result = await api.sendCommand({ accountId, type });
+          applyUpdate({ account: result.account, device: result.device });
+          return result;
+        } catch (error) {
+          if (error instanceof CommandFailedError) {
+            applyUpdate({
+              account: error.result.account,
+              device: error.result.device,
+            });
+          }
+          throw error;
+        }
+      });
+    },
+    [applyUpdate, track],
+  );
+
   const value = useMemo<ZeusStoreValue>(() => {
     const deviceIndex = new Map(devices.map((device) => [device.deviceId, device]));
     const accountIndex = new Map(accounts.map((account) => [account.id, account]));
@@ -263,6 +307,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
 
       async logout() {
         await track(pendingKey.auth, () => api.logout());
+        deletedAccountIdsRef.current.clear();
         setUser(null);
         setDevices([]);
         setAccounts([]);
@@ -275,22 +320,8 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         return track(pendingKey.device(deviceId), () => api.refreshDevice(deviceId));
       },
 
-      async runCommand({ accountId, type }) {
-        return track(pendingKey.command(accountId, type), async () => {
-          try {
-            const result = await api.sendCommand({ accountId, type });
-            applyUpdate({ account: result.account, device: result.device });
-            return result;
-          } catch (error) {
-            if (error instanceof CommandFailedError) {
-              applyUpdate({
-                account: error.result.account,
-                device: error.result.device,
-              });
-            }
-            throw error;
-          }
-        });
+      runCommand({ accountId, type }) {
+        return executeCommand(accountId, type);
       },
 
       async createAccount(input) {
@@ -315,6 +346,44 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         );
         applyUpdate({ account: updated });
         return updated;
+      },
+
+      async deleteAccount(accountId: string) {
+        return track(pendingKey.accountDelete(accountId), async () => {
+          // 1. Issue fresh Stop using canonical command execution path
+          const stopResult = await executeCommand(accountId, "stop");
+
+          // 2. Verify result.command
+          if (
+            !stopResult?.command?.id ||
+            stopResult.command.type !== "stop" ||
+            stopResult.command.status !== "success" ||
+            stopResult.command.accountId !== accountId
+          ) {
+            throw new ApiError(
+              "INVALID_STOP_PROOF",
+              "Fresh stop command did not yield a valid successful proof",
+            );
+          }
+
+          const stopCommandId = stopResult.command.id;
+
+          // 3. Call api.deleteAccount
+          const returnedId = await api.deleteAccount(accountId, stopCommandId);
+
+          // 4. Verify returned ID
+          if (returnedId !== accountId) {
+            throw new ApiError(
+              "DELETE_ACCOUNT",
+              `Returned account ID mismatch: expected ${accountId}, got ${returnedId}`,
+            );
+          }
+
+          // 5. Apply deletion locally (tombstone + filter)
+          applyUpdate({ deletedAccountId: accountId });
+
+          return accountId;
+        });
       },
 
       async connectViewer(deviceId) {
@@ -342,6 +411,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
     accounts,
     applyUpdate,
     devices,
+    executeCommand,
     loadFleet,
     loadingFleet,
     pending,

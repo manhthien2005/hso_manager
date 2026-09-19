@@ -41,6 +41,10 @@ export interface ZeusApi {
     accountId: string,
     input: AccountControlUpdate,
   ): Promise<Account>;
+  deleteAccount(
+    accountId: string,
+    stopCommandId: string,
+  ): Promise<string>;
 
   sendCommand(input: SendCommandInput): Promise<CommandResult>;
 
@@ -71,6 +75,7 @@ export interface CommandResult {
 export interface Update {
   device?: Device;
   account?: Account;
+  deletedAccountId?: string;
 }
 
 export type UpdateListener = (update: Update) => void;

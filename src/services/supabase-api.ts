@@ -522,6 +522,41 @@ class SupabaseApi implements ZeusApi {
     return mapAccount(acc, rt);
   }
 
+  async deleteAccount(
+    accountId: string,
+    stopCommandId: string,
+  ): Promise<string> {
+    if (!accountId || typeof accountId !== "string" || accountId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account ID is required");
+    }
+    if (!stopCommandId || typeof stopCommandId !== "string" || stopCommandId.trim().length === 0) {
+      throw new ApiError("INVALID_STOP_COMMAND_INPUT", "Stop command ID is required");
+    }
+
+    const { data: deletedId, error: deleteError } = await supabase.rpc(
+      "delete_game_account",
+      {
+        p_account_id: accountId,
+        p_stop_command_id: stopCommandId,
+      },
+    );
+
+    if (deleteError) {
+      throw new ApiError("DELETE_ACCOUNT", deleteError.message);
+    }
+    if (!deletedId) {
+      throw new ApiError("DELETE_ACCOUNT", "delete_game_account returned no account ID");
+    }
+    if (deletedId !== accountId) {
+      throw new ApiError(
+        "DELETE_ACCOUNT",
+        `Returned account ID mismatch: expected ${accountId}, got ${deletedId}`,
+      );
+    }
+
+    return deletedId;
+  }
+
   // ── commands ──────────────────────────────────────────────────────────────
 
   async sendCommand({ accountId, type }: SendCommandInput): Promise<CommandResult> {
@@ -754,11 +789,20 @@ class SupabaseApi implements ZeusApi {
           listener({ device: mapDevice(row) });
         }
       )
-      // accounts → config, desired_state
+      // accounts → config, desired_state, or DELETE
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "accounts" },
         async (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { id?: unknown };
+            const deletedId = typeof oldRow?.id === "string" ? oldRow.id : undefined;
+            if (deletedId && deletedId.trim().length > 0) {
+              listener({ deletedAccountId: deletedId });
+            }
+            return;
+          }
+
           const row = payload.new as AccountRow;
           if (!row?.id) return;
           // Fetch runtime để có process_state đi kèm.

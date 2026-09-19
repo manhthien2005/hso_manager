@@ -152,6 +152,13 @@ export interface Database {
         };
         Returns: string; // uuid của account vừa cập nhật
       };
+      delete_game_account: {
+        Args: {
+          p_account_id: string;
+          p_stop_command_id: string;
+        };
+        Returns: string;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
