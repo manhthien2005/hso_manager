@@ -21,14 +21,16 @@
 --   4. No later lifecycle command (start/restart) invalidates the Stop proof.
 --      Stale-proof rule:
 --        Any start or restart command for this account with:
---          created_at > proof_finished_at OR finished_at > proof_finished_at
+--          created_at > proof_finished_at OR finished_at >= proof_finished_at
 --        invalidates the Stop proof.
 --        Reason:
 --          PostgreSQL now() / CURRENT_TIMESTAMP is transaction-start based, so
 --          created_at alone cannot guarantee execution ordering. A start or restart
 --          command may be created before the stop completes (created_at < stop.finished_at)
---          but finish execution after the stop (finished_at > stop.finished_at).
---          Both timestamps must be evaluated.
+--          but finish execution after or in the same second as the stop.
+--          Furthermore, Agent writes finished_at at one-second precision (no sub-second
+--          fractions). Same-second completions yield identical finished_at values;
+--          equal finished_at is treated as ambiguous and rejected conservatively (>=).
 --   5. No command for this account is currently in status = 'queued' or 'running'.
 --      (Belt-and-suspenders: covers active commands inserted before or concurrently.)
 --   6. Desired-state consistency invariant (hard gate):
@@ -199,12 +201,18 @@ BEGIN
   -- Stale-proof rule:
   --   A start or restart command invalidates the supplied Stop proof if either:
   --     created_at > proof_finished_at
-  --     OR finished_at > proof_finished_at
+  --     OR finished_at >= proof_finished_at
   --
   --   PostgreSQL now() / CURRENT_TIMESTAMP is transaction-start based, so created_at
   --   alone must not be treated as proof of execution ordering. A start or restart
   --   command may have been created before the stop finished (created_at < stop.finished_at)
-  --   but completed after the stop (finished_at > stop.finished_at).
+  --   but completed after the stop (finished_at >= stop.finished_at).
+  --
+  --   Furthermore, the Agent writes finished_at at one-second precision (without sub-second
+  --   fractions). If a start or restart finishes in the same wall-clock second as the stop proof,
+  --   both command rows receive identical finished_at timestamps. Equal finished_at is treated
+  --   as ambiguous and rejected conservatively (finished_at >= proof_finished_at).
+  --
   --   Queued/running commands have finished_at = NULL; they remain protected by the
   --   active-command guard in step 7.
   --   A later 'stop' command does not invalidate the proof (it reinforces it),
@@ -216,14 +224,13 @@ BEGIN
     AND type IN ('start', 'restart')
     AND (
       created_at > v_proof_finished_at
-      OR finished_at > v_proof_finished_at
+      OR finished_at >= v_proof_finished_at
     );
 
   IF v_stale_count > 0 THEN
     RAISE EXCEPTION
-      'stop proof is stale: % later start/restart command(s) found with created_at or finished_at after stop finished_at=% '
-      '(account_id=%)',
-      v_stale_count, v_proof_finished_at, p_account_id;
+      'stop proof is stale: % later or same-second start/restart command(s) found with created_at > % or finished_at >= % (account_id=%)',
+      v_stale_count, v_proof_finished_at, v_proof_finished_at, p_account_id;
   END IF;
 
   -- ── 7. Active command guard — no queued or running commands (Lock Order 5)
