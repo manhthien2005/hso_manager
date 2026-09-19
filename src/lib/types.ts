@@ -57,10 +57,13 @@ export type AccountStatus =
   | "offline";
 
 /**
- * Three-state health per WIRE-CONTRACT §6:
- *   running   = process alive AND ctl==1 AND atkstate>=0
- *   degraded  = process alive AND (ctl!=1 OR atkstate<0 OR snapshot unparseable)
+ * Three-state health:
+ *   running   = process alive AND valid telemetry snapshot AND ctl==1
+ *   degraded  = process alive AND (no snapshot yet OR ctl!=1)
  *   stopped   = process not running
+ *
+ * Health reflects process + telemetry/control validity.
+ * Attack automation state (atkstate) is not a health signal.
  */
 export type HealthStatus = "running" | "degraded" | "stopped";
 

@@ -53,11 +53,14 @@ export function clampNumber(value: number, min: number, max: number): number {
 // ── Telemetry helpers (Task 14, C4) ──────────────────────────────────────────
 
 /**
- * Three-state health per WIRE-CONTRACT §6.
+ * Three-state health:
  *
- *   running   ⟺ process alive AND ctl==1 AND atkstate>=0
- *   degraded  ⟺ process alive AND (ctl!=1 OR atkstate<0 OR snapshot unparseable)
+ *   running   ⟺ process alive AND valid telemetry snapshot AND ctl==1
+ *   degraded  ⟺ process alive AND (no snapshot yet OR ctl!=1)
  *   stopped   ⟺ process not running
+ *
+ * Health reflects process + telemetry/control validity.
+ * Attack automation state is not a health signal.
  *
  * "process alive" is proxied by account.status !== "stopped" && account.status !== "offline",
  * because the agent reports the actual PID state via account.status.
@@ -72,7 +75,6 @@ export function healthOf(account: Account): HealthStatus {
   if (!snap) return "degraded"; // no snapshot yet = degraded until jar publishes
 
   if (snap.ctl !== 1) return "degraded";
-  if (snap.atkstate < 0) return "degraded";
 
   return "running";
 }

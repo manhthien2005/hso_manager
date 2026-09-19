@@ -4,7 +4,8 @@
  * Design decisions enforced by WIRE-CONTRACT §5 / WEB-SPEC §5:
  *
  *   - healthOf() three-state: green=running, yellow=degraded, gray=stopped.
- *     "process alive" ≠ running; ctl AND atkstate must both be satisfied.
+ *     "process alive" ≠ running; ctl must be valid (ctl===1).
+ *     Attack automation state is not a health signal.
  *   - xp is permille (0..1000); rendered as `bA/10 + "," + bA%10 + "%"`.
  *   - gold/gem are null until opcode 16; rendered as "—" not "0".
  *   - quota ≤ 0 triggers "0 (limit reached)" — explains why auto stopped.
