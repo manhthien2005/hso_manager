@@ -247,3 +247,16 @@ export interface FleetSummary {
   error: number;
   devicesOnline: number;
 }
+
+/**
+ * Sealed credential payload matching the Zeus Agent SealedSecret wire contract.
+ * Alg: ECDH-P256 -> HKDF-SHA256 -> AES-256-GCM.
+ */
+export interface SealedCredentials {
+  alg: "ecdh-p256-hkdf-sha256-aes256gcm";
+  info: "zeus-v1";
+  eph_pub: string;
+  nonce: string;
+  ct: string;
+}
+
