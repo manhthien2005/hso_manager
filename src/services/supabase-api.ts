@@ -38,6 +38,7 @@ import type {
   CreateAccountInput,
   Device,
   DeviceMetrics,
+  PlayerSnapshot,
   User,
   ViewerSession,
 } from "@/lib/types";
@@ -89,7 +90,7 @@ function mapDevice(row: DeviceRow): Device {
   };
 }
 
-function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
+export function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
   const processState = rt?.process_state ?? "stopped";
   const status: import("@/lib/types").AccountStatus =
     processState === "running"
@@ -100,9 +101,12 @@ function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
           ? "error"
           : "stopped";
 
-  const snap = rt?.snapshot as Record<string, unknown> | null | undefined;
-  const charName = snap?.["ch"] as string | null | undefined;
-  const serverId = snap?.["sv"] as number | null | undefined;
+  const snapshot = (rt?.snapshot as PlayerSnapshot | null) ?? null;
+  const charName =
+    typeof snapshot?.name === "string" && snapshot.name.length > 0
+      ? snapshot.name
+      : null;
+  const serverId = acc.server_index;
 
   // Build a minimal AccountConfig (legacy shape)
   const config: AccountConfig = {
@@ -130,15 +134,15 @@ function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
     deviceId: acc.device_id,
     label: acc.label,
     status,
-    characterName: charName ?? null,
-    serverId: serverId ?? null,
+    characterName: charName,
+    serverId,
     ramMb: rt?.ram_mb ?? null,
     pid: rt?.pid ?? null,
     config,
     control: (acc.control ?? {}) as Record<string, unknown>,
     control_version: acc.control_version,
     config_status: rt?.config_status ?? null,
-    snapshot: (rt?.snapshot as import("@/lib/types").PlayerSnapshot | null) ?? null,
+    snapshot,
   };
 }
 
