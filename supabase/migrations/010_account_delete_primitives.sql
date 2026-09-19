@@ -18,18 +18,23 @@
 --        - finished_at IS NOT NULL
 --        - account_id = p_account_id
 --        - device_id  = target account.device_id
---   4. No later lifecycle command (start/stop/restart) has a created_at or
---      finished_at that is strictly after the Stop proof's finished_at.
---      Ordering rule (deterministic):
---        Use finished_at of the proof command as the "proof timestamp".
---        Any lifecycle command for this account whose created_at > proof_finished_at
---        is newer and invalidates the proof.
---        (created_at is the insertion timestamp — it exists on every command;
---        a queued command may not yet have finished_at set, so we use created_at
---        as the conservative ordering anchor.)
+--   4. No later lifecycle command (start/restart) invalidates the Stop proof.
+--      Stale-proof rule:
+--        Any start or restart command for this account with:
+--          created_at > proof_finished_at OR finished_at > proof_finished_at
+--        invalidates the Stop proof.
+--        Reason:
+--          PostgreSQL now() / CURRENT_TIMESTAMP is transaction-start based, so
+--          created_at alone cannot guarantee execution ordering. A start or restart
+--          command may be created before the stop completes (created_at < stop.finished_at)
+--          but finish execution after the stop (finished_at > stop.finished_at).
+--          Both timestamps must be evaluated.
 --   5. No command for this account is currently in status = 'queued' or 'running'.
---      (Belt-and-suspenders: covers commands inserted concurrently before the lock.)
---   6. Consistency check (non-exclusive): accounts.desired_state = 'stopped'.
+--      (Belt-and-suspenders: covers active commands inserted before or concurrently.)
+--   6. Desired-state consistency invariant (hard gate):
+--        accounts.desired_state = 'stopped'.
+--        The successful Stop command remains the authoritative process-stop proof,
+--        but desired_state = 'stopped' is an additional mandatory consistency invariant.
 --
 -- Concurrency safety:
 --   The accounts row is locked FOR UPDATE before any validation occurs.
@@ -149,29 +154,32 @@ BEGIN
 
   -- ── 5. Stale-proof check — no later lifecycle command invalidates proof ──
   --
-  -- Ordering rule (deterministic, documented in file header):
-  --   A lifecycle command (start / restart) whose created_at is strictly
-  --   after the proof's finished_at is "newer" than the proof and may represent
-  --   a state transition that undoes the Stop.
-  --   We use created_at as the ordering anchor because:
-  --     - created_at is set at INSERT time and is always present.
-  --     - A queued/running command may not yet have finished_at.
-  --     - Using created_at is conservative: false negatives (over-rejection)
-  --       are safe; false positives (under-rejection) are unsafe.
+  -- Stale-proof rule:
+  --   A start or restart command invalidates the supplied Stop proof if either:
+  --     created_at > proof_finished_at
+  --     OR finished_at > proof_finished_at
   --
-  -- We check for ANY start or restart command whose created_at > proof_finished_at.
-  -- A later 'stop' command does not invalidate the proof (it reinforces it),
-  -- so 'stop' is excluded from this check.
+  --   PostgreSQL now() / CURRENT_TIMESTAMP is transaction-start based, so created_at
+  --   alone must not be treated as proof of execution ordering. A start or restart
+  --   command may have been created before the stop finished (created_at < stop.finished_at)
+  --   but completed after the stop (finished_at > stop.finished_at).
+  --   Queued/running commands have finished_at = NULL; they remain protected by the
+  --   active-command guard in step 6.
+  --   A later 'stop' command does not invalidate the proof (it reinforces it),
+  --   so 'stop' is excluded from this check.
   SELECT COUNT(*)
   INTO v_stale_count
   FROM public.commands
   WHERE account_id = p_account_id
     AND type IN ('start', 'restart')
-    AND created_at > v_proof_finished_at;
+    AND (
+      created_at > v_proof_finished_at
+      OR finished_at > v_proof_finished_at
+    );
 
   IF v_stale_count > 0 THEN
     RAISE EXCEPTION
-      'stop proof is stale: % later start/restart command(s) found after stop finished_at=% '
+      'stop proof is stale: % later start/restart command(s) found with created_at or finished_at after stop finished_at=% '
       '(account_id=%)',
       v_stale_count, v_proof_finished_at, p_account_id;
   END IF;
@@ -195,19 +203,27 @@ BEGIN
       v_active_count, p_account_id;
   END IF;
 
-  -- ── 7. Consistency check (non-exclusive gate) ───────────────────────────
+  -- ── 7. Desired-state consistency invariant (hard gate) ───────────────────
   --
-  -- desired_state should be 'stopped' after a successful Stop was executed.
-  -- This is NOT the authoritative deletion proof — the command row (steps 4–6)
-  -- is.  We warn via NOTICE rather than hard-reject to tolerate rare races where
-  -- the agent has not yet written back desired_state.
+  -- accounts.desired_state must be 'stopped'.
   --
-  -- Per spec §10 / §2: offline-device bypass is NOT allowed. The Stop command
-  -- proof (steps 4–6) is the only authoritative gate.
+  -- The successful Stop command proof (steps 4–6) remains the authoritative
+  -- process-stop proof. However, accounts.desired_state = 'stopped' is an
+  -- additional mandatory consistency invariant:
+  --   Start   → desired_state = 'running'
+  --   Stop    → desired_state = 'stopped'
+  --   Restart → desired_state = 'stopped' → 'running'
+  --
+  -- If accounts.desired_state is NOT 'stopped' (e.g. 'running'), hard-delete
+  -- must not proceed merely because an older Stop command exists.
+  -- If a legitimate Stop succeeded but its desired-state write failed or lagged,
+  -- DELETE conservatively over-rejects. The caller can execute a fresh Stop
+  -- after state synchronization succeeds.
+  -- Offline-device bypass is NOT allowed.
   IF v_account_desired_state <> 'stopped' THEN
-    RAISE NOTICE
-      'desired_state is % (expected stopped) for account_id=%; '
-      'proceeding because stop proof is valid — telemetry may be lagging',
+    RAISE EXCEPTION
+      'account desired_state is % (expected stopped) for account_id=%; '
+      'hard-delete requires desired_state = stopped in addition to a valid stop proof',
       v_account_desired_state, p_account_id;
   END IF;
 
