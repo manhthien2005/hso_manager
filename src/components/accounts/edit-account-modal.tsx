@@ -173,7 +173,7 @@ function EditAccountModalContent({
         }
       }}
     >
-      <Card className="w-full max-w-lg p-4 sm:p-5 shadow-xl border-border bg-card">
+      <Card className="w-full max-w-lg p-4 sm:p-5 shadow-xl border-border bg-elevated">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 id="edit-account-title" className="text-sm font-semibold tracking-tight">

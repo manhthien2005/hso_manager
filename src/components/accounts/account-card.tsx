@@ -255,7 +255,7 @@ export function AccountCard({
             }
           }}
         >
-          <Card className="w-full max-w-md p-5 shadow-2xl border-border bg-card">
+          <Card className="w-full max-w-md p-5 shadow-2xl border-border bg-elevated">
             <div className="mb-3">
               <h2
                 id="confirm-action-title"

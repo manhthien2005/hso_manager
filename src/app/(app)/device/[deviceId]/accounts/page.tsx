@@ -136,7 +136,7 @@ export default function DeviceAccountsPage({
               <span>{option.label}</span>
               <span
                 className={`rounded px-1.5 py-0.5 font-mono text-[11px] tabular ${
-                  isActive ? "bg-accent/20 text-accent" : "bg-card text-muted"
+                  isActive ? "bg-accent/20 text-accent" : "bg-surface text-muted"
                 }`}
               >
                 {option.count}

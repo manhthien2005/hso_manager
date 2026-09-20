@@ -86,7 +86,7 @@ function DeleteAccountModalContent({
         }
       }}
     >
-      <Card className="w-full max-w-md p-4 sm:p-5 shadow-xl border-border bg-card">
+      <Card className="w-full max-w-md p-4 sm:p-5 shadow-xl border-border bg-elevated">
         <div className="mb-4">
           <h2
             id="delete-account-title"

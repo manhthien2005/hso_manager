@@ -399,7 +399,7 @@ function ConfigForm({
           </div>
 
           {/* Sticky Save Action Bar */}
-          <div className="sticky bottom-0 -mx-4 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-lg z-30">
+          <div className="sticky bottom-0 -mx-4 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-elevated/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-lg z-30">
             <div className="flex items-center gap-2">
               <Button
                 variant="primary"
