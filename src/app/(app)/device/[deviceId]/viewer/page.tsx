@@ -37,8 +37,8 @@ export default function ViewerPage({
   if (found === undefined) {
     return (
       <NotFoundPanel
-        title="Device not found"
-        hint="No VPS with this device ID is registered to your fleet."
+        title="Không tìm thấy máy chủ"
+        hint="Không tìm thấy máy chủ với mã thiết bị này trong hệ thống."
         identifier={deviceId}
       />
     );
@@ -53,18 +53,18 @@ export default function ViewerPage({
   async function handleConnect() {
     try {
       await connectViewer(device.deviceId);
-      push("success", "Viewer opened", `Connected to ${device.name}`);
+      push("success", "Đã mở điều khiển từ xa", `Đã kết nối với ${device.name}`);
     } catch (error) {
-      push("error", "Connect failed", describeError(error));
+      push("error", "Kết nối thất bại", describeError(error));
     }
   }
 
   async function handleDisconnect() {
     try {
       await disconnectViewer(device.deviceId);
-      push("info", "Viewer disconnected", `Session closed for ${device.name}`);
+      push("info", "Đã ngắt điều khiển từ xa", `Phiên kết nối đã đóng cho ${device.name}`);
     } catch (error) {
-      push("error", "Disconnect failed", describeError(error));
+      push("error", "Ngắt kết nối thất bại", describeError(error));
     }
   }
 
@@ -76,14 +76,14 @@ export default function ViewerPage({
         title={
           <span className="flex flex-wrap items-center gap-3">
             <span className="font-mono text-xl font-bold tracking-tight text-foreground">
-              Remote Viewer
+              Điều khiển từ xa
             </span>
             <DeviceStatusBadge status={device.status} />
           </span>
         }
         subtitle={
           <span className="font-mono text-xs text-muted">
-            {device.name} ({device.deviceId}) · Heartbeat {formatRelativeTime(device.lastSeen)}
+            {device.name} ({device.deviceId}) · Nhịp kết nối {formatRelativeTime(device.lastSeen)}
           </span>
         }
         actions={
@@ -96,7 +96,7 @@ export default function ViewerPage({
                   busy={busy}
                   onClick={handleDisconnect}
                 >
-                  Disconnect
+                  Ngắt kết nối
                 </Button>
                 {session?.url ? (
                   <ButtonLink
@@ -107,7 +107,7 @@ export default function ViewerPage({
                     variant="secondary"
                     icon={<IconExternalLink />}
                   >
-                    Pop Out
+                    Mở cửa sổ riêng
                   </ButtonLink>
                 ) : null}
               </>
@@ -120,7 +120,7 @@ export default function ViewerPage({
                 onClick={handleConnect}
                 icon={<IconMonitor />}
               >
-                {busy ? "Connecting…" : "Open Viewer"}
+                {busy ? "Đang kết nối…" : "Mở điều khiển từ xa"}
               </Button>
             )}
 
@@ -129,7 +129,7 @@ export default function ViewerPage({
               size="sm"
               variant="secondary"
             >
-              Accounts
+              Tài khoản
             </ButtonLink>
           </div>
         }
@@ -154,18 +154,18 @@ export default function ViewerPage({
             />
             <span className="font-medium text-foreground">
               {connected
-                ? "Live noVNC Stream Active"
+                ? "Luồng noVNC trực tiếp đang hoạt động"
                 : busy
-                  ? "Establishing Tunnel with Agent…"
+                  ? "Đang thiết lập đường truyền với Agent…"
                   : !online
-                    ? "Node Offline — Viewer Unavailable"
-                    : "Viewer Ready to Connect"}
+                    ? "Máy chủ mất kết nối — Điều khiển từ xa không khả dụng"
+                    : "Sẵn sàng kết nối điều khiển từ xa"}
             </span>
           </div>
 
           {session?.transport ? (
             <div className="flex items-center gap-2 text-[11px] text-muted font-mono">
-              <span>Transport: {session.transport}</span>
+              <span>Giao thức: {session.transport}</span>
             </div>
           ) : null}
         </div>
@@ -185,13 +185,13 @@ export default function ViewerPage({
       {/* 3. Subordinate Session & Security Guidance */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-muted">
         <div className="flex items-center gap-2">
-          <span>Session security: Temporary timed lease via secure proxy.</span>
+          <span>Bảo mật phiên: Phiên tạm thời qua proxy bảo mật.</span>
         </div>
         <Link
           href={`/device/${device.deviceId}`}
           className="text-muted hover:text-accent transition-colors"
         >
-          Return to {device.name} details →
+          Quay lại chi tiết máy chủ {device.name} →
         </Link>
       </div>
     </div>
@@ -226,7 +226,7 @@ function ViewerSurface({
         <iframe
           src={url}
           className="h-full w-full border-0"
-          title={`Remote Viewer - ${deviceName}`}
+          title={`Điều khiển từ xa - ${deviceName}`}
           allow="fullscreen; clipboard-read; clipboard-write"
         />
       </div>
@@ -247,40 +247,40 @@ function ViewerSurface({
         {busy ? (
           <>
             <p className="font-mono text-sm font-semibold text-foreground">
-              Requesting remote tunnel…
+              Đang yêu cầu đường truyền từ xa…
             </p>
             <p className="text-xs text-muted">
-              Sending <code className="font-mono text-foreground">open-viewer</code> command to Zeus agent and awaiting noVNC URL endpoint (may take up to 15s)…
+              Đang gửi lệnh <code className="font-mono text-foreground">open-viewer</code> tới Zeus Agent và chờ URL noVNC (có thể mất tới 15 giây)…
             </p>
           </>
         ) : connected ? (
           <>
             <p className="font-mono text-sm font-semibold text-foreground">
-              Session initialized on {deviceName}
+              Phiên kết nối đã khởi tạo trên {deviceName}
             </p>
             {reason ? <p className="text-xs text-muted">{reason}</p> : null}
           </>
         ) : online ? (
           <>
             <p className="font-mono text-sm font-semibold text-foreground">
-              Direct Desktop Control
+              Điều khiển màn hình trực tiếp
             </p>
             <p className="text-xs text-muted">
-              Stream and interact with the game window directly inside your browser over encrypted HTML5 noVNC.
+              Truyền và tương tác trực tiếp với cửa sổ game trên trình duyệt qua kết nối mã hóa noVNC HTML5.
             </p>
             <div className="pt-2">
               <Button size="sm" variant="primary" onClick={onConnect}>
-                Start Session
+                Bắt đầu phiên
               </Button>
             </div>
           </>
         ) : (
           <>
             <p className="font-mono text-sm font-semibold text-warning">
-              Host Node Unreachable
+              Không thể kết nối máy chủ
             </p>
             <p className="text-xs text-muted">
-              {deviceName} is currently offline. Remote viewer requires an active heartbeat connection with the host agent.
+              {deviceName} hiện đang mất kết nối. Điều khiển từ xa yêu cầu máy chủ có nhịp kết nối hoạt động bình thường.
             </p>
           </>
         )}
@@ -297,7 +297,7 @@ function ViewerSurface({
           }`}
           aria-hidden="true"
         />
-        <span>{connected ? "session:active" : busy ? "tunnel:negotiating" : "session:idle"}</span>
+        <span>{connected ? "phiên:hoạt_động" : busy ? "đường_truyền:đang_thiết_lập" : "phiên:chờ"}</span>
       </div>
     </div>
   );
