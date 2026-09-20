@@ -48,8 +48,8 @@ export default function AccountConfigPage({
   if (account === undefined) {
     return (
       <NotFoundPanel
-        title="Account not found"
-        hint="No account with this ID is registered to your fleet."
+        title="Không tìm thấy tài khoản"
+        hint="Không tìm thấy tài khoản với ID này trong hệ thống."
         identifier={accountId}
       />
     );
@@ -64,7 +64,42 @@ export default function AccountConfigPage({
   );
 }
 
-// ── Section icon map ──────────────────────────────────────────────────────────
+// ── Section icon & metadata map ──────────────────────────────────────────────
+
+const SECTION_METADATA: Record<string, { title: string; description: string }> = {
+  combat: {
+    title: "Chiến đấu",
+    description: "Chế độ tấn công, vị trí đánh và thiết lập bình hồi phục.",
+  },
+  travel: {
+    title: "Di chuyển",
+    description: "Mục tiêu di chuyển và thiết lập khu vực đánh.",
+  },
+  loot: {
+    title: "Nhặt vật phẩm",
+    description: "Bộ lọc nhặt và bỏ vật phẩm.",
+  },
+  recovery: {
+    title: "Hồi phục",
+    description: "Thiết lập tự hồi sinh và xử lý kẹt địa hình.",
+  },
+  mount: {
+    title: "Thú cưỡi",
+    description: "Sử dụng thú cưỡi trong khu vực chiến đấu.",
+  },
+  enhance: {
+    title: "Cường hóa",
+    description: "Tự động cường hóa trang bị (sử dụng bùa và vàng).",
+  },
+  dungeon: {
+    title: "Phó bản",
+    description: "Tự động tham gia phó bản.",
+  },
+  spot: {
+    title: "Vị trí đánh",
+    description: "Cấu hình nâng cao: thiết lập thủ công vị trí đánh.",
+  },
+};
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
   combat: <IconSword />,
@@ -180,7 +215,7 @@ function ConfigForm({
     setErrors(nextErrors);
     setTouched(true);
     if (Object.keys(nextErrors).length > 0) {
-      push("error", "Config not saved", "Fix the highlighted fields and try again");
+      push("error", "Chưa thể lưu cấu hình", "Vui lòng sửa các trường lỗi và thử lại");
       return;
     }
     try {
@@ -194,11 +229,11 @@ function ConfigForm({
       setAttackMapIntent(null);
       push(
         "success",
-        "Config saved",
-        `Control v${jarCtlVersion} saved to control plane for ${device?.name ?? "device"}`,
+        "Đã lưu cấu hình",
+        `Đã lưu cấu hình Control v${jarCtlVersion} vào hệ thống điều khiển cho ${device?.name ?? "máy chủ"}`,
       );
     } catch (error) {
-      push("error", "Save failed", describeError(error));
+      push("error", "Lưu cấu hình thất bại", describeError(error));
     }
   }
 
@@ -220,11 +255,11 @@ function ConfigForm({
       <PageHeader
         back={{
           href: device ? `/device/${device.deviceId}/accounts` : "/",
-          label: device ? `${device.name} accounts` : "Dashboard",
+          label: device ? `Tài khoản trên ${device.name}` : "Tổng quan",
         }}
         title={
           <span className="flex flex-wrap items-center gap-3">
-            <span>Configure {account.label}</span>
+            <span>Cấu hình {account.label}</span>
             <AccountStatusBadge status={account.status} />
           </span>
         }
@@ -245,13 +280,13 @@ function ConfigForm({
             <IconWarning className="size-4 shrink-0 mt-0.5 text-danger" />
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-danger">
-                Version Mismatch — Last Configuration Refused by Agent
+                Phiên bản cấu hình không tương thích — Agent từ chối áp dụng
               </h3>
               <p className="text-xs text-foreground/90 leading-relaxed">
-                The agent refused to write the control file to disk because the schema version does not match the running emulator jar version.
+                Agent từ chối ghi tệp cấu hình xuống đĩa do phiên bản cấu hình không khớp với phiên bản jar giả lập đang chạy.
               </p>
               <p className="text-xs text-muted leading-relaxed">
-                The account continues running safely with the previous valid configuration.
+                Tài khoản vẫn tiếp tục hoạt động an toàn với cấu hình hợp lệ trước đó.
               </p>
             </div>
           </div>
@@ -269,16 +304,16 @@ function ConfigForm({
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-warning">
                 {jarCtlVersion === null
-                  ? "Jar Version Not Yet Reported"
-                  : `Jar CTL Version ${jarCtlVersion} Is Not Supported`}
+                  ? "Chưa nhận diện phiên bản Jar"
+                  : `Phiên bản Jar CTL ${jarCtlVersion} chưa được hỗ trợ`}
               </h3>
               <p className="text-xs text-foreground/90 leading-relaxed">
                 {jarCtlVersion === null
-                  ? "The agent has not yet reported which jar it is running. Connect the device and wait for the first heartbeat."
-                  : `Update the web dashboard to support CTL version ${jarCtlVersion}, or roll back the jar on this device.`}
+                  ? "Agent chưa gửi thông tin phiên bản jar đang chạy. Vui lòng kết nối máy chủ và chờ nhịp kết nối đầu tiên."
+                  : `Cần cập nhật trang quản trị hỗ trợ CTL v${jarCtlVersion}, hoặc sử dụng phiên bản jar tương thích trên máy chủ.`}
               </p>
               <p className="text-xs text-muted leading-relaxed">
-                The account continues running with the last valid config that was saved.
+                Tài khoản vẫn đang hoạt động với cấu hình hợp lệ gần nhất.
               </p>
             </div>
           </div>
@@ -289,7 +324,7 @@ function ConfigForm({
             <div className="mb-4 rounded-md border border-warning/35 bg-warning/10 px-4 py-3 text-xs text-warning flex items-center gap-2">
               <IconWarning className="size-3.5 shrink-0" />
               <span>
-                {device?.name ?? "This device"} is offline. You can edit the configuration draft, but saving to the control plane is blocked until the agent reconnects.
+                {device?.name ?? "Máy chủ này"} đang mất kết nối. Bạn vẫn có thể xem và chỉnh sửa bản nháp cấu hình, nhưng không thể lưu vào hệ thống cho đến khi máy chủ kết nối lại.
               </span>
             </div>
           ) : null}
@@ -298,7 +333,7 @@ function ConfigForm({
           <div className="sticky top-16 z-20 -mx-4 mb-4 border-y border-border/80 bg-background/95 px-4 py-1.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
             <div
               role="tablist"
-              aria-label="Configuration sections"
+              aria-label="Các mục cấu hình"
               className="flex items-center gap-0.5 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
@@ -314,6 +349,7 @@ function ConfigForm({
                   return draft[f.path] !== persistedDraft[f.path];
                 });
                 const isActive = activeSection === sec.id;
+                const secMeta = SECTION_METADATA[sec.id];
 
                 return (
                   <button
@@ -340,7 +376,7 @@ function ConfigForm({
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-accent" aria-hidden="true" />
                     ) : null}
                     <span className="shrink-0">{SECTION_ICONS[sec.id]}</span>
-                    <span>{sec.title}</span>
+                    <span>{secMeta?.title ?? sec.title}</span>
                     {secErrors > 0 ? (
                       <span className="size-1.5 rounded-full bg-danger" aria-hidden="true" />
                     ) : isSecDirty ? (
@@ -367,6 +403,7 @@ function ConfigForm({
               });
 
               const isActive = activeSection === section.id;
+              const sectionMeta = SECTION_METADATA[section.id];
 
               return (
                 <div
@@ -383,23 +420,23 @@ function ConfigForm({
                         <div className="flex items-center gap-2">
                           <span className="text-muted">{SECTION_ICONS[section.id]}</span>
                           <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                            {section.title}
+                            {sectionMeta?.title ?? section.title}
                           </h3>
                         </div>
                         <div className="flex items-center gap-2">
                           {secErrors > 0 ? (
                             <span className="rounded border border-danger/35 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-danger">
-                              {secErrors} error{secErrors === 1 ? "" : "s"}
+                              {secErrors} {secErrors === 1 ? "lỗi" : "lỗi"}
                             </span>
                           ) : isSecDirty ? (
                             <span className="rounded border border-accent/35 bg-accent/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
-                              Modified
+                              Đã thay đổi
                             </span>
                           ) : null}
                         </div>
                       </div>
-                      {section.description ? (
-                        <p className="mt-0.5 text-xs text-muted">{section.description}</p>
+                      {sectionMeta?.description ?? section.description ? (
+                        <p className="mt-0.5 text-xs text-muted">{sectionMeta?.description ?? section.description}</p>
                       ) : null}
                     </div>
 
@@ -441,7 +478,7 @@ function ConfigForm({
                 onClick={handleSave}
                 icon={<IconSave />}
               >
-                Save Changes
+                Lưu thay đổi
               </Button>
               <Button
                 variant="secondary"
@@ -449,7 +486,7 @@ function ConfigForm({
                 disabled={saving || !dirty}
                 onClick={handleReset}
               >
-                Reset
+                Đặt lại
               </Button>
             </div>
 
@@ -457,27 +494,27 @@ function ConfigForm({
               {offline ? (
                 <span className="font-medium text-warning flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-                  Device offline — reconnect to save
+                  Máy chủ mất kết nối — không thể lưu
                 </span>
               ) : saving ? (
                 <span className="font-medium text-accent flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
-                  Saving to control plane…
+                  Đang lưu cấu hình…
                 </span>
               ) : errorCount > 0 ? (
                 <span className="font-medium text-danger flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-danger" aria-hidden="true" />
-                  {errorCount} field{errorCount === 1 ? " needs" : "s need"} attention
+                  {errorCount} {errorCount === 1 ? "trường cần sửa" : "trường cần sửa"}
                 </span>
               ) : dirty ? (
                 <span className="font-medium text-warning flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-                  Unsaved changes
+                  Có thay đổi chưa lưu
                 </span>
               ) : (
                 <span className="font-mono text-muted flex items-center gap-1.5">
                   <span className="size-1.5 rounded-full bg-online" aria-hidden="true" />
-                  Control v{jarCtlVersion ?? "?"} · Saved to control plane
+                  Control v{jarCtlVersion ?? "?"} · Đã lưu vào hệ thống điều khiển
                 </span>
               )}
             </div>

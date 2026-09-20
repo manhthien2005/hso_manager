@@ -211,10 +211,10 @@ export function validateAttackSpotSave(
   if (!Number.isNaN(xVal) && !Number.isNaN(yVal)) {
     if ((xVal < 0) !== (yVal < 0)) {
       if (xVal < 0) {
-        errors["atk.x"] = "Both X and Y coordinates must be set together";
+        errors["atk.x"] = "Cần nhập đồng thời cả tọa độ X và Y";
       }
       if (yVal < 0) {
-        errors["atk.y"] = "Both X and Y coordinates must be set together";
+        errors["atk.y"] = "Cần nhập đồng thời cả tọa độ X và Y";
       }
       return { valid: false, errors };
     }
@@ -236,10 +236,10 @@ export function validateAttackSpotSave(
 
   if (requiresCoordinates) {
     if (Number.isNaN(xVal) || xVal < 0) {
-      errors["atk.x"] = "X coordinate (>= 0) is required when an attack map is selected";
+      errors["atk.x"] = "Cần nhập tọa độ X (>= 0) khi đã chọn vị trí đánh.";
     }
     if (Number.isNaN(yVal) || yVal < 0) {
-      errors["atk.y"] = "Y coordinate (>= 0) is required when an attack map is selected";
+      errors["atk.y"] = "Cần nhập tọa độ Y (>= 0) khi đã chọn vị trí đánh.";
     }
   }
 
