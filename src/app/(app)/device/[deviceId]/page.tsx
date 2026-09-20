@@ -287,7 +287,8 @@ function DeviceAccountRow({
             <span className="text-xs text-muted font-medium">({account.characterName})</span>
           ) : null}
           <AccountStatusBadge status={account.status} />
-          <HealthStatusBadge health={health} />
+          {/* Only show HealthStatusBadge when it adds information beyond the process status */}
+          {health !== "running" ? <HealthStatusBadge health={health} /> : null}
         </div>
 
         {/* Quick operational facts row */}

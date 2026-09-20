@@ -297,13 +297,15 @@ function ConfigForm({
           {/* Section Tab Navigation Bar */}
           <div className="sticky top-16 z-20 -mx-4 mb-4 border-y border-border/80 bg-background/95 px-4 py-1.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
             <div
+              role="tablist"
+              aria-label="Configuration sections"
               className="flex items-center gap-0.5 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
               {sections!.map((sec) => {
                 const secErrors = sec.fields.filter((f) => errors[f.path] !== undefined).length;
                 const isSecDirty = sec.fields.some((f) => {
-                  if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y") {
+                  if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y" || f.path === "atk.zone") {
                     return (
                       draft[f.path] !== persistedDraft[f.path] ||
                       (f.path === "atk.map" && attackMapDirty)
@@ -316,6 +318,11 @@ function ConfigForm({
                 return (
                   <button
                     key={sec.id}
+                    role="tab"
+                    id={`tab-${sec.id}`}
+                    aria-controls={`section-${sec.id}`}
+                    aria-selected={isActive}
+                    tabIndex={isActive ? 0 : -1}
                     type="button"
                     onClick={() => setActiveSection(sec.id)}
                     className={`relative inline-flex min-h-[40px] items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
@@ -327,7 +334,6 @@ function ConfigForm({
                             ? "text-accent/70 hover:bg-accent/5"
                             : "text-muted hover:text-foreground hover:bg-elevated/60"
                     }`}
-                    aria-pressed={isActive}
                   >
                     {/* Active indicator: bottom border */}
                     {isActive ? (
@@ -351,7 +357,7 @@ function ConfigForm({
             {sections!.map((section) => {
               const secErrors = section.fields.filter((f) => errors[f.path] !== undefined).length;
               const isSecDirty = section.fields.some((f) => {
-                if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y") {
+                if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y" || f.path === "atk.zone") {
                   return (
                     draft[f.path] !== persistedDraft[f.path] ||
                     (f.path === "atk.map" && attackMapDirty)
@@ -366,6 +372,8 @@ function ConfigForm({
                 <div
                   id={`section-${section.id}`}
                   key={section.id}
+                  role="tabpanel"
+                  aria-labelledby={`tab-${section.id}`}
                   className={isActive ? "block" : "hidden"}
                 >
                   <Card className="overflow-hidden border border-border bg-surface shadow-xs">

@@ -235,7 +235,7 @@ export function ConfigFieldInput({
         </div>
         {error ? (
           <p className="text-xs font-medium text-danger flex items-center gap-1">
-            <span aria-hidden="true">⚠</span>
+            <IconWarning />
             <span>{error}</span>
           </p>
         ) : null}
@@ -261,7 +261,7 @@ export function ConfigFieldInput({
         </button>
         {error ? (
           <p className="text-xs font-medium text-danger flex items-center gap-1">
-            <span aria-hidden="true">⚠</span>
+            <IconWarning />
             <span>{error}</span>
           </p>
         ) : null}
@@ -396,3 +396,16 @@ function AttackMapFieldInput({
     />
   );
 }
+
+function IconWarning({ className = "size-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 01-1.299 2.25H2.704a1.5 1.5 0 01-1.3-2.25l5.197-9zM8 4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 100-2 1 1 0 000 2z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
