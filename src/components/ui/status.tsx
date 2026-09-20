@@ -114,6 +114,27 @@ function Badge({
   );
 }
 
+export const DEVICE_STATUS_LABELS: Record<DeviceStatus, string> = {
+  online: "Trực tuyến",
+  offline: "Mất kết nối",
+  error: "Lỗi",
+};
+
+export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
+  running: "Đang chạy",
+  starting: "Đang khởi động",
+  restarting: "Đang khởi động lại",
+  stopped: "Đã dừng",
+  error: "Lỗi",
+  offline: "Mất kết nối",
+};
+
+export const HEALTH_STATUS_LABELS: Record<HealthStatus, string> = {
+  running: "Ổn định",
+  degraded: "Bất thường",
+  stopped: "Đã dừng",
+};
+
 export function DeviceStatusBadge({
   status,
   className,
@@ -124,7 +145,7 @@ export function DeviceStatusBadge({
   return (
     <Badge
       tone={DEVICE_TONES[status]}
-      label={status}
+      label={DEVICE_STATUS_LABELS[status]}
       busy={false}
       className={className}
     />
@@ -141,7 +162,7 @@ export function AccountStatusBadge({
   return (
     <Badge
       tone={ACCOUNT_TONES[status]}
-      label={status}
+      label={ACCOUNT_STATUS_LABELS[status]}
       busy={ACCOUNT_BUSY.has(status)}
       className={className}
     />
@@ -158,7 +179,7 @@ export function HealthStatusBadge({
   return (
     <Badge
       tone={HEALTH_TONES[health]}
-      label={health}
+      label={HEALTH_STATUS_LABELS[health]}
       busy={false}
       className={className}
     />
@@ -174,7 +195,7 @@ export function MetricBar({ percent }: { percent: number }) {
     <div
       className="h-1.5 w-full overflow-hidden rounded-full bg-elevated"
       role="img"
-      aria-label={`${Math.round(value)} percent used`}
+      aria-label={`${Math.round(value)}% đang sử dụng`}
     >
       <div className={`h-full rounded-full ${bar}`} style={{ width: `${value}%` }} />
     </div>

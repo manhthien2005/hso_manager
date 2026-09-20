@@ -17,7 +17,7 @@ export function NotFoundPanel({
 }) {
   return (
     <>
-      <PageHeader back={{ href: "/", label: "Dashboard" }} title="Not found" />
+      <PageHeader back={{ href: "/", label: "Tổng quan" }} title="Không tìm thấy" />
       <Card>
         <EmptyState
           title={title}
@@ -31,7 +31,7 @@ export function NotFoundPanel({
             href="/"
             className="inline-flex h-9 items-center rounded-md border border-border bg-elevated px-4 text-sm font-medium hover:bg-surface"
           >
-            Back to dashboard
+            Quay lại trang tổng quan
           </Link>
         </div>
       </Card>

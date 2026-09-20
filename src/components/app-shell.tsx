@@ -25,9 +25,9 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: <IconGrid />, exact: true },
-  { href: "/pair", label: "Pair device", icon: <IconPlug /> },
-  { href: "/settings", label: "Settings", icon: <IconGear /> },
+  { href: "/", label: "Tổng quan", icon: <IconGrid />, exact: true },
+  { href: "/pair", label: "Ghép nối máy chủ", icon: <IconPlug /> },
+  { href: "/settings", label: "Cài đặt", icon: <IconGear /> },
 ];
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -46,7 +46,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh items-center justify-center bg-background">
         <div className="flex items-center gap-2.5 text-xs text-muted">
           <span className="size-2 rounded-full bg-accent animate-pulse" aria-hidden="true" />
-          <span>{signedOut ? "Redirecting to login…" : "Connecting to Zeus…"}</span>
+          <span>{signedOut ? "Đang chuyển hướng đến trang đăng nhập…" : "Đang kết nối đến Zeus…"}</span>
         </div>
       </div>
     );
@@ -68,12 +68,12 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
       await logout();
       router.replace("/login");
     } catch (error) {
-      push("error", "Sign out failed", describeError(error));
+      push("error", "Đăng xuất thất bại", describeError(error));
     }
   }
 
   const nav = (
-    <nav className="flex flex-col gap-1" aria-label="Main navigation">
+    <nav className="flex flex-col gap-1" aria-label="Điều hướng chính">
       {NAV.map((item) => (
         <NavLink
           key={item.href}
@@ -87,7 +87,7 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
 
       <div className="mt-5 mb-1.5 flex items-center justify-between px-3">
         <p className="text-[10px] font-semibold tracking-wider text-muted uppercase">
-          Nodes ({devices.length})
+          Máy chủ ({devices.length})
         </p>
       </div>
 
@@ -124,7 +124,7 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
         disabled={signingOut}
         className="mt-1.5 inline-flex text-xs text-muted transition-colors hover:text-danger disabled:opacity-50"
       >
-        {signingOut ? "Signing out…" : "Sign out"}
+        {signingOut ? "Đang đăng xuất…" : "Đăng xuất"}
       </button>
     </div>
   );
@@ -143,7 +143,7 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
-            aria-label="Close menu overlay"
+            aria-label="Đóng lớp phủ menu"
             className="absolute inset-0 bg-background/80 backdrop-blur-xs transition-opacity"
             onClick={() => setDrawerOpen(false)}
           />
@@ -154,7 +154,7 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 className="flex size-11 items-center justify-center rounded-md text-muted hover:text-foreground"
-                aria-label="Close drawer"
+                aria-label="Đóng bảng điều hướng"
               >
                 <IconClose />
               </button>
@@ -173,7 +173,7 @@ function AppShell({ user, children }: { user: User; children: React.ReactNode })
             type="button"
             onClick={() => setDrawerOpen(true)}
             className="flex size-11 items-center justify-center rounded-md border border-border bg-elevated/50 text-foreground transition-colors hover:bg-elevated"
-            aria-label="Open navigation menu"
+            aria-label="Mở menu điều hướng"
             aria-expanded={drawerOpen}
           >
             <IconMenu />
