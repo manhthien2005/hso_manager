@@ -48,10 +48,10 @@ function CtlBadge({ ctl }: { ctl: number }) {
       id="telemetry-ctl-badge"
       title={
         ctl === -1
-          ? "No -Dzeus.ctl.in property"
+          ? "Không có thuộc tính -Dzeus.ctl.in"
           : ctl === 0
-          ? "Control file refused"
-          : "Control accepted"
+          ? "Tệp điều khiển bị từ chối"
+          : "Tệp điều khiển được chấp nhận"
       }
       className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider ${
         ok
@@ -156,7 +156,7 @@ export function TelemetryPanel({ account }: { account: Account }) {
           <div className="flex items-center gap-2">
             <IconWarning className="size-3.5 shrink-0 text-danger" />
             <p className="text-xs font-semibold text-danger">
-              Version Mismatch — pending configuration was NOT written to disk by agent
+              Phiên bản cấu hình không tương thích — cấu hình mới chưa được Agent áp dụng
             </p>
           </div>
         </div>
@@ -187,9 +187,9 @@ export function TelemetryPanel({ account }: { account: Account }) {
       {snap ? (
         <div className="space-y-4">
           {/* Character & Vitals */}
-          <DiagnosticSection title="Character & Vitals">
-            <FactItem id="telemetry-lv" label="Level" value={String(snap.lv)} />
-            <FactItem id="telemetry-xp" label="XP" value={formatXp(snap.xp)} />
+          <DiagnosticSection title="Nhân vật & Sinh mệnh">
+            <FactItem id="telemetry-lv" label="Cấp độ" value={String(snap.lv)} />
+            <FactItem id="telemetry-xp" label="Kinh nghiệm (XP)" value={formatXp(snap.xp)} />
             <FactItem
               id="telemetry-hp"
               label="HP"
@@ -211,38 +211,38 @@ export function TelemetryPanel({ account }: { account: Account }) {
               }
             />
             <FactItem
-              label="Guild"
+              label="Bang hội"
               value={snap.guild && snap.guild.length > 0 ? snap.guild : "—"}
             />
           </DiagnosticSection>
 
           {/* Combat & Automation */}
-          <DiagnosticSection title="Combat & Automation">
-            <FactItem label="Attack Phase" value={String(snap.atkphase)} />
+          <DiagnosticSection title="Chiến đấu & Tự động">
+            <FactItem label="Giai đoạn đánh" value={String(snap.atkphase)} />
             <FactItem
-              label="Attack State"
+              label="Trạng thái đánh"
               value={formatAtkstate(snap.atkstate)}
             />
             <FactItem
-              label="Target ID"
-              value={snap.target === 0 ? "None" : String(snap.target)}
+              label="Mục tiêu"
+              value={snap.target === 0 ? "Không có" : String(snap.target)}
             />
             <FactItem
-              label="Stuck State"
-              value={formatStuck(snap.stuck) ?? "Clear (0)"}
+              label="Kẹt địa hình"
+              value={formatStuck(snap.stuck) ?? "Bình thường (0)"}
             />
             <FactItem
-              label="Potions / Revives"
+              label="Bình máu / Hồi sinh"
               value={`${snap.potions} / ${snap.revives}`}
             />
             <FactItem
-              label="XP Rate"
+              label="Tốc độ XP"
               value={snap.xprate > 0 ? `${snap.xprate}/h` : "—"}
             />
           </DiagnosticSection>
 
           {/* Position & Travel */}
-          <DiagnosticSection title="Position & Travel">
+          <DiagnosticSection title="Vị trí & Di chuyển">
             <FactItem
               id="telemetry-map"
               label="Map"
@@ -251,110 +251,110 @@ export function TelemetryPanel({ account }: { account: Account }) {
             />
             <FactItem
               id="telemetry-zone"
-              label="Zone"
+              label="Khu vực"
               value={String(snap.zone)}
             />
             <FactItem
-              label="Coordinates"
+              label="Tọa độ"
               value={`X: ${snap.px}, Y: ${snap.py}`}
             />
             {snap.travel !== 0 ? (
               <FactItem
                 id="telemetry-travelstate"
-                label="Travel State"
+                label="Trạng thái di chuyển"
                 value={String(snap.travelstate)}
               />
             ) : null}
             <FactItem
               id="telemetry-travelgoal"
-              label="Travel Goal"
+              label="Mục tiêu di chuyển"
               value={formatTravelGoal(snap.travelgoal)}
             />
             {snap.travelhops > 0 ? (
               <FactItem
-                label="Travel Hops"
+                label="Chặng di chuyển"
                 value={String(snap.travelhops)}
               />
             ) : null}
             {snap.travelwhy && snap.travelwhy.trim() !== "" ? (
-              <FactItem label="Travel Reason" value={snap.travelwhy} />
+              <FactItem label="Lý do di chuyển" value={snap.travelwhy} />
             ) : null}
           </DiagnosticSection>
 
           {/* Economy & Inventory */}
-          <DiagnosticSection title="Economy & Inventory">
+          <DiagnosticSection title="Tài nguyên & Túi đồ">
             <FactItem
               id="telemetry-gold"
-              label="Gold"
+              label="Vàng"
               value={formatGold(snap.gold)}
             />
             <FactItem
               id="telemetry-gem"
-              label="Gem"
+              label="Ngọc"
               value={formatGold(snap.gem)}
             />
             <FactItem
-              label="Wallet Opcode"
+              label="Ví tiền"
               value={snap.wallet !== null ? formatGold(snap.wallet) : "—"}
             />
             <FactItem
               id="telemetry-bag"
-              label="Bag Slots"
+              label="Ô túi đồ"
               value={`${snap.bag} / ${snap.bagmax}`}
             />
             <FactItem
               id="telemetry-quota"
-              label="Quota"
+              label="Hạn ngạch"
               value={formatQuota(snap)}
             />
             <FactItem
               id="telemetry-pkrank"
-              label="Pick Rank"
+              label="Cấp nhặt đồ"
               value={String(snap.pkrank)}
             />
             <FactItem
-              label="Auto-Pick Flags"
-              value={`Gold: ${snap.pkgold ? "ON" : "OFF"}, MP/HP: ${snap.pkmphp ? "ON" : "OFF"}`}
+              label="Tự nhặt đồ"
+              value={`Vàng: ${snap.pkgold ? "BẬT" : "TẮT"}, HP/MP: ${snap.pkmphp ? "BẬT" : "TẮT"}`}
             />
           </DiagnosticSection>
 
           {/* Modules & Flags */}
-          <DiagnosticSection title="Modules & Extended State">
+          <DiagnosticSection title="Trạng thái mở rộng">
             <FactItem
-              label="Mount"
+              label="Thú cưỡi"
               value={
                 snap.mount !== 0
                   ? snap.mounts && snap.mounts.length > 0
                     ? snap.mounts
-                    : "Active"
-                  : "None"
+                    : "Hoạt động"
+                  : "Không có"
               }
             />
             <FactItem
-              label="Buffs"
-              value={snap.buffs && snap.buffs.length > 0 ? snap.buffs : "None"}
+              label="Hiệu ứng (Buff)"
+              value={snap.buffs && snap.buffs.length > 0 ? snap.buffs : "Không có"}
             />
             <FactItem
-              label="Drops"
-              value={snap.drops && snap.drops.length > 0 ? snap.drops : "None"}
+              label="Vật phẩm rơi"
+              value={snap.drops && snap.drops.length > 0 ? snap.drops : "Không có"}
             />
             {snap.dungeonstate !== 0 || snap.dungeonruns > 0 ? (
               <FactItem
                 id="telemetry-dungeonruns"
-                label="Dungeon Runs"
+                label="Lượt phó bản"
                 value={String(snap.dungeonruns)}
-                subtext={`(State ${snap.dungeonstate})`}
+                subtext={`(Trạng thái ${snap.dungeonstate})`}
               />
             ) : null}
             {snap.enhancephase > 0 || snap.enhancedone > 0 ? (
               <FactItem
-                label="Enhance Module"
-                value={`Phase ${snap.enhancephase} (${snap.enhancedone} done)`}
+                label="Cường hóa"
+                value={`Giai đoạn ${snap.enhancephase} (xong ${snap.enhancedone})`}
               />
             ) : null}
             <FactItem
-              label="Stale / State"
-              value={`Stale: ${snap.stale}, State: ${snap.state}`}
+              label="Trạng thái dữ liệu"
+              value={`Chờ: ${snap.stale}, State: ${snap.state}`}
             />
           </DiagnosticSection>
         </div>
@@ -362,11 +362,11 @@ export function TelemetryPanel({ account }: { account: Account }) {
         <div className="rounded-md border border-border/60 bg-elevated/30 p-4 text-center">
           <p className="text-xs text-muted">
             {health === "stopped" ? (
-              "No snapshot (process stopped)"
+              "Không có dữ liệu (tiến trình đã dừng)"
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-warning/70" />
-                Waiting for telemetry snapshot…
+                Đang chờ dữ liệu trạng thái…
               </span>
             )}
           </p>
