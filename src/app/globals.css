@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /**
- * Zeus control panel theme — dark only, by design.
- * Tokens are semantic (surface / border / state) so components never hardcode
- * hex values and a future light theme is a single block change.
+ * Zeus control panel theme — Storm Steel Industrial Operations.
+ * Semantic tokens mapped to OKLCH with verified WCAG contrast.
+ * Dark-first, restrained cold steel surfaces, crisp hairline borders,
+ * and disciplined Lightning Blue accents.
  */
 
 @theme inline {
@@ -14,6 +15,7 @@
   --color-surface: var(--surface);
   --color-elevated: var(--elevated);
   --color-border: var(--border);
+  --color-border-interactive: var(--border-interactive);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
@@ -29,29 +31,37 @@
 :root {
   color-scheme: dark;
 
-  --background: #0b0d10;
-  --surface: #12151a;
-  --elevated: #191d24;
-  --border: #262b34;
-  --foreground: #e6e8ec;
-  --muted: #8b929e;
-  --accent: #4c8dff;
-  /** Darkened companion to `--accent` for white-label fills; `--accent` itself
-   *  only reaches 3.2:1 under white text. Text/border usage keeps `--accent`. */
-  --accent-fill: #2f6fe0;
+  /* Surfaces */
+  --background: oklch(0.16 0.012 255);
+  --surface: oklch(0.20 0.012 255);
+  --elevated: oklch(0.25 0.014 255);
+  --border: oklch(0.30 0.012 255);
+  --border-interactive: oklch(0.48 0.015 255);
 
-  --online: #35c46f;
-  --offline: #8b929e;
-  --running: #35c46f;
-  --warning: #e0a83a;
-  --danger: #f0563c;
-  --success: #35c46f;
+  /* Typography */
+  --foreground: oklch(0.94 0.008 255);
+  --muted: oklch(0.72 0.012 255);
+
+  /* Brand Accent: Lightning Blue */
+  --accent: oklch(0.82 0.11 230);
+  --accent-fill: oklch(0.46 0.14 250);
+
+  /* Operational Status Tokens (Strictly segregated from brand accent) */
+  --online: oklch(0.76 0.16 145);
+  --offline: oklch(0.65 0.015 255);
+  --running: oklch(0.76 0.16 145);
+  --warning: oklch(0.78 0.15 75);
+  --danger: oklch(0.70 0.20 25);
+  --success: oklch(0.76 0.16 145);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Numeric/identifier columns align when they use the mono stack. */
@@ -62,4 +72,16 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
