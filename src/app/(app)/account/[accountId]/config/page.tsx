@@ -25,14 +25,14 @@ import { useToast } from "@/store/toast-store";
 import type { Account, Device } from "@/lib/types";
 
 /**
- * Account Configuration — Storm Steel Editor.
+ * Account Configuration — Storm Steel Editor (Phase 10 Refinement).
  *
  * Operational hierarchy & invariants:
  *   - Version-gated against `device.jar_ctl_version`.
  *   - Gated banner if jar version not reported or unsupported.
  *   - Version mismatch banner if last config write was refused by agent.
  *   - Offline device warning blocks saving while allowing draft inspection/edits.
- *   - Quick section sub-navigation with error/dirty indicators.
+ *   - Tab-based section navigation (CSS hidden/block — state fully preserved across tab switches).
  *   - Preserves Map 0, "__none__" sentinel, and attackMapIntent state.
  *   - Honest lifecycle copy: "Saved to control plane" (no fake agent ack).
  */
@@ -63,6 +63,21 @@ export default function AccountConfigPage({
     />
   );
 }
+
+// ── Section icon map ──────────────────────────────────────────────────────────
+
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  combat: <IconSword />,
+  travel: <IconCompass />,
+  loot: <IconBag />,
+  recovery: <IconHeart />,
+  mount: <IconMount />,
+  enhance: <IconSparkle />,
+  dungeon: <IconDoor />,
+  spot: <IconPin />,
+};
+
+// ── Config Form ───────────────────────────────────────────────────────────────
 
 function ConfigForm({
   account,
@@ -130,6 +145,12 @@ function ConfigForm({
 
   const [resetKey, setResetKey] = useState(0);
 
+  // Tab-based section navigation — CSS hidden/block keeps all sections mounted
+  // so draft state, validation, and attackMapIntent survive tab switches.
+  const [activeSection, setActiveSection] = useState<string>(
+    sections?.[0]?.id ?? "combat",
+  );
+
   function handleChange(path: ConfigPath, value: ConfigValue) {
     const next = { ...draftRef.current, [path]: value };
     draftRef.current = next;
@@ -194,13 +215,6 @@ function ConfigForm({
     setResetKey((k) => k + 1);
   }
 
-  const scrollToSection = (sectionId: string) => {
-    const el = document.getElementById(`section-${sectionId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
   return (
     <div className="relative pb-24">
       <PageHeader
@@ -228,9 +242,7 @@ function ConfigForm({
           className="mb-5 rounded-md border border-danger/40 bg-danger/10 p-4 shadow-sm"
         >
           <div className="flex items-start gap-3">
-            <span className="text-danger text-base shrink-0 mt-0.5" aria-hidden="true">
-              ⚠️
-            </span>
+            <IconWarning className="size-4 shrink-0 mt-0.5 text-danger" />
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-danger">
                 Version Mismatch — Last Configuration Refused by Agent
@@ -253,9 +265,7 @@ function ConfigForm({
           className="mb-5 rounded-md border border-warning/40 bg-warning/10 p-5 shadow-sm"
         >
           <div className="flex items-start gap-3">
-            <span className="text-warning text-base shrink-0 mt-0.5" aria-hidden="true">
-              ⚠️
-            </span>
+            <IconWarning className="size-4 shrink-0 mt-0.5 text-warning" />
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-warning">
                 {jarCtlVersion === null
@@ -277,19 +287,19 @@ function ConfigForm({
         <>
           {offline ? (
             <div className="mb-4 rounded-md border border-warning/35 bg-warning/10 px-4 py-3 text-xs text-warning flex items-center gap-2">
-              <span aria-hidden="true">⚠️</span>
+              <IconWarning className="size-3.5 shrink-0" />
               <span>
                 {device?.name ?? "This device"} is offline. You can edit the configuration draft, but saving to the control plane is blocked until the agent reconnects.
               </span>
             </div>
           ) : null}
 
-          {/* Section Quick Navigation Bar */}
-          <div className="sticky top-16 z-20 -mx-4 mb-6 border-y border-border/80 bg-background/95 px-4 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted shrink-0">
-                Jump to:
-              </span>
+          {/* Section Tab Navigation Bar */}
+          <div className="sticky top-16 z-20 -mx-4 mb-4 border-y border-border/80 bg-background/95 px-4 py-1.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div
+              className="flex items-center gap-0.5 overflow-x-auto"
+              style={{ scrollbarWidth: "none" }}
+            >
               {sections!.map((sec) => {
                 const secErrors = sec.fields.filter((f) => errors[f.path] !== undefined).length;
                 const isSecDirty = sec.fields.some((f) => {
@@ -301,20 +311,29 @@ function ConfigForm({
                   }
                   return draft[f.path] !== persistedDraft[f.path];
                 });
+                const isActive = activeSection === sec.id;
 
                 return (
                   <button
                     key={sec.id}
                     type="button"
-                    onClick={() => scrollToSection(sec.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
-                      secErrors > 0
-                        ? "border-danger/40 bg-danger/10 text-danger"
-                        : isSecDirty
-                          ? "border-accent/40 bg-accent/10 text-accent"
-                          : "border-border bg-elevated/50 text-muted hover:border-border hover:bg-elevated hover:text-foreground"
+                    onClick={() => setActiveSection(sec.id)}
+                    className={`relative inline-flex min-h-[40px] items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                      isActive
+                        ? "text-accent"
+                        : secErrors > 0
+                          ? "text-danger hover:bg-danger/5"
+                          : isSecDirty
+                            ? "text-accent/70 hover:bg-accent/5"
+                            : "text-muted hover:text-foreground hover:bg-elevated/60"
                     }`}
+                    aria-pressed={isActive}
                   >
+                    {/* Active indicator: bottom border */}
+                    {isActive ? (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-accent" aria-hidden="true" />
+                    ) : null}
+                    <span className="shrink-0">{SECTION_ICONS[sec.id]}</span>
                     <span>{sec.title}</span>
                     {secErrors > 0 ? (
                       <span className="size-1.5 rounded-full bg-danger" aria-hidden="true" />
@@ -327,8 +346,8 @@ function ConfigForm({
             </div>
           </div>
 
-          {/* Section Forms */}
-          <div className="space-y-6">
+          {/* Section Panels — ALL always mounted; CSS hidden/block preserves state */}
+          <div>
             {sections!.map((section) => {
               const secErrors = section.fields.filter((f) => errors[f.path] !== undefined).length;
               const isSecDirty = section.fields.some((f) => {
@@ -341,19 +360,24 @@ function ConfigForm({
                 return draft[f.path] !== persistedDraft[f.path];
               });
 
+              const isActive = activeSection === section.id;
+
               return (
                 <div
                   id={`section-${section.id}`}
                   key={section.id}
-                  className="scroll-mt-28"
+                  className={isActive ? "block" : "hidden"}
                 >
                   <Card className="overflow-hidden border border-border bg-surface shadow-xs">
                     {/* Section Header */}
-                    <div className="border-b border-border/70 bg-elevated/40 px-4 py-3 sm:px-5">
+                    <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                          {section.title}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted">{SECTION_ICONS[section.id]}</span>
+                          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                            {section.title}
+                          </h3>
+                        </div>
                         <div className="flex items-center gap-2">
                           {secErrors > 0 ? (
                             <span className="rounded border border-danger/35 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-danger">
@@ -371,12 +395,12 @@ function ConfigForm({
                       ) : null}
                     </div>
 
-                    {/* Section Fields list with hairline dividers */}
+                    {/* Section Fields — tighter py-2.5 padding */}
                     <div className="divide-y divide-border/40 px-4 sm:px-5">
                       {section.fields.map((field) => (
                         <div
                           key={`${field.path}-${resetKey}`}
-                          className="py-3.5 first:pt-3 last:pb-3"
+                          className="py-2.5 first:pt-2.5 last:pb-2.5"
                         >
                           <ConfigFieldInput
                             field={field}
@@ -398,8 +422,8 @@ function ConfigForm({
             })}
           </div>
 
-          {/* Sticky Save Action Bar */}
-          <div className="sticky bottom-0 -mx-4 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-elevated/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-lg z-30">
+          {/* Sticky Save Action Bar — compact py-2 */}
+          <div className="sticky bottom-0 -mx-4 mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-elevated/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-lg z-30">
             <div className="flex items-center gap-2">
               <Button
                 variant="primary"
@@ -407,6 +431,7 @@ function ConfigForm({
                 busy={saving}
                 disabled={offline || !dirty || versionGated}
                 onClick={handleSave}
+                icon={<IconSave />}
               >
                 Save Changes
               </Button>
@@ -452,5 +477,104 @@ function ConfigForm({
         </>
       )}
     </div>
+  );
+}
+
+// ── Icon Library ───────────────────────────────────────────────────────────────
+
+function IconWarning({ className = "size-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M8 2L14.5 13.5H1.5L8 2z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path d="M8 6.5v3M8 11v.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSave() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M13.5 13.5H2.5V2.5h8.5l2.5 2.5v8.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <rect x="5" y="2.5" width="4" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="4" y="9" width="8" height="4.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function IconSword() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M10 2l4 4-7 7-1.5-1.5L4 13l-1-1 1.5-1.5L3 9l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCompass() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M10.5 5.5L9 9l-3.5 1.5 1.5-3.5 3.5-1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconBag() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M5 5.5V4a3 3 0 0 1 6 0v1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <rect x="2" y="5.5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function IconHeart() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M8 13S2 9 2 5.5a3 3 0 0 1 6-1A3 3 0 0 1 14 5.5C14 9 8 13 8 13z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconMount() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <ellipse cx="8" cy="9" rx="5" ry="3.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4 9v3M12 9v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6 9c0-2 4-4 4-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSparkle() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M8 2v3M8 11v3M2 8h3M11 8h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M4.2 4.2l2.1 2.1M9.7 9.7l2.1 2.1M11.8 4.2l-2.1 2.1M6.3 9.7l-2.1 2.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconDoor() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="3.5" y="2" width="9" height="13" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="11" cy="8.5" r="0.8" fill="currentColor" />
+      <path d="M3.5 15h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPin() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M8 2a4 4 0 0 1 4 4c0 3-4 8-4 8S4 9 4 6a4 4 0 0 1 4-4z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <circle cx="8" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
   );
 }
