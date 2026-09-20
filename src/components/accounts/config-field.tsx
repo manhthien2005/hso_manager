@@ -44,6 +44,8 @@ export function ConfigFieldInput({
   disabled,
   onChange,
   onBatchChange,
+  attackMapIntent,
+  onAttackMapIntentChange,
 }: {
   field: ConfigField;
   value: ConfigValue;
@@ -52,6 +54,8 @@ export function ConfigFieldInput({
   disabled?: boolean;
   onChange(path: ConfigPath, value: ConfigValue): void;
   onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
+  attackMapIntent?: string | null;
+  onAttackMapIntentChange?(intent: string | null): void;
 }) {
   const id = `cfg-${field.path.replace(/\./g, "-")}`;
   const set = (next: ConfigValue) => onChange(field.path, next);
@@ -66,6 +70,8 @@ export function ConfigFieldInput({
         disabled={disabled}
         onChange={onChange}
         onBatchChange={onBatchChange}
+        attackMapIntent={attackMapIntent}
+        onAttackMapIntentChange={onAttackMapIntentChange}
       />
     );
   }
@@ -289,6 +295,8 @@ function AttackMapFieldInput({
   disabled,
   onChange,
   onBatchChange,
+  attackMapIntent,
+  onAttackMapIntentChange,
 }: {
   field: ConfigField;
   value: ConfigValue;
@@ -297,8 +305,11 @@ function AttackMapFieldInput({
   disabled?: boolean;
   onChange(path: ConfigPath, value: ConfigValue): void;
   onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
+  attackMapIntent?: string | null;
+  onAttackMapIntentChange?(intent: string | null): void;
 }) {
-  const [userSelectedOption, setUserSelectedOption] = useState<string | null>(null);
+  const [localSelectedOption, setLocalSelectedOption] = useState<string | null>(null);
+  const userSelectedOption = attackMapIntent !== undefined ? attackMapIntent : localSelectedOption;
   const id = `cfg-${field.path.replace(/\./g, "-")}`;
 
   const numValue = typeof value === "number" ? value : Number(value);
@@ -332,7 +343,12 @@ function AttackMapFieldInput({
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const rawVal = e.target.value;
-    setUserSelectedOption(rawVal);
+    const nextIntent = rawVal === ATTACK_SPOT_NONE_SENTINEL ? null : rawVal;
+    if (onAttackMapIntentChange) {
+      onAttackMapIntentChange(nextIntent);
+    } else {
+      setLocalSelectedOption(nextIntent);
+    }
     const { updates } = handleAttackMapSelection(rawVal);
     if (onBatchChange) {
       onBatchChange(updates);

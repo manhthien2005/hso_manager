@@ -171,3 +171,101 @@ export function handleAttackMapSelection(selectValue: string): {
     isNone: false,
   };
 }
+
+export interface AttackSpotValidationResult {
+  valid: boolean;
+  errors: Partial<Record<"atk.map" | "atk.x" | "atk.y", string>>;
+}
+
+/**
+ * Pure validation rule for saving attack spot configuration (Round 9B3 Corrective 1).
+ *
+ * Rules:
+ * 1. Half-spot rejection: Both X and Y coordinates must be set together (both >= 0 or both < 0).
+ *    Authority: Zeus.java line 633, control.rs line 814.
+ * 2. Explicit real-map editing intent:
+ *    - If the user explicitly selected a real map in the UI (e.g. intent is "0" or "93"),
+ *      or if the draft has a non-zero attack map (atk.map > 0),
+ *      then valid coordinates (x >= 0 && y >= 0) are strictly REQUIRED before Save can proceed.
+ * 3. Canonical None:
+ *    - If draft is canonical None (atk.map=0, atk.zone=-1, atk.x=-1, atk.y=-1) and
+ *      the user did NOT explicitly select a real map (intent is null or ATTACK_SPOT_NONE_SENTINEL),
+ *      it is VALID with 0 errors.
+ */
+export function validateAttackSpotSave(
+  draft: {
+    "atk.map"?: unknown;
+    "atk.zone"?: unknown;
+    "atk.x"?: unknown;
+    "atk.y"?: unknown;
+  },
+  attackMapIntent?: string | null,
+): AttackSpotValidationResult {
+  const errors: Partial<Record<"atk.map" | "atk.x" | "atk.y", string>> = {};
+
+  const xVal = Number(draft["atk.x"]);
+  const yVal = Number(draft["atk.y"]);
+  const mapVal = Number(draft["atk.map"]);
+
+  // 1. Half-spot rejection (Zeus.java line 633, control.rs line 814)
+  if (!Number.isNaN(xVal) && !Number.isNaN(yVal)) {
+    if ((xVal < 0) !== (yVal < 0)) {
+      if (xVal < 0) {
+        errors["atk.x"] = "Both X and Y coordinates must be set together";
+      }
+      if (yVal < 0) {
+        errors["atk.y"] = "Both X and Y coordinates must be set together";
+      }
+      return { valid: false, errors };
+    }
+  }
+
+  // 2. Explicit real-map intent check
+  // Does the user have explicit intent for a real map?
+  // - attackMapIntent is a valid numeric map string (e.g. "0", "93", etc.) AND !== "__none__"
+  // - OR draft["atk.map"] > 0
+  const isExplicitRealMapIntent =
+    attackMapIntent !== null &&
+    attackMapIntent !== undefined &&
+    attackMapIntent !== ATTACK_SPOT_NONE_SENTINEL &&
+    !Number.isNaN(Number(attackMapIntent)) &&
+    Number(attackMapIntent) >= 0 &&
+    Number(attackMapIntent) <= 255;
+
+  const requiresCoordinates = isExplicitRealMapIntent || (!Number.isNaN(mapVal) && mapVal > 0);
+
+  if (requiresCoordinates) {
+    if (Number.isNaN(xVal) || xVal < 0) {
+      errors["atk.x"] = "X coordinate (>= 0) is required when an attack map is selected";
+    }
+    if (Number.isNaN(yVal) || yVal < 0) {
+      errors["atk.y"] = "Y coordinate (>= 0) is required when an attack map is selected";
+    }
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+  };
+}
+
+/**
+ * Checks whether the attack spot editing state is dirty compared to persisted state,
+ * taking into account transient presentation intent (e.g. selecting Real Map 0 from None).
+ */
+export function isAttackMapSelectionDirty(
+  persistedTuple: { "atk.map"?: unknown; "atk.x"?: unknown; "atk.y"?: unknown },
+  currentTuple: { "atk.map"?: unknown; "atk.x"?: unknown; "atk.y"?: unknown },
+  attackMapIntent?: string | null,
+): boolean {
+  const persistedSelect = getAttackMapSelectValue(persistedTuple["atk.map"], {
+    x: persistedTuple["atk.x"],
+    y: persistedTuple["atk.y"],
+  });
+  const currentSelect = getAttackMapSelectValue(
+    currentTuple["atk.map"],
+    { x: currentTuple["atk.x"], y: currentTuple["atk.y"] },
+    attackMapIntent,
+  );
+  return persistedSelect !== currentSelect;
+}

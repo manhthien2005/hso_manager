@@ -18,6 +18,7 @@ import {
   type ConfigPath,
   type ConfigValue,
 } from "@/lib/config-schema";
+import { isAttackMapSelectionDirty } from "@/lib/attack-spot";
 import { describeError } from "@/services/api";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
 import { useToast } from "@/store/toast-store";
@@ -85,15 +86,39 @@ function ConfigForm({
     draftRef.current = draft;
   }, [draft]);
 
+  // Transient UI intent for attack map selection (Round 9B3 Corrective 1).
+  // Distinguishes selecting Real Map 0 in the UI from canonical None while coordinates remain unset.
+  const [attackMapIntent, setAttackMapIntent] = useState<string | null>(null);
+  const attackMapIntentRef = useRef<string | null>(attackMapIntent);
+  useEffect(() => {
+    attackMapIntentRef.current = attackMapIntent;
+  }, [attackMapIntent]);
+
+  // Reset transient intent if account.control changes externally (e.g. reload or switch)
+  const prevControlRef = useRef(account.control);
+  useEffect(() => {
+    if (prevControlRef.current !== account.control) {
+      prevControlRef.current = account.control;
+      setAttackMapIntent(null);
+      attackMapIntentRef.current = null;
+    }
+  }, [account.control]);
+
   const [errors, setErrors] = useState<ConfigErrors>({});
   const [touched, setTouched] = useState(false);
   const saving = isPending(pendingKey.config(account.id));
   const persistedDraft = account.control
     ? controlRecordToDraft(account.control)
     : defaultControlDraft();
-  const dirty =
+  const rawFieldsDirty =
     JSON.stringify(controlRecordToDraft(draftToControlRecord(draft))) !==
     JSON.stringify(persistedDraft);
+  const attackMapDirty = isAttackMapSelectionDirty(
+    persistedDraft,
+    draft,
+    attackMapIntent,
+  );
+  const dirty = rawFieldsDirty || attackMapDirty;
   const offline = device?.status !== "online";
   const errorCount = Object.keys(errors).length;
 
@@ -106,20 +131,28 @@ function ConfigForm({
     const next = { ...draftRef.current, [path]: value };
     draftRef.current = next;
     setDraft(next);
-    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0));
+    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0, attackMapIntentRef.current));
   }
 
   function handleBatchChange(updates: Partial<Record<ConfigPath, ConfigValue>>) {
     const next = { ...draftRef.current, ...updates };
     draftRef.current = next;
     setDraft(next);
-    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0));
+    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0, attackMapIntentRef.current));
+  }
+
+  function handleAttackMapIntentChange(nextIntent: string | null) {
+    attackMapIntentRef.current = nextIntent;
+    setAttackMapIntent(nextIntent);
+    if (touched) {
+      setErrors(validateDraft(draftRef.current, jarCtlVersion ?? 0, nextIntent));
+    }
   }
 
   async function handleSave() {
     if (jarCtlVersion === null || !sections) return;
     const currentDraft = draftRef.current;
-    const nextErrors = validateDraft(currentDraft, jarCtlVersion);
+    const nextErrors = validateDraft(currentDraft, jarCtlVersion, attackMapIntentRef.current);
     setErrors(nextErrors);
     setTouched(true);
     if (Object.keys(nextErrors).length > 0) {
@@ -133,6 +166,8 @@ function ConfigForm({
         controlVersion: jarCtlVersion,
       });
       setTouched(false);
+      attackMapIntentRef.current = null;
+      setAttackMapIntent(null);
       push(
         "success",
         "Config saved",
@@ -151,6 +186,8 @@ function ConfigForm({
     setDraft(next);
     setErrors({});
     setTouched(false);
+    attackMapIntentRef.current = null;
+    setAttackMapIntent(null);
     setResetKey((k) => k + 1);
   }
 
@@ -232,6 +269,8 @@ function ConfigForm({
                       disabled={saving}
                       onChange={handleChange}
                       onBatchChange={handleBatchChange}
+                      attackMapIntent={attackMapIntent}
+                      onAttackMapIntentChange={handleAttackMapIntentChange}
                     />
                   ))}
                 </div>

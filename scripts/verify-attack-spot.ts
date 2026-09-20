@@ -13,30 +13,53 @@
  * 9. Negative or malformed coordinate inputs are never recognized as configured
  */
 
-import {
-  CANONICAL_NO_SPOT_TUPLE,
-  ATTACK_SPOT_NONE_SENTINEL,
-  NO_ATTACK_SPOT_LABEL,
-  isAttackSpotConfigured,
-  isAttackSpotConfiguredInDraft,
-  isCanonicalNoSpotTuple,
-  getAttackMapSelectValue,
-  handleAttackMapSelection,
-} from "../src/lib/attack-spot.ts";
-import { defaultControlDraft } from "../src/lib/config-schema.ts";
+import { register } from "node:module";
 
-let failures = 0;
-
-function assert(condition: boolean, msg: string) {
-  if (!condition) {
-    console.error(`  [FAIL] ${msg}`);
-    failures++;
-  } else {
-    console.log(`  [PASS] ${msg}`);
+// Register custom extension resolver hook for Node type-stripping ESM runner
+const hookCode = `
+export async function resolve(specifier, context, nextResolve) {
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err) {
+    if (specifier.startsWith(".") && !specifier.endsWith(".ts")) {
+      try {
+        return await nextResolve(specifier + ".ts", context);
+      } catch (_) {}
+    }
+    throw err;
   }
 }
+`;
+register("data:text/javascript," + encodeURIComponent(hookCode), import.meta.url);
 
-console.log("=== RUNNING ROUND 9B3 ATTACK SPOT SEMANTICS VERIFICATION ===\n");
+async function main() {
+  const {
+    CANONICAL_NO_SPOT_TUPLE,
+    ATTACK_SPOT_NONE_SENTINEL,
+    NO_ATTACK_SPOT_LABEL,
+    isAttackSpotConfigured,
+    isAttackSpotConfiguredInDraft,
+    isCanonicalNoSpotTuple,
+    getAttackMapSelectValue,
+    handleAttackMapSelection,
+    validateAttackSpotSave,
+    isAttackMapSelectionDirty,
+  } = await import("../src/lib/attack-spot.ts");
+  const { defaultControlDraft, validateDraft } = await import("../src/lib/config-schema.ts");
+  const { formatGameMap, getGameMap } = await import("../src/lib/game-maps.ts");
+
+  let failures = 0;
+
+  function assert(condition: boolean, msg: string) {
+    if (!condition) {
+      console.error(`  [FAIL] ${msg}`);
+      failures++;
+    } else {
+      console.log(`  [PASS] ${msg}`);
+    }
+  }
+
+  console.log("=== RUNNING ROUND 9B3 ATTACK SPOT SEMANTICS VERIFICATION ===\n");
 
 // 1. Canonical no-spot predicate & select value
 console.log("1. Canonical no-spot detection:");
@@ -130,9 +153,8 @@ assert(CANONICAL_NO_SPOT_TUPLE["atk.zone"] === -1, "Canonical tuple zone is -1")
 assert(CANONICAL_NO_SPOT_TUPLE["atk.x"] === -1, "Canonical tuple x is -1");
 assert(CANONICAL_NO_SPOT_TUPLE["atk.y"] === -1, "Canonical tuple y is -1");
 
-// 11. validateDraft validation tests
-console.log("\n11. validateDraft spot coordinate validation:");
-import { validateDraft } from "../src/lib/config-schema.ts";
+// 11. validateDraft spot coordinate validation (baseline without intent)
+console.log("\n11. validateDraft spot coordinate validation (baseline):");
 
 const defaultErrors = validateDraft(defaultControlDraft(), 13);
 assert(Object.keys(defaultErrors).length === 0, "defaultControlDraft passes validation with 0 errors");
@@ -170,10 +192,139 @@ assert(
   "Map > 0 without coordinates produces errors on both atk.x and atk.y",
 );
 
-console.log(`\n=================================`);
-if (failures === 0) {
-  console.log("ALL ATTACK SPOT TESTS PASSED (0 failures)\n");
-} else {
-  console.error(`ATTACK SPOT TESTS FAILED: ${failures} failure(s)\n`);
-  process.exit(1);
+// 12. Corrective 1: Explicit Map 0 Intent & Save Validation
+// Tests BOTH validateAttackSpotSave and production validateDraft (used by ConfigForm.handleSave)
+console.log("\n12. Corrective 1: Explicit Map 0 Intent & Save Validation:");
+
+// 12A. Persisted None with no explicit real-map intent -> VALID
+const test12A_helper = validateAttackSpotSave(defaultControlDraft(), null);
+assert(test12A_helper.valid === true, "12A (helper): Persisted None with no intent is VALID");
+assert(Object.keys(test12A_helper.errors).length === 0, "12A (helper): 0 validation errors");
+
+const test12A_prod = validateDraft(defaultControlDraft(), 13, null);
+assert(Object.keys(test12A_prod).length === 0, "12A (prod validateDraft): Persisted None with no intent is VALID");
+
+// 12B. None -> explicit Map 0 intent with coordinates untouched (-1,-1) -> INVALID FOR SAVE
+const test12B_helper = validateAttackSpotSave(defaultControlDraft(), "0");
+assert(test12B_helper.valid === false, "12B (helper): Explicit Map 0 intent with untouched coords is INVALID FOR SAVE");
+assert("atk.x" in test12B_helper.errors && "atk.y" in test12B_helper.errors, "12B (helper): errors on both atk.x and atk.y");
+
+const test12B_prod = validateDraft(defaultControlDraft(), 13, "0");
+assert("atk.x" in test12B_prod && "atk.y" in test12B_prod, "12B (prod validateDraft): errors on both atk.x and atk.y");
+
+// 12C. Critical unrelated-dirty case: draft has unrelated change, but explicit Map 0 lacks coords -> MUST REJECT
+const unrelatedDirtyDraft = {
+  ...defaultControlDraft(),
+  "atk.radius": 150, // unrelated field modified
+};
+const test12C_helper = validateAttackSpotSave(unrelatedDirtyDraft, "0");
+assert(test12C_helper.valid === false, "12C (helper): Unrelated dirty draft with explicit Map 0 lacks coords -> MUST REJECT");
+assert("atk.x" in test12C_helper.errors, "12C (helper): atk.x error present");
+assert("atk.y" in test12C_helper.errors, "12C (helper): atk.y error present");
+
+const test12C_prod = validateDraft(unrelatedDirtyDraft, 13, "0");
+assert("atk.x" in test12C_prod && "atk.y" in test12C_prod, "12C (prod validateDraft): Save rejected due to missing attack coordinates");
+
+// 12D. Map 0 with valid coordinates -> VALID
+const validMap0Draft = { ...defaultControlDraft(), "atk.map": 0, "atk.x": 120, "atk.y": 240 };
+const test12D_helper = validateAttackSpotSave(validMap0Draft, "0");
+assert(test12D_helper.valid === true, "12D (helper): Map 0 with valid coordinates is VALID");
+assert(Object.keys(test12D_helper.errors).length === 0, "12D (helper): 0 validation errors");
+
+const test12D_prod = validateDraft(validMap0Draft, 13, "0");
+assert(Object.keys(test12D_prod).length === 0, "12D (prod validateDraft): Map 0 with valid coords is VALID");
+
+// 12E. Map 0 half-spot -> INVALID
+const halfSpotMap0_1 = { ...defaultControlDraft(), "atk.map": 0, "atk.x": 120, "atk.y": -1 };
+const test12E1_helper = validateAttackSpotSave(halfSpotMap0_1, "0");
+assert(test12E1_helper.valid === false, "12E1 (helper): Map 0 half-spot (x>=0, y<0) is INVALID");
+
+const test12E1_prod = validateDraft(halfSpotMap0_1, 13, "0");
+assert("atk.y" in test12E1_prod, "12E1 (prod validateDraft): error on atk.y for half-spot");
+
+const halfSpotMap0_2 = { ...defaultControlDraft(), "atk.map": 0, "atk.x": -1, "atk.y": 240 };
+const test12E2_helper = validateAttackSpotSave(halfSpotMap0_2, "0");
+assert(test12E2_helper.valid === false, "12E2 (helper): Map 0 half-spot (x<0, y>=0) is INVALID");
+
+const test12E2_prod = validateDraft(halfSpotMap0_2, 13, "0");
+assert("atk.x" in test12E2_prod, "12E2 (prod validateDraft): error on atk.x for half-spot");
+
+// 12F. Select None after explicit Map 0 -> tuple 0,-1,-1,-1, intent cleared -> VALID
+const selectNoneAfter = handleAttackMapSelection(ATTACK_SPOT_NONE_SENTINEL);
+const test12F_helper = validateAttackSpotSave(selectNoneAfter.updates, ATTACK_SPOT_NONE_SENTINEL);
+assert(test12F_helper.valid === true, "12F (helper): Select None after explicit Map 0 is VALID");
+assert(Object.keys(test12F_helper.errors).length === 0, "12F (helper): 0 validation errors");
+
+const test12F_prod = validateDraft(
+  { ...defaultControlDraft(), ...selectNoneAfter.updates },
+  13,
+  null,
+);
+assert(Object.keys(test12F_prod).length === 0, "12F (prod validateDraft): Select None after explicit Map 0 is VALID");
+
+// 12G. Reset/reload: intent cleared to null -> canonical None is valid
+const test12G_helper = validateAttackSpotSave(defaultControlDraft(), null);
+assert(test12G_helper.valid === true, "12G (helper): Reset/reload canonical None with null intent is VALID");
+
+const test12G_prod = validateDraft(defaultControlDraft(), 13, null);
+assert(Object.keys(test12G_prod).length === 0, "12G (prod validateDraft): Reset/reload canonical None is VALID");
+
+// 13. Dirty semantics verification (isAttackMapSelectionDirty)
+console.log("\n13. Dirty semantics verification:");
+const persistedNone = defaultControlDraft();
+
+// Canonical None -> select Map 0 intent "0" -> DIRTY
+assert(
+  isAttackMapSelectionDirty(persistedNone, persistedNone, "0") === true,
+  "13A: Selecting Map 0 from canonical None is DIRTY",
+);
+
+// Canonical None -> no selection change -> NOT DIRTY
+assert(
+  isAttackMapSelectionDirty(persistedNone, persistedNone, null) === false,
+  "13B: Unmodified canonical None is NOT dirty",
+);
+
+// Canonical None -> select None sentinel -> NOT DIRTY
+assert(
+  isAttackMapSelectionDirty(persistedNone, persistedNone, ATTACK_SPOT_NONE_SENTINEL) === false,
+  "13C: Re-selecting None on canonical None is NOT dirty",
+);
+
+// Configured Map 0 -> unchanged -> NOT DIRTY
+assert(
+  isAttackMapSelectionDirty(validMap0Draft, validMap0Draft, null) === false,
+  "13D: Unmodified configured Map 0 is NOT dirty",
+);
+
+// Configured Map 0 -> select None -> DIRTY
+assert(
+  isAttackMapSelectionDirty(validMap0Draft, persistedNone, null) === true,
+  "13E: Changing configured Map 0 to None is DIRTY",
+);
+
+// 14. Production Game Catalog Facade Check (Section 14)
+console.log("\n14. Production Game Catalog Facade Check:");
+const map0 = getGameMap(0);
+assert(map0 !== undefined, "14A: Map 0 exists in catalog");
+assert(map0?.name === "Ngôi Làng Nhỏ", `14B: Map 0 name is 'Ngôi Làng Nhỏ' (got '${map0?.name}')`);
+assert(formatGameMap(0) === "[0] Ngôi Làng Nhỏ", `14C: formatGameMap(0) matches expected format (got '${formatGameMap(0)}')`);
+
+const map93 = getGameMap(93);
+assert(map93 !== undefined, "14D: Map 93 exists in catalog");
+assert(map93?.name === "Thị trấn mùa đông", `14E: Map 93 name is 'Thị trấn mùa đông' (got '${map93?.name}')`);
+assert(formatGameMap(93) === "[93] Thị trấn mùa đông", `14F: formatGameMap(93) matches expected format (got '${formatGameMap(93)}')`);
+
+  console.log(`\n=================================`);
+  if (failures === 0) {
+    console.log("ALL ATTACK SPOT TESTS PASSED (0 failures)\n");
+  } else {
+    console.error(`ATTACK SPOT TESTS FAILED: ${failures} failure(s)\n`);
+    process.exit(1);
+  }
 }
+
+main().catch((err) => {
+  console.error("FATAL ERROR in verify-attack-spot:", err);
+  process.exit(1);
+});
