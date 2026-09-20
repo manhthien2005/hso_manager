@@ -548,6 +548,43 @@ function clampNumber(value: number, min?: number, max?: number): number {
   return v;
 }
 
+export const CONFIG_FIELD_LABELS_VI: Partial<Record<ConfigPath, string>> = {
+  "atk.mode": "Chế độ tấn công",
+  "atk.radius": "Bán kính tấn công",
+  "atk.hpOn": "Tự dùng bình HP",
+  "atk.hpPct": "Ngưỡng HP",
+  "atk.mpOn": "Tự dùng bình MP",
+  "atk.mpPct": "Ngưỡng MP",
+  "atk.buffs": "Kỹ năng hỗ trợ (Buff)",
+  "atk.farmOnArrival": "Tự đánh khi đến nơi",
+  "ui.ring": "Hiển thị phạm vi tấn công",
+  "atk.zoneMode": "Chế độ khu vực",
+  "atk.zonePick": "Khu vực chỉ định",
+  "nav.target": "Map mục tiêu di chuyển",
+  "nav.detectSpots": "Tìm vị trí đánh",
+  "item.rank": "Phẩm cấp vật phẩm",
+  "item.mphp": "Nhặt bình HP/MP",
+  "item.gold": "Nhặt vàng",
+  "item.medalDialog": "Hộp thoại huân chương",
+  "item.dropsOn": "Bật lọc đóng hòm đồ",
+  "item.drops": "Ô lọc hòm đồ",
+  "revive.on": "Tự hồi sinh",
+  "revive.mode": "Chế độ hồi sinh",
+  "revive.delay": "Thời gian chờ hồi sinh",
+  "mount.on": "Dùng thú cưỡi",
+  "mount.id": "Loại thú cưỡi",
+  "enhance.on": "Tự cường hóa",
+  "enhance.maxLv": "Cấp cường hóa tối đa",
+  "enhance.charm": "Loại bùa cường hóa",
+  "dungeon.on": "Tự đi phó bản",
+  "dungeon.max": "Số lượt tối đa",
+  "dungeon.schedule": "Khung giờ tham gia",
+  "atk.map": "Map ID",
+  "atk.zone": "Khu vực",
+  "atk.x": "Tọa độ X",
+  "atk.y": "Tọa độ Y",
+};
+
 /** Return per-field error messages. Empty object = draft is safe to save. */
 export function validateDraft(
   draft: ConfigDraft,
@@ -562,6 +599,7 @@ export function validateDraft(
   for (const section of sections) {
     for (const field of section.fields) {
       const raw = draft[field.path];
+      const fieldLabel = CONFIG_FIELD_LABELS_VI[field.path] ?? field.label;
 
       if (field.type === "toggle") continue;
       if (field.type === "action") continue;
@@ -570,7 +608,7 @@ export function validateDraft(
         const n = Number(raw);
         const valid = field.options.some((o) => o.value === n);
         if (!valid) {
-          errors[field.path] = `${field.label}: unknown option ${String(raw)}`;
+          errors[field.path] = `${fieldLabel}: tùy chọn không hợp lệ ${String(raw)}`;
         }
         continue;
       }
@@ -578,7 +616,7 @@ export function validateDraft(
       if (field.type === "flags") {
         const s = String(raw ?? "");
         if (s.length !== field.length || !/^[01]+$/.test(s)) {
-          errors[field.path] = `${field.label} must be exactly ${field.length} characters of '0' or '1'`;
+          errors[field.path] = `${fieldLabel} phải có đúng ${field.length} ký tự '0' hoặc '1'`;
         }
         continue;
       }
@@ -590,22 +628,22 @@ export function validateDraft(
       ) {
         const n = Number(raw);
         if (raw === "" || raw === undefined || raw === null || Number.isNaN(n)) {
-          errors[field.path] = `${field.label} must be a number`;
+          errors[field.path] = `${fieldLabel} phải là một số hợp lệ`;
           continue;
         }
         if (!Number.isInteger(n)) {
-          errors[field.path] = `${field.label} must be a whole number`;
+          errors[field.path] = `${fieldLabel} phải là số nguyên`;
           continue;
         }
         const clamped = clampNumber(n, field.min, field.max);
         if (clamped !== n) {
           const range = [
-            field.min !== undefined ? `min ${field.min}` : "",
-            field.max !== undefined ? `max ${field.max}` : "",
+            field.min !== undefined ? `tối thiểu ${field.min}` : "",
+            field.max !== undefined ? `tối đa ${field.max}` : "",
           ]
             .filter(Boolean)
             .join(", ");
-          errors[field.path] = `${field.label} out of range (${range})`;
+          errors[field.path] = `${fieldLabel} ngoài phạm vi (${range})`;
         }
         continue;
       }

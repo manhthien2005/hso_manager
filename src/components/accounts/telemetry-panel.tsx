@@ -354,7 +354,7 @@ export function TelemetryPanel({ account }: { account: Account }) {
             ) : null}
             <FactItem
               label="Trạng thái dữ liệu"
-              value={`Chờ: ${snap.stale}, State: ${snap.state}`}
+              value={`Chờ: ${snap.stale}, Trạng thái: ${snap.state}`}
             />
           </DiagnosticSection>
         </div>

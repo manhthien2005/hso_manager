@@ -245,7 +245,7 @@ export default function DeviceDetailPage({
             <div className="mt-1.5 space-y-0.5 font-mono text-xs tabular text-muted">
               <div>Agent: <span className="text-foreground">{device.agentVersion || "—"}</span></div>
               <div>Runtime: <span className="text-foreground">{device.runtimeVersion || "—"}</span></div>
-              <div>CTL v: <span className="text-foreground">{device.jar_ctl_version ?? "None"}</span></div>
+              <div>CTL v: <span className="text-foreground">{device.jar_ctl_version ?? "—"}</span></div>
             </div>
           </Card>
         </div>

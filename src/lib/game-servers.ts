@@ -47,5 +47,5 @@ export function getServerName(index: number): string | null {
 
 export function formatServerDisplay(serverId: number | null): string {
   if (serverId === null) return "—";
-  return SERVER_NAME_BY_INDEX[serverId] ?? `Unknown (${serverId})`;
+  return SERVER_NAME_BY_INDEX[serverId] ?? `Không xác định (${serverId})`;
 }
