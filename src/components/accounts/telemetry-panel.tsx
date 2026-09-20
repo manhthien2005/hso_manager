@@ -1,20 +1,13 @@
 /**
- * Telemetry panel (Task 14, C4) — renders the 48-key snapshot from zeus-player.txt.
+ * Telemetry panel — renders structured diagnostic telemetry from PlayerSnapshot.
  *
- * Design decisions enforced by WIRE-CONTRACT §5 / WEB-SPEC §5:
- *
- *   - healthOf() three-state: green=running, yellow=degraded, gray=stopped.
- *     "process alive" ≠ running; ctl must be valid (ctl===1).
- *     Attack automation state is not a health signal.
- *   - xp is permille (0..1000); rendered as `bA/10 + "," + bA%10 + "%"`.
- *   - gold/gem are null until opcode 16; rendered as "—" not "0".
- *   - quota ≤ 0 triggers "0 (limit reached)" — explains why auto stopped.
- *   - ctl ≠ 1 is always visible (red badge) regardless of process state.
- *   - stuck ≠ 0 shows a warning callout.
- *   - config_status='version_mismatch' shows a red banner at the top.
- *
- * The panel degrades gracefully: if snapshot is null it shows "waiting…" in
- * the degraded colour instead of crashing.
+ * Design decisions enforced by WIRE-CONTRACT §5 / WEB-SPEC §5 / Storm Steel:
+ *   - healthOf() three-state: running, degraded, stopped.
+ *   - Semantic grouping: Character & Vitals, Combat & Stance, Position & Navigation,
+ *     Economy & Inventory, Automation Modules, Runtime & Control.
+ *   - Preserves all contract IDs (telemetry-health-badge, telemetry-ctl-badge, etc.)
+ *   - When process appears alive but snapshot is null, show subdued "Waiting for telemetry".
+ *   - Version mismatch shows prominent warning banner.
  */
 
 import type { Account } from "@/lib/types";
@@ -28,48 +21,27 @@ import {
   formatTravelGoal,
   healthOf,
 } from "@/lib/format";
+import { HealthStatusBadge } from "@/components/ui/status";
 
-// ── Health colour tokens ──────────────────────────────────────────────────────
-
-const HEALTH_RING: Record<string, string> = {
-  running: "ring-1 ring-success/50",
-  degraded: "ring-1 ring-warning/50",
-  stopped: "ring-1 ring-border",
-};
-
-const HEALTH_DOT: Record<string, string> = {
-  running: "bg-success",
-  degraded: "bg-warning",
-  stopped: "bg-muted",
-};
-
-const HEALTH_LABEL: Record<string, string> = {
-  running: "Running",
-  degraded: "Degraded",
-  stopped: "Stopped",
-};
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function HealthBadge({ health }: { health: string }) {
-  return (
-    <span
-      id="telemetry-health-badge"
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${HEALTH_RING[health]}`}
-    >
-      <span className={`size-1.5 rounded-full ${HEALTH_DOT[health]}`} aria-hidden="true" />
-      {HEALTH_LABEL[health]}
-    </span>
-  );
-}
+// ── Badges ────────────────────────────────────────────────────────────────────
 
 function CtlBadge({ ctl }: { ctl: number }) {
   const ok = ctl === 1;
   return (
     <span
       id="telemetry-ctl-badge"
-      title={ctl === -1 ? "No -Dzeus.ctl.in property" : ctl === 0 ? "Control file refused" : "Control accepted"}
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${ok ? "bg-success/15 text-success" : "bg-danger/15 text-danger"}`}
+      title={
+        ctl === -1
+          ? "No -Dzeus.ctl.in property"
+          : ctl === 0
+          ? "Control file refused"
+          : "Control accepted"
+      }
+      className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider ${
+        ok
+          ? "border-success/35 bg-success/10 text-success"
+          : "border-danger/35 bg-danger/10 text-danger"
+      }`}
     >
       ctl={ctl}
     </span>
@@ -82,7 +54,11 @@ function AtkstateBadge({ atkstate }: { atkstate: number }) {
   return (
     <span
       id="telemetry-atkstate-badge"
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${none ? "bg-muted/20 text-muted" : "bg-accent/15 text-accent"}`}
+      className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-wide uppercase ${
+        none
+          ? "border-border bg-elevated text-muted"
+          : "border-accent/35 bg-accent/10 text-accent"
+      }`}
     >
       {label}
     </span>
@@ -95,23 +71,57 @@ function StuckBadge({ stuck }: { stuck: number }) {
   return (
     <span
       id="telemetry-stuck-badge"
-      className="rounded bg-warning/15 px-1.5 py-0.5 font-mono text-[10px] text-warning"
+      className="rounded border border-warning/35 bg-warning/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-warning"
     >
       ⚠ {warning}
     </span>
   );
 }
 
-function Row({ label, value, id }: { label: string; value: string; id?: string }) {
+function FactItem({
+  label,
+  value,
+  id,
+  subtext,
+}: {
+  label: string;
+  value: string;
+  id?: string;
+  subtext?: string;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-0.5">
-      <dt className="shrink-0 text-[11px] tracking-wide text-muted uppercase">{label}</dt>
-      <dd id={id} className="truncate font-mono text-xs tabular">{value}</dd>
+    <div className="flex flex-col justify-center rounded border border-border/60 bg-elevated/40 px-2.5 py-1.5">
+      <dt className="text-[10px] font-semibold tracking-wider text-muted uppercase">
+        {label}
+      </dt>
+      <dd id={id} className="mt-0.5 truncate font-mono text-xs font-medium tabular text-foreground">
+        {value}
+        {subtext ? <span className="ml-1 text-[11px] font-normal text-muted">{subtext}</span> : null}
+      </dd>
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+function DiagnosticSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-[10px] font-semibold tracking-wider text-muted uppercase">
+        {title}
+      </h4>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export function TelemetryPanel({ account }: { account: Account }) {
   const health = healthOf(account);
@@ -119,80 +129,231 @@ export function TelemetryPanel({ account }: { account: Account }) {
   const versionMismatch = account.config_status === "version_mismatch";
 
   return (
-    <div id={`telemetry-${account.id}`} className="space-y-3">
+    <div id={`telemetry-${account.id}`} className="space-y-4 pt-1">
       {/* version_mismatch banner — C4.6 */}
       {versionMismatch ? (
         <div
           id="telemetry-version-mismatch-banner"
-          className="rounded-md border border-danger/40 bg-danger/8 px-3 py-2"
+          className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2"
         >
-          <p className="text-[11px] font-medium text-danger">
-            ⚠️ Version mismatch — last config was NOT written to disk
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-danger font-bold text-xs">⚠️</span>
+            <p className="text-xs font-semibold text-danger">
+              Version Mismatch — pending configuration was NOT written to disk by agent
+            </p>
+          </div>
         </div>
       ) : null}
 
-      {/* Health row with badges */}
-      <div className="flex flex-wrap items-center gap-2">
-        <HealthBadge health={health} />
+      {/* Health & Diagnostic Badges Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-elevated/60 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span id="telemetry-health-badge">
+            <HealthStatusBadge health={health} />
+          </span>
+          {snap ? (
+            <>
+              <CtlBadge ctl={snap.ctl} />
+              <AtkstateBadge atkstate={snap.atkstate} />
+              <StuckBadge stuck={snap.stuck} />
+            </>
+          ) : null}
+        </div>
         {snap ? (
-          <>
-            <CtlBadge ctl={snap.ctl} />
-            <AtkstateBadge atkstate={snap.atkstate} />
-            <StuckBadge stuck={snap.stuck} />
-          </>
+          <span className="font-mono text-[11px] text-muted tabular">
+            Snapshot v{snap.v} • t={snap.t}
+          </span>
         ) : null}
       </div>
 
-      {/* Snapshot grid */}
+      {/* Snapshot Groups */}
       {snap ? (
-        <dl>
-          <Row id="telemetry-lv" label="Level" value={String(snap.lv)} />
-          <Row id="telemetry-xp" label="XP" value={formatXp(snap.xp)} />
-          <Row
-            id="telemetry-hp"
-            label="HP"
-            value={`${snap.hp} / ${snap.hpmax}`}
-          />
-          <Row
-            id="telemetry-mp"
-            label="MP"
-            value={`${snap.mp} / ${snap.mpmax}`}
-          />
-          <Row id="telemetry-map" label="Map" value={formatTelemetryMap(snap.map)} />
-          <Row id="telemetry-zone" label="Zone" value={String(snap.zone)} />
-          {/* gold/gem: dash until opcode 16 delivers the wallet — C4.2 */}
-          <Row id="telemetry-gold" label="Gold" value={formatGold(snap.gold)} />
-          <Row id="telemetry-gem" label="Gem" value={formatGold(snap.gem)} />
-          <Row
-            id="telemetry-bag"
-            label="Bag"
-            value={`${snap.bag} / ${snap.bagmax}`}
-          />
-          {/* quota ≤ 0 = auto stopped — C4.3 */}
-          <Row id="telemetry-quota" label="Quota" value={formatQuota(snap)} />
-          {/* pkrank/pkmphp/pkgold — read back from client alongside requested — C4.7 */}
-          <Row id="telemetry-pkrank" label="Pick Rank" value={String(snap.pkrank)} />
-
-          {/* Travel state — only when travel module active */}
-          {snap.travel !== 0 ? (
-            <Row id="telemetry-travelstate" label="Travel" value={String(snap.travelstate)} />
-          ) : null}
-          <Row id="telemetry-travelgoal" label="Travel Goal" value={formatTravelGoal(snap.travelgoal)} />
-
-          {/* Dungeon state — only when dungeon module active */}
-          {snap.dungeonstate !== 0 ? (
-            <Row
-              id="telemetry-dungeonruns"
-              label="Dungeon runs"
-              value={String(snap.dungeonruns)}
+        <div className="space-y-4">
+          {/* Character & Vitals */}
+          <DiagnosticSection title="Character & Vitals">
+            <FactItem id="telemetry-lv" label="Level" value={String(snap.lv)} />
+            <FactItem id="telemetry-xp" label="XP" value={formatXp(snap.xp)} />
+            <FactItem
+              id="telemetry-hp"
+              label="HP"
+              value={`${snap.hp} / ${snap.hpmax}`}
+              subtext={
+                snap.hpmax > 0
+                  ? `(${Math.round((snap.hp / snap.hpmax) * 100)}%)`
+                  : undefined
+              }
             />
-          ) : null}
-        </dl>
+            <FactItem
+              id="telemetry-mp"
+              label="MP"
+              value={`${snap.mp} / ${snap.mpmax}`}
+              subtext={
+                snap.mpmax > 0
+                  ? `(${Math.round((snap.mp / snap.mpmax) * 100)}%)`
+                  : undefined
+              }
+            />
+            <FactItem
+              label="Guild"
+              value={snap.guild && snap.guild.length > 0 ? snap.guild : "—"}
+            />
+          </DiagnosticSection>
+
+          {/* Combat & Automation */}
+          <DiagnosticSection title="Combat & Automation">
+            <FactItem label="Attack Phase" value={String(snap.atkphase)} />
+            <FactItem
+              label="Attack State"
+              value={formatAtkstate(snap.atkstate)}
+            />
+            <FactItem
+              label="Target ID"
+              value={snap.target === 0 ? "None" : String(snap.target)}
+            />
+            <FactItem
+              label="Stuck State"
+              value={formatStuck(snap.stuck) ?? "Clear (0)"}
+            />
+            <FactItem
+              label="Potions / Revives"
+              value={`${snap.potions} / ${snap.revives}`}
+            />
+            <FactItem
+              label="XP Rate"
+              value={snap.xprate > 0 ? `${snap.xprate}/h` : "—"}
+            />
+          </DiagnosticSection>
+
+          {/* Position & Travel */}
+          <DiagnosticSection title="Position & Travel">
+            <FactItem
+              id="telemetry-map"
+              label="Map"
+              value={formatTelemetryMap(snap.map)}
+              subtext={`(#${snap.map})`}
+            />
+            <FactItem
+              id="telemetry-zone"
+              label="Zone"
+              value={String(snap.zone)}
+            />
+            <FactItem
+              label="Coordinates"
+              value={`X: ${snap.px}, Y: ${snap.py}`}
+            />
+            {snap.travel !== 0 ? (
+              <FactItem
+                id="telemetry-travelstate"
+                label="Travel State"
+                value={String(snap.travelstate)}
+              />
+            ) : null}
+            <FactItem
+              id="telemetry-travelgoal"
+              label="Travel Goal"
+              value={formatTravelGoal(snap.travelgoal)}
+            />
+            {snap.travelhops > 0 ? (
+              <FactItem
+                label="Travel Hops"
+                value={String(snap.travelhops)}
+              />
+            ) : null}
+            {snap.travelwhy && snap.travelwhy.trim() !== "" ? (
+              <FactItem label="Travel Reason" value={snap.travelwhy} />
+            ) : null}
+          </DiagnosticSection>
+
+          {/* Economy & Inventory */}
+          <DiagnosticSection title="Economy & Inventory">
+            <FactItem
+              id="telemetry-gold"
+              label="Gold"
+              value={formatGold(snap.gold)}
+            />
+            <FactItem
+              id="telemetry-gem"
+              label="Gem"
+              value={formatGold(snap.gem)}
+            />
+            <FactItem
+              label="Wallet Opcode"
+              value={snap.wallet !== null ? formatGold(snap.wallet) : "—"}
+            />
+            <FactItem
+              id="telemetry-bag"
+              label="Bag Slots"
+              value={`${snap.bag} / ${snap.bagmax}`}
+            />
+            <FactItem
+              id="telemetry-quota"
+              label="Quota"
+              value={formatQuota(snap)}
+            />
+            <FactItem
+              id="telemetry-pkrank"
+              label="Pick Rank"
+              value={String(snap.pkrank)}
+            />
+            <FactItem
+              label="Auto-Pick Flags"
+              value={`Gold: ${snap.pkgold ? "ON" : "OFF"}, MP/HP: ${snap.pkmphp ? "ON" : "OFF"}`}
+            />
+          </DiagnosticSection>
+
+          {/* Modules & Flags */}
+          <DiagnosticSection title="Modules & Extended State">
+            <FactItem
+              label="Mount"
+              value={
+                snap.mount !== 0
+                  ? snap.mounts && snap.mounts.length > 0
+                    ? snap.mounts
+                    : "Active"
+                  : "None"
+              }
+            />
+            <FactItem
+              label="Buffs"
+              value={snap.buffs && snap.buffs.length > 0 ? snap.buffs : "None"}
+            />
+            <FactItem
+              label="Drops"
+              value={snap.drops && snap.drops.length > 0 ? snap.drops : "None"}
+            />
+            {snap.dungeonstate !== 0 || snap.dungeonruns > 0 ? (
+              <FactItem
+                id="telemetry-dungeonruns"
+                label="Dungeon Runs"
+                value={String(snap.dungeonruns)}
+                subtext={`(State ${snap.dungeonstate})`}
+              />
+            ) : null}
+            {snap.enhancephase > 0 || snap.enhancedone > 0 ? (
+              <FactItem
+                label="Enhance Module"
+                value={`Phase ${snap.enhancephase} (${snap.enhancedone} done)`}
+              />
+            ) : null}
+            <FactItem
+              label="Stale / State"
+              value={`Stale: ${snap.stale}, State: ${snap.state}`}
+            />
+          </DiagnosticSection>
+        </div>
       ) : (
-        <p className="text-xs text-muted">
-          {health === "stopped" ? "No snapshot (process stopped)" : "Waiting for snapshot…"}
-        </p>
+        <div className="rounded-md border border-border/60 bg-elevated/30 p-4 text-center">
+          <p className="text-xs text-muted">
+            {health === "stopped" ? (
+              "No snapshot (process stopped)"
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-warning/70" />
+                Waiting for telemetry snapshot…
+              </span>
+            )}
+          </p>
+        </div>
       )}
     </div>
   );

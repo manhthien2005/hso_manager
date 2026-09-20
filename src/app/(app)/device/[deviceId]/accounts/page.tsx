@@ -79,7 +79,7 @@ export default function DeviceAccountsPage({
         title="Accounts"
         subtitle={
           <span className="flex items-center gap-2">
-            <span className="font-mono">{device.name}</span>
+            <span className="font-mono text-foreground font-semibold">{device.name}</span>
             <DeviceStatusBadge status={device.status} />
           </span>
         }
@@ -118,22 +118,29 @@ export default function DeviceAccountsPage({
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {chips.map((option) => {
+          const isActive = activeFilter === option.id;
           return (
             <button
               key={option.id}
               type="button"
               onClick={() => setFilter(option.id)}
-              aria-pressed={activeFilter === option.id}
-              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeFilter === option.id
-                  ? "border-accent bg-accent/12 text-accent"
-                  : "border-border bg-elevated text-muted hover:text-foreground"
+              aria-pressed={isActive}
+              className={`inline-flex min-h-[44px] sm:min-h-[36px] items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                isActive
+                  ? "border-accent bg-accent/15 text-accent shadow-xs"
+                  : "border-border bg-elevated/60 text-muted hover:border-border hover:bg-elevated hover:text-foreground"
               }`}
             >
-              {option.label}
-              <span className="ml-1.5 font-mono text-[11px] opacity-70">{option.count}</span>
+              <span>{option.label}</span>
+              <span
+                className={`rounded px-1.5 py-0.5 font-mono text-[11px] tabular ${
+                  isActive ? "bg-accent/20 text-accent" : "bg-card text-muted"
+                }`}
+              >
+                {option.count}
+              </span>
             </button>
           );
         })}
