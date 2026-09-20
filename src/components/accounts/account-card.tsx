@@ -16,12 +16,12 @@ import { pendingKey, useZeusStore } from "@/store/zeus-store";
 /**
  * AccountCard — Storm Steel Operational Account Row & Control.
  *
- * Scannable hierarchy:
- *   1. Identity: Account label + ID + dual Status badges (Process + Health)
- *   2. Operational summary: Character, Server, RAM, PID + quick telemetry vitals
- *   3. Commands: Start (instant), Stop & Restart (with explicit confirmation modal)
- *   4. Progressive disclosure: Telemetry & Diagnostics expandable drawer/panel
- *   5. Secondary management: Edit, Configure, Delete
+ * Scannable hierarchy (Phase 10 refinement):
+ *   1. Identity: Account label (larger) + dual Status badges (Process + Health) + actions
+ *   2. Quick-vitals strip: Lv / HP / Map / Atk — icon-prefixed, prominent
+ *   3. Secondary metadata (smaller, muted): Server / RAM / PID
+ *   4. Progressive disclosure: "Show diagnostics ▼" expandable telemetry drawer
+ *   5. Action toolbar: Start/Stop/Restart with icons | Configure/Edit/Delete with icons
  */
 
 type PendingAction = "stop" | "restart" | null;
@@ -56,6 +56,10 @@ export function AccountCard({
   const snap = account.snapshot;
   const isProcessAlive = account.status !== "stopped" && account.status !== "offline";
 
+  // HP warning threshold for semantic color
+  const hpPct = snap && snap.hpmax > 0 ? snap.hp / snap.hpmax : 1;
+  const hpColor = hpPct < 0.3 ? "text-danger" : hpPct < 0.6 ? "text-warning" : "text-foreground";
+
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
     const action = confirmAction;
@@ -69,12 +73,12 @@ export function AccountCard({
   };
 
   return (
-    <Card className="p-4 transition-colors">
+    <Card className="p-3.5 transition-colors">
       {/* Top row: Identity & Dual Status */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold tracking-tight text-foreground truncate">
+            <h3 className="text-base font-semibold tracking-tight text-foreground truncate">
               {account.label}
             </h3>
             {account.config_status === "version_mismatch" ? (
@@ -83,7 +87,7 @@ export function AccountCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-0.5 font-mono text-[11px] text-muted truncate">{account.id}</p>
+          <p className="mt-0.5 font-mono text-[11px] text-muted/70 truncate">{account.id}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -92,49 +96,41 @@ export function AccountCard({
         </div>
       </div>
 
-      {/* Operational Facts Grid */}
-      <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4 rounded-md border border-border/70 bg-elevated/40 p-2.5">
-        <Fact label="Character" value={account.characterName ?? snap?.name ?? "—"} />
-        <Fact label="Server" value={formatServerDisplay(account.serverId)} />
-        <Fact
-          label="RAM"
-          value={account.ramMb === null ? "—" : `${Math.round(account.ramMb)} MB`}
-        />
-        <Fact
-          label="PID"
-          value={account.pid === null ? "—" : String(account.pid)}
-        />
-      </div>
-
-      {/* Quick operational vitals summary if running */}
+      {/* Quick-vitals strip (when process alive) */}
       {isProcessAlive ? (
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+        <div className="mt-2.5">
           {snap ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted text-[11px] font-mono">
-              <span>
-                Lv <strong className="text-foreground">{snap.lv}</strong>
-              </span>
-              <span>•</span>
-              <span>
-                HP{" "}
-                <strong className="text-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {/* Lv */}
+              <div className="flex items-center gap-1 text-xs">
+                <IconLv />
+                <span className="text-muted text-[11px]">Lv</span>
+                <span className="font-mono font-semibold text-foreground tabular">{snap.lv}</span>
+              </div>
+              {/* HP */}
+              <div className="flex items-center gap-1 text-xs">
+                <IconHp />
+                <span className="text-muted text-[11px]">HP</span>
+                <span className={`font-mono font-semibold tabular ${hpColor}`}>
                   {snap.hp}/{snap.hpmax}
-                </strong>
-              </span>
-              <span>•</span>
-              <span>
-                Map{" "}
-                <strong className="text-foreground">
+                </span>
+              </div>
+              {/* Map */}
+              <div className="flex items-center gap-1 text-xs">
+                <IconMap />
+                <span className="text-muted text-[11px]">Map</span>
+                <span className="font-mono font-semibold text-foreground tabular">
                   {formatTelemetryMap(snap.map)}
-                </strong>
-              </span>
-              <span>•</span>
-              <span>
-                Atk{" "}
-                <strong className="text-foreground">
+                </span>
+              </div>
+              {/* Atk */}
+              <div className="flex items-center gap-1 text-xs">
+                <IconAtk />
+                <span className="text-muted text-[11px]">Atk</span>
+                <span className={`font-mono font-semibold tabular ${snap.atkstate >= 0 ? "text-accent" : "text-muted"}`}>
                   {formatAtkstate(snap.atkstate)}
-                </strong>
-              </span>
+                </span>
+              </div>
             </div>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-xs text-muted">
@@ -142,28 +138,16 @@ export function AccountCard({
               Waiting for telemetry snapshot…
             </span>
           )}
-
-          {/* Progressive Disclosure Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsTelemetryOpen((open) => !open)}
-            className="ml-auto inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
-            aria-expanded={isTelemetryOpen}
-            aria-controls={`telemetry-${account.id}`}
-          >
-            <span>{isTelemetryOpen ? "Hide Diagnostics" : "Telemetry & Diagnostics"}</span>
-            <svg
-              className={`size-3.5 transition-transform ${isTelemetryOpen ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
         </div>
       ) : null}
+
+      {/* Secondary metadata row — muted, smaller */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-mono text-muted/70">
+        <span>{formatServerDisplay(account.serverId)}</span>
+        {account.characterName ? <span>{account.characterName}</span> : null}
+        {account.ramMb !== null ? <span>{Math.round(account.ramMb)} MB</span> : null}
+        {account.pid !== null ? <span>PID {account.pid}</span> : null}
+      </div>
 
       {/* Disabled reason notice if parent offline */}
       {disabledReason ? (
@@ -171,7 +155,7 @@ export function AccountCard({
       ) : null}
 
       {/* Action Bar */}
-      <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-2.5">
         {/* Primary Operational Commands */}
         {account.status === "stopped" || account.status === "error" ? (
           <Button
@@ -180,6 +164,7 @@ export function AccountCard({
             busy={busyWith("start")}
             disabled={actionsDisabled || isDeleting || isAnyMutationPending}
             onClick={() => run("start")}
+            icon={<IconPlay />}
           >
             Start
           </Button>
@@ -191,6 +176,7 @@ export function AccountCard({
           busy={busyWith("stop")}
           disabled={actionsDisabled || account.status === "stopped" || isDeleting || isAnyMutationPending}
           onClick={() => setConfirmAction("stop")}
+          icon={<IconStop />}
         >
           Stop
         </Button>
@@ -201,6 +187,7 @@ export function AccountCard({
           busy={busyWith("restart")}
           disabled={actionsDisabled || account.status === "stopped" || isDeleting || isAnyMutationPending}
           onClick={() => setConfirmAction("restart")}
+          icon={<IconRestart />}
         >
           Restart
         </Button>
@@ -212,6 +199,7 @@ export function AccountCard({
             size="sm"
             variant="secondary"
             disabled={isDeleting}
+            icon={<IconGear />}
           >
             Configure
           </ButtonLink>
@@ -220,6 +208,7 @@ export function AccountCard({
             variant="secondary"
             disabled={actionsDisabled || isDeleting || isAnyMutationPending}
             onClick={() => setIsEditOpen(true)}
+            icon={<IconPencil />}
           >
             Edit
           </Button>
@@ -229,15 +218,40 @@ export function AccountCard({
             busy={isDeleting}
             disabled={actionsDisabled || isDeleting || isAnyMutationPending}
             onClick={() => setIsDeleteOpen(true)}
+            icon={<IconTrash />}
           >
             Delete
           </Button>
         </div>
       </div>
 
+      {/* Diagnostics disclosure toggle (when process alive) */}
+      {isProcessAlive ? (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsTelemetryOpen((open) => !open)}
+            className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+            aria-expanded={isTelemetryOpen}
+            aria-controls={`telemetry-${account.id}`}
+          >
+            <svg
+              className={`size-3 transition-transform ${isTelemetryOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>{isTelemetryOpen ? "Hide diagnostics" : "Show diagnostics"}</span>
+          </button>
+        </div>
+      ) : null}
+
       {/* Progressive Telemetry Panel (Default Collapsed) */}
       {isTelemetryOpen ? (
-        <div className="mt-4 border-t border-border pt-3">
+        <div className="mt-3 border-t border-border pt-3">
           <TelemetryPanel account={account} />
         </div>
       ) : null}
@@ -338,13 +352,88 @@ export function AccountCard({
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+// ── Icon Library ───────────────────────────────────────────────────────────────
+
+/** Vitals icons — 10px, stroke-based */
+function IconLv() {
   return (
-    <div className="min-w-0">
-      <dt className="text-[10px] tracking-wider text-muted font-semibold uppercase">{label}</dt>
-      <dd className="mt-0.5 truncate font-mono text-xs font-medium tabular text-foreground">
-        {value}
-      </dd>
-    </div>
+    <svg viewBox="0 0 12 12" className="size-2.5 shrink-0 text-muted" fill="none" aria-hidden="true">
+      <path d="M2 2h1.5l2.5 6 2.5-6H10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconHp() {
+  return (
+    <svg viewBox="0 0 12 12" className="size-2.5 shrink-0 text-danger/70" fill="none" aria-hidden="true">
+      <path d="M6 10S1.5 7 1.5 4a2.5 2.5 0 0 1 4.5-1.5A2.5 2.5 0 0 1 10.5 4C10.5 7 6 10 6 10z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconMap() {
+  return (
+    <svg viewBox="0 0 12 12" className="size-2.5 shrink-0 text-muted" fill="none" aria-hidden="true">
+      <path d="M1 2.5l3.5 1 3-1.5 3.5 1.5v6L8 8.5l-3 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 3.5v6M8 2.5v6" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconAtk() {
+  return (
+    <svg viewBox="0 0 12 12" className="size-2.5 shrink-0 text-muted" fill="none" aria-hidden="true">
+      <path d="M2 10L10 2M10 2H7M10 2v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Action icons — size-3.5 */
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M5 3.5l8 4.5-8 4.5V3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function IconRestart() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M12 8a4 4 0 1 1-1.2-2.85M12 2.5v3h-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconGear() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.75 3.75l1.06 1.06M11.19 11.19l1.06 1.06M12.25 3.75l-1.06 1.06M4.81 11.19l-1.06 1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M11 2.5l2.5 2.5L5 13.5H2.5V11L11 2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M3 4.5h10M6 4.5V3h4v1.5M5 4.5l.5 8h5l.5-8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

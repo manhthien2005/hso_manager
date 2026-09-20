@@ -23,6 +23,22 @@ import {
 } from "@/lib/format";
 import { HealthStatusBadge } from "@/components/ui/status";
 
+// ── Icon helpers ──────────────────────────────────────────────────────────────
+
+function IconWarning({ className = "size-3 shrink-0" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M8 2L14.5 13.5H1.5L8 2z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path d="M8 6.5v3M8 11v.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ── Badges ────────────────────────────────────────────────────────────────────
 
 function CtlBadge({ ctl }: { ctl: number }) {
@@ -71,9 +87,10 @@ function StuckBadge({ stuck }: { stuck: number }) {
   return (
     <span
       id="telemetry-stuck-badge"
-      className="rounded border border-warning/35 bg-warning/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-warning"
+      className="inline-flex items-center gap-1 rounded border border-warning/35 bg-warning/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-warning"
     >
-      ⚠ {warning}
+      <IconWarning />
+      {warning}
     </span>
   );
 }
@@ -111,7 +128,7 @@ function DiagnosticSection({
 }) {
   return (
     <div className="space-y-2">
-      <h4 className="text-[10px] font-semibold tracking-wider text-muted uppercase">
+      <h4 className="border-l-2 border-border/60 pl-2 text-[10px] font-semibold tracking-wider text-muted uppercase">
         {title}
       </h4>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -137,7 +154,7 @@ export function TelemetryPanel({ account }: { account: Account }) {
           className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2"
         >
           <div className="flex items-center gap-2">
-            <span className="text-danger font-bold text-xs">⚠️</span>
+            <IconWarning className="size-3.5 shrink-0 text-danger" />
             <p className="text-xs font-semibold text-danger">
               Version Mismatch — pending configuration was NOT written to disk by agent
             </p>
