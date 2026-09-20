@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type {
+  ConfigDraft,
   ConfigField,
   ConfigFieldAction,
   ConfigFieldFlags,
@@ -15,6 +17,13 @@ import {
   formatGameMap,
   getGameMap,
 } from "@/lib/game-maps";
+import {
+  ATTACK_SPOT_NONE_SENTINEL,
+  NO_ATTACK_SPOT_LABEL,
+  getAttackMapSelectValue,
+  handleAttackMapSelection,
+  isAttackSpotConfigured,
+} from "@/lib/attack-spot";
 import { SelectField, TextField, ToggleField } from "@/components/ui/field";
 
 /**
@@ -30,18 +39,36 @@ import { SelectField, TextField, ToggleField } from "@/components/ui/field";
 export function ConfigFieldInput({
   field,
   value,
+  values,
   error,
   disabled,
   onChange,
+  onBatchChange,
 }: {
   field: ConfigField;
   value: ConfigValue;
+  values?: ConfigDraft;
   error?: string;
   disabled?: boolean;
   onChange(path: ConfigPath, value: ConfigValue): void;
+  onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
 }) {
   const id = `cfg-${field.path.replace(/\./g, "-")}`;
   const set = (next: ConfigValue) => onChange(field.path, next);
+
+  if (field.path === "atk.map") {
+    return (
+      <AttackMapFieldInput
+        field={field}
+        value={value}
+        values={values}
+        error={error}
+        disabled={disabled}
+        onChange={onChange}
+        onBatchChange={onBatchChange}
+      />
+    );
+  }
 
   if (field.type === "toggle") {
     return (
@@ -243,6 +270,103 @@ export function ConfigFieldInput({
       disabled={disabled}
       value={String(value)}
       onChange={(e) => set(e.target.value === "" ? "" : Number(e.target.value))}
+    />
+  );
+}
+
+/**
+ * Dedicated Attack Map Selector (Round 9B3).
+ *
+ * Implements presentation-only "No attack spot" option without modifying
+ * the persisted wire contract (which uses atk.map=0, zone=-1, x=-1, y=-1).
+ * Distinguishes canonical no-spot from real Map 0 (x >= 0, y >= 0).
+ */
+function AttackMapFieldInput({
+  field,
+  value,
+  values,
+  error,
+  disabled,
+  onChange,
+  onBatchChange,
+}: {
+  field: ConfigField;
+  value: ConfigValue;
+  values?: ConfigDraft;
+  error?: string;
+  disabled?: boolean;
+  onChange(path: ConfigPath, value: ConfigValue): void;
+  onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
+}) {
+  const [userSelectedOption, setUserSelectedOption] = useState<string | null>(null);
+  const id = `cfg-${field.path.replace(/\./g, "-")}`;
+
+  const numValue = typeof value === "number" ? value : Number(value);
+  const hasValidNum =
+    value !== "" &&
+    value !== undefined &&
+    value !== null &&
+    !Number.isNaN(numValue) &&
+    Number.isInteger(numValue);
+
+  const coords = { x: values?.["atk.x"], y: values?.["atk.y"] };
+  const isConfigured = isAttackSpotConfigured(coords);
+  const selectValue = getAttackMapSelectValue(value, coords, userSelectedOption);
+
+  let diagnosticOption: { value: string; label: string } | null = null;
+  if (hasValidNum && !GAME_MAP_BY_ID.has(numValue)) {
+    diagnosticOption = {
+      value: String(numValue),
+      label: formatGameMap(numValue),
+    };
+  }
+
+  const options = [
+    { value: ATTACK_SPOT_NONE_SENTINEL, label: NO_ATTACK_SPOT_LABEL },
+    ...(diagnosticOption ? [diagnosticOption] : []),
+    ...GAME_MAPS.map((m) => ({
+      value: String(m.id),
+      label: `[${m.id}] ${m.name}`,
+    })),
+  ];
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const rawVal = e.target.value;
+    setUserSelectedOption(rawVal);
+    const { updates } = handleAttackMapSelection(rawVal);
+    if (onBatchChange) {
+      onBatchChange(updates);
+    } else {
+      for (const [k, v] of Object.entries(updates)) {
+        onChange(k as ConfigPath, v as ConfigValue);
+      }
+    }
+  };
+
+  const currentMap =
+    selectValue !== ATTACK_SPOT_NONE_SENTINEL ? getGameMap(Number(selectValue)) : undefined;
+  const selectedNotes = currentMap?.notes;
+
+  let effectiveHelp = field.help;
+  if (selectValue === ATTACK_SPOT_NONE_SENTINEL) {
+    effectiveHelp =
+      "No attack spot configured. Select a map and set coordinates to configure an attack spot.";
+  } else if (!isConfigured) {
+    effectiveHelp = `Selected map [${selectValue}]. Set valid X and Y coordinates (>= 0) below to activate this spot.`;
+  } else if (selectedNotes) {
+    effectiveHelp = `${field.help ? `${field.help} · ` : ""}${selectedNotes}`;
+  }
+
+  return (
+    <SelectField
+      id={id}
+      label={field.label}
+      help={effectiveHelp}
+      error={error}
+      options={options}
+      value={selectValue}
+      disabled={disabled}
+      onChange={handleSelectChange}
     />
   );
 }

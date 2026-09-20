@@ -609,6 +609,35 @@ export function validateDraft(
     }
   }
 
+  // Cross-field spot coordinate validations (Zeus.java line 633, control.rs lines 806-815)
+  if ("atk.x" in draft && "atk.y" in draft) {
+    const xVal = Number(draft["atk.x"]);
+    const yVal = Number(draft["atk.y"]);
+    if (!Number.isNaN(xVal) && !Number.isNaN(yVal)) {
+      if ((xVal < 0) !== (yVal < 0)) {
+        if (xVal < 0) {
+          errors["atk.x"] = "Both X and Y coordinates must be set together";
+        }
+        if (yVal < 0) {
+          errors["atk.y"] = "Both X and Y coordinates must be set together";
+        }
+      }
+    }
+  }
+  if ("atk.map" in draft) {
+    const mapVal = Number(draft["atk.map"]);
+    const xVal = Number(draft["atk.x"]);
+    const yVal = Number(draft["atk.y"]);
+    if (!Number.isNaN(mapVal) && mapVal > 0) {
+      if (xVal < 0) {
+        errors["atk.x"] = "X coordinate (>= 0) is required when an attack map is selected";
+      }
+      if (yVal < 0) {
+        errors["atk.y"] = "Y coordinate (>= 0) is required when an attack map is selected";
+      }
+    }
+  }
+
   return errors;
 }
 

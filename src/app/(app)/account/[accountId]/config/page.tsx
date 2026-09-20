@@ -100,8 +100,17 @@ function ConfigForm({
   // version_mismatch banner: the agent refused to write the last config
   const versionMismatch = account.config_status === "version_mismatch";
 
+  const [resetKey, setResetKey] = useState(0);
+
   function handleChange(path: ConfigPath, value: ConfigValue) {
     const next = { ...draftRef.current, [path]: value };
+    draftRef.current = next;
+    setDraft(next);
+    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0));
+  }
+
+  function handleBatchChange(updates: Partial<Record<ConfigPath, ConfigValue>>) {
+    const next = { ...draftRef.current, ...updates };
     draftRef.current = next;
     setDraft(next);
     if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0));
@@ -142,6 +151,7 @@ function ConfigForm({
     setDraft(next);
     setErrors({});
     setTouched(false);
+    setResetKey((k) => k + 1);
   }
 
   return (
@@ -214,12 +224,14 @@ function ConfigForm({
                 <div className="space-y-4 px-4 py-4">
                   {section.fields.map((field) => (
                     <ConfigFieldInput
-                      key={field.path}
+                      key={`${field.path}-${resetKey}`}
                       field={field}
                       value={draft[field.path] ?? ""}
+                      values={draft}
                       error={errors[field.path]}
                       disabled={saving}
                       onChange={handleChange}
+                      onBatchChange={handleBatchChange}
                     />
                   ))}
                 </div>

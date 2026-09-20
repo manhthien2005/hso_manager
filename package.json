@@ -9,6 +9,7 @@
     "lint": "eslint",
     "generate:catalog": "node scripts/generate-game-catalog.ts",
     "verify:catalog": "node scripts/verify-catalog-drift.ts",
+    "verify:attack-spot": "node scripts/verify-attack-spot.ts",
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
   "dependencies": {
