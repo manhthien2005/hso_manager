@@ -112,7 +112,7 @@ export default function PairPage() {
         hexCode = clean.toUpperCase();
       } else {
         // Arbitrary string with unrelated words - do not cherry-pick letters
-        setError("Pasted text is not a valid hexadecimal pair code.");
+        setError("Nội dung dán không phải là mã ghép nối hợp lệ.");
         return;
       }
     }
@@ -149,7 +149,7 @@ export default function PairPage() {
       const { data, error: rpcError } = await supabase.rpc("claim_device", { code: fullCode } as any);
 
       if (rpcError) {
-        throw new Error(rpcError.message || "Device claim failed. The code may be invalid or already claimed.");
+        throw new Error(rpcError.message || "Ghép nối thiết bị thất bại. Mã ghép nối có thể không đúng hoặc đã được sử dụng.");
       }
 
       const deviceId = typeof data === "string" ? data : String(data ?? "");
@@ -159,7 +159,7 @@ export default function PairPage() {
       await reloadFleet();
 
       setSuccess(true);
-      push("success", "Device paired successfully", deviceId ? `Device ID: ${deviceId}` : "Node claimed");
+      push("success", "Ghép nối thiết bị thành công", deviceId ? `Mã thiết bị: ${deviceId}` : "Đã ghép nối máy chủ");
 
       setTimeout(() => {
         router.replace(deviceId ? `/device/${deviceId}` : "/");
@@ -168,9 +168,9 @@ export default function PairPage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Pairing failed. Check that the node agent is running and code is unexpired.";
+          : "Ghép nối thất bại. Vui lòng kiểm tra Agent trên máy chủ đang chạy và mã chưa hết hạn.";
       setError(message);
-      push("error", "Pairing failed", message);
+      push("error", "Ghép nối thất bại", message);
       // Retain the entered code so the operator can inspect and correct typographical errors
     } finally {
       setBusy(false);
@@ -180,14 +180,14 @@ export default function PairPage() {
   return (
     <>
       <PageHeader
-        title="Pair Device"
-        subtitle="Link an active VPS agent node to your control plane using the 8-character claim code"
+        title="Ghép nối thiết bị"
+        subtitle="Liên kết máy chủ VPS vào hệ thống điều khiển bằng mã ghép nối 8 ký tự"
         actions={
           <Link
             href="/"
             className="inline-flex min-h-[44px] items-center text-xs text-muted hover:text-foreground transition-colors"
           >
-            ← Back to Fleet
+            ← Quay lại danh sách máy chủ
           </Link>
         }
       />
@@ -212,15 +212,15 @@ export default function PairPage() {
               </div>
               <div className="space-y-1">
                 <h2 className="text-base font-semibold tracking-tight text-foreground">
-                  Node Successfully Paired
+                  Ghép nối máy chủ thành công
                 </h2>
                 {pairedDeviceId ? (
                   <p className="font-mono text-xs text-muted">
-                    Device ID: <span className="text-foreground">{pairedDeviceId}</span>
+                    Mã thiết bị: <span className="text-foreground">{pairedDeviceId}</span>
                   </p>
                 ) : null}
                 <p className="text-xs text-muted">
-                  Syncing fleet registry and redirecting…
+                  Đang đồng bộ dữ liệu và chuyển hướng…
                 </p>
               </div>
             </div>
@@ -229,10 +229,10 @@ export default function PairPage() {
               {/* Context instructions */}
               <div className="space-y-1.5 text-center">
                 <p className="text-xs text-muted">
-                  Enter the 8-character pairing code printed by your node on startup:
+                  Nhập mã ghép nối 8 ký tự được hiển thị trong nhật ký khi khởi động máy chủ:
                 </p>
                 <div className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated/80 px-2.5 py-1 font-mono text-xs">
-                  <span className="text-muted">PAIR CODE:</span>
+                  <span className="text-muted">MÃ GHÉP NỐI:</span>
                   <span className="font-semibold text-accent tracking-widest">A3F9B21C</span>
                 </div>
               </div>
@@ -240,7 +240,7 @@ export default function PairPage() {
               {/* Segmented 8-char hex input: 4 chars + separator + 4 chars */}
               <div
                 role="group"
-                aria-label="8-character device pairing code"
+                aria-label="Mã ghép nối thiết bị 8 ký tự"
                 className="flex items-center justify-center gap-1 sm:gap-2"
                 onPaste={handlePaste}
               >
@@ -259,7 +259,7 @@ export default function PairPage() {
                       maxLength={1}
                       value={char}
                       disabled={busy}
-                      aria-label={`Digit ${i + 1} of 8`}
+                      aria-label={`Ký tự ${i + 1} / 8`}
                       aria-invalid={error ? "true" : undefined}
                       onChange={(e) => handleChange(i, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(i, e)}
@@ -301,10 +301,10 @@ export default function PairPage() {
                   />
                   <span className="text-muted">
                     {isComplete
-                      ? "8 of 8 characters · Code complete"
+                      ? "8/8 ký tự · Mã hợp lệ"
                       : enteredCount > 0
-                        ? `${enteredCount} of 8 characters entered`
-                        : "Hexadecimal characters (0–9, A–F)"}
+                        ? `${enteredCount}/8 ký tự đã nhập`
+                        : "Ký tự hex (0–9, A–F)"}
                   </span>
                 </div>
 
@@ -314,7 +314,7 @@ export default function PairPage() {
                     onClick={handleClear}
                     className="text-muted hover:text-foreground underline transition-colors cursor-pointer"
                   >
-                    Clear
+                    Xóa mã
                   </button>
                 ) : null}
               </div>
@@ -327,7 +327,7 @@ export default function PairPage() {
                   aria-live="polite"
                   className="rounded-md border border-danger/40 bg-danger/10 px-3.5 py-2.5 text-xs text-danger"
                 >
-                  <p className="font-semibold">Pairing Failed</p>
+                  <p className="font-semibold">Ghép nối thất bại</p>
                   <p className="mt-0.5 text-danger/90 leading-relaxed">{error}</p>
                 </div>
               ) : null}
@@ -341,24 +341,24 @@ export default function PairPage() {
                   busy={busy}
                   disabled={!isComplete}
                 >
-                  {busy ? "Claiming Device…" : "Claim & Link Device"}
+                  {busy ? "Đang ghép nối…" : "Ghép nối thiết bị"}
                 </Button>
               </div>
 
               {/* Operator Diagnostic Guidance */}
               <div className="border-t border-border pt-4 space-y-2 text-xs text-muted">
-                <p className="font-medium text-foreground">Where to find your pairing code:</p>
+                <p className="font-medium text-foreground">Hướng dẫn tìm mã ghép nối:</p>
                 <ol className="list-decimal pl-4 space-y-1 text-muted/90 leading-relaxed">
-                  <li>Start the Zeus Agent process on your VPS or container node.</li>
-                  <li>Inspect stdout / log output during initialization.</li>
+                  <li>Khởi động tiến trình Zeus Agent trên máy chủ VPS hoặc container.</li>
+                  <li>Xem nhật ký console / stdout khi khởi động.</li>
                   <li>
-                    Locate line:{" "}
+                    Tìm dòng:{" "}
                     <span className="font-mono text-foreground bg-elevated px-1.5 py-0.5 rounded border border-border">
                       PAIR CODE: XXXXXXXX
                     </span>
                   </li>
                   <li>
-                    Enter or paste the 8-character code above. Each code can only be claimed once.
+                    Nhập hoặc dán mã 8 ký tự vào ô trên. Mỗi mã chỉ được ghép nối một lần.
                   </li>
                 </ol>
               </div>

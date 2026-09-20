@@ -38,7 +38,7 @@ export default function LoginPage() {
 
     const trimmedUser = username.trim();
     if (!trimmedUser || !password) {
-      setFormError("Please enter both email address and password.");
+      setFormError("Vui lòng nhập đầy đủ email và mật khẩu.");
       return;
     }
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
     } catch (error) {
       const message = describeError(error);
       setFormError(message);
-      push("error", "Authentication Failed", message);
+      push("error", "Đăng nhập thất bại", message);
     }
   }
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
               ZEUS CONTROL PLANE
             </h1>
             <p className="text-xs text-muted mt-1">
-              Industrial Fleet Automation for Knight Online (HSO)
+              Hệ thống điều khiển máy chủ Knight Online (HSO)
             </p>
           </div>
         </div>
@@ -88,7 +88,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <TextField
               name="username"
-              label="Operator Email"
+              label="Email"
               type="email"
               autoComplete="username"
               autoFocus
@@ -104,7 +104,7 @@ export default function LoginPage() {
 
             <TextField
               name="password"
-              label="Password"
+              label="Mật khẩu"
               type="password"
               autoComplete="current-password"
               placeholder="••••••••••••"
@@ -123,7 +123,7 @@ export default function LoginPage() {
                 aria-live="polite"
                 className="rounded-md border border-danger/40 bg-danger/10 px-3.5 py-2.5 text-xs text-danger"
               >
-                <p className="font-medium">Authentication Failed</p>
+                <p className="font-medium">Đăng nhập thất bại</p>
                 <p className="mt-0.5 text-danger/90 leading-relaxed">{formError}</p>
               </div>
             ) : null}
@@ -135,7 +135,7 @@ export default function LoginPage() {
                 busy={busy}
                 className="w-full min-h-[44px]"
               >
-                {busy ? "Authenticating Session…" : "Sign In to Fleet Control"}
+                {busy ? "Đang xác thực…" : "Đăng nhập"}
               </Button>
             </div>
           </form>
@@ -143,7 +143,7 @@ export default function LoginPage() {
           {/* Security & Access Notice */}
           <div className="mt-6 border-t border-border pt-4 text-center">
             <p className="text-[11px] text-muted leading-relaxed">
-              Restricted operational terminal · Encrypted token authentication
+              Hệ thống điều khiển chuyên dụng · Xác thực phiên bảo mật
             </p>
           </div>
         </div>

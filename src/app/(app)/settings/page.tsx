@@ -22,11 +22,11 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Settings & Fleet Registry"
-        subtitle="Operator session identity and verified node runtime specifications"
+        title="Cài đặt & Danh sách máy chủ"
+        subtitle="Thông tin phiên đăng nhập và thông số môi trường của các máy chủ"
         actions={
           <ButtonLink href="/pair" variant="secondary" size="sm">
-            Pair New Node
+            Ghép nối máy chủ mới
           </ButtonLink>
         }
       />
@@ -37,36 +37,36 @@ export default function SettingsPage() {
           id="account-identity-heading"
           className="text-xs font-semibold uppercase tracking-wider text-muted"
         >
-          Operator Identity
+          Thông tin tài khoản
         </h2>
 
         <Card className="overflow-hidden bg-surface border-border">
           <div className="divide-y divide-border">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 text-xs">
-              <span className="text-muted">Signed In As</span>
+              <span className="text-muted">Đang đăng nhập</span>
               <span className="sm:col-span-2 font-medium text-foreground">
                 {user?.displayName || user?.username || "—"}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 text-xs">
-              <span className="text-muted">Account Username</span>
+              <span className="text-muted">Tên tài khoản</span>
               <span className="sm:col-span-2 font-mono text-foreground">
                 {user?.username || "—"}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 text-xs">
-              <span className="text-muted">Email Address</span>
+              <span className="text-muted">Email</span>
               <span className="sm:col-span-2 text-foreground font-mono">
                 {user?.email || "—"}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 text-xs">
-              <span className="text-muted">Session Environment</span>
+              <span className="text-muted">Môi trường phiên</span>
               <span className="sm:col-span-2 text-muted">
-                Authenticated Web Control Plane Session · Managed via Supabase Auth
+                Phiên làm việc web được xác thực · Quản lý bởi Supabase Auth
               </span>
             </div>
           </div>
@@ -80,14 +80,14 @@ export default function SettingsPage() {
             id="fleet-registry-heading"
             className="text-xs font-semibold uppercase tracking-wider text-muted"
           >
-            Claimed Fleet Nodes ({devices.length})
+            Máy chủ đã ghép nối ({devices.length})
           </h2>
           {devices.length > 0 ? (
             <Link
               href="/pair"
               className="text-xs text-muted hover:text-accent transition-colors"
             >
-              + Link another node
+              + Ghép nối máy chủ khác
             </Link>
           ) : null}
         </div>
@@ -95,12 +95,12 @@ export default function SettingsPage() {
         {devices.length === 0 ? (
           <Card className="bg-surface border-border">
             <EmptyState
-              title="No nodes currently claimed"
-              hint="VPS instances running Zeus Agent will appear here once linked using their 8-character claim code."
+              title="Chưa có máy chủ nào được ghép nối"
+              hint="Các máy chủ VPS chạy Zeus Agent sẽ xuất hiện ở đây sau khi được liên kết bằng mã ghép nối 8 ký tự."
               action={
                 <div className="mt-2">
                   <ButtonLink href="/pair" variant="primary" size="sm">
-                    Pair a Device Node
+                    Ghép nối máy chủ
                   </ButtonLink>
                 </div>
               }
@@ -113,14 +113,14 @@ export default function SettingsPage() {
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-border bg-elevated/70 text-muted">
                   <tr>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Node / Device ID</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Status</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Region</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Agent Version</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Runtime / Jar</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Viewer Tunnel</th>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Last Heartbeat</th>
-                    <th scope="col" className="px-4 py-2.5 text-right font-medium">Action</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Máy chủ / Mã thiết bị</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Trạng thái</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Khu vực</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Phiên bản Agent</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Phiên bản Runtime</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Kết nối điều khiển</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Nhịp kết nối cuối</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-medium">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -168,7 +168,7 @@ export default function SettingsPage() {
                             }`}
                             aria-hidden="true"
                           />
-                          {device.viewerAvailable ? "Available" : "Inactive"}
+                          {device.viewerAvailable ? "Sẵn sàng" : "Chưa kích hoạt"}
                         </span>
                       </td>
 
@@ -182,7 +182,7 @@ export default function SettingsPage() {
                           size="sm"
                           variant="secondary"
                         >
-                          View Node
+                          Xem máy chủ
                         </ButtonLink>
                       </td>
                     </tr>
@@ -209,25 +209,25 @@ export default function SettingsPage() {
 
                   <dl className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <dt className="text-muted text-[11px]">Region</dt>
+                      <dt className="text-muted text-[11px]">Khu vực</dt>
                       <dd className="font-mono text-foreground">{device.region || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-muted text-[11px]">Last Seen</dt>
+                      <dt className="text-muted text-[11px]">Lần cuối kết nối</dt>
                       <dd className="text-foreground tabular">{formatRelativeTime(device.lastSeen)}</dd>
                     </div>
                     <div>
-                      <dt className="text-muted text-[11px]">Agent Version</dt>
+                      <dt className="text-muted text-[11px]">Phiên bản Agent</dt>
                       <dd className="font-mono text-muted tabular">{device.agentVersion || "—"}</dd>
                     </div>
                     <div>
-                      <dt className="text-muted text-[11px]">Runtime / Jar</dt>
+                      <dt className="text-muted text-[11px]">Phiên bản Runtime</dt>
                       <dd className="font-mono text-muted tabular">{device.runtimeVersion || "—"}</dd>
                     </div>
                     <div className="col-span-2">
-                      <dt className="text-muted text-[11px]">Viewer Tunnel</dt>
+                      <dt className="text-muted text-[11px]">Kết nối điều khiển</dt>
                       <dd className={`text-[11px] font-medium ${device.viewerAvailable ? "text-online" : "text-muted"}`}>
-                        {device.viewerAvailable ? "Available via secure tunnel" : "Tunnel inactive"}
+                        {device.viewerAvailable ? "Sẵn sàng qua đường truyền bảo mật" : "Chưa có đường truyền"}
                       </dd>
                     </div>
                   </dl>
@@ -239,7 +239,7 @@ export default function SettingsPage() {
                       variant="secondary"
                       className="w-full min-h-[44px]"
                     >
-                      View Node Operations →
+                      Xem chi tiết máy chủ →
                     </ButtonLink>
                   </div>
                 </Card>
