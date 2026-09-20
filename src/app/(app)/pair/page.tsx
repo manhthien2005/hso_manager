@@ -168,7 +168,7 @@ export default function PairPage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Ghép nối thất bại. Vui lòng kiểm tra Agent trên máy chủ đang chạy và mã chưa hết hạn.";
+          : "Ghép nối thất bại. Vui lòng kiểm tra Agent trên thiết bị đang chạy và mã chưa hết hạn.";
       setError(message);
       push("error", "Ghép nối thất bại", message);
       // Retain the entered code so the operator can inspect and correct typographical errors
@@ -180,14 +180,15 @@ export default function PairPage() {
   return (
     <>
       <PageHeader
+        icon={<IconPlug />}
         title="Ghép nối thiết bị"
-        subtitle="Liên kết máy chủ VPS vào hệ thống điều khiển bằng mã ghép nối 8 ký tự"
+        subtitle="Liên kết thiết bị VPS vào hệ thống điều khiển bằng mã ghép nối 8 ký tự"
         actions={
           <Link
             href="/"
             className="inline-flex min-h-[44px] items-center text-xs text-muted hover:text-foreground transition-colors"
           >
-            ← Quay lại danh sách máy chủ
+            ← Quay lại danh sách thiết bị
           </Link>
         }
       />
@@ -212,7 +213,7 @@ export default function PairPage() {
               </div>
               <div className="space-y-1">
                 <h2 className="text-base font-semibold tracking-tight text-foreground">
-                  Ghép nối máy chủ thành công
+                  Ghép nối thiết bị thành công
                 </h2>
                 {pairedDeviceId ? (
                   <p className="font-mono text-xs text-muted">
@@ -229,7 +230,7 @@ export default function PairPage() {
               {/* Context instructions */}
               <div className="space-y-1.5 text-center">
                 <p className="text-xs text-muted">
-                  Nhập mã ghép nối 8 ký tự được hiển thị trong nhật ký khi khởi động máy chủ:
+                  Nhập mã ghép nối 8 ký tự được hiển thị trong nhật ký khi khởi động thiết bị:
                 </p>
                 <div className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated/80 px-2.5 py-1 font-mono text-xs">
                   <span className="text-muted">MÃ GHÉP NỐI:</span>
@@ -367,6 +368,20 @@ export default function PairPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+function IconPlug() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path
+        d="M6 1v3M10 1v3M4 4h8l-1 5H5L4 4zM6 9v2a2 2 0 0 0 4 0V9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

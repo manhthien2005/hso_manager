@@ -84,6 +84,66 @@ body {
   outline-offset: 2px;
 }
 
+/* Zeus Gold Glowing Shimmer & Lightning Brand Animation */
+.zeus-logo-glow {
+  background: linear-gradient(
+    90deg,
+    #d97706 0%,
+    #f59e0b 20%,
+    #fef08a 50%,
+    #f59e0b 80%,
+    #d97706 100%
+  );
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: zeus-gold-sweep 4s cubic-bezier(0.4, 0, 0.2, 1) infinite, zeus-lightning 5s ease-in-out infinite;
+}
+
+.zeus-lightning-icon {
+  animation: zeus-spark 5s ease-in-out infinite;
+}
+
+@keyframes zeus-gold-sweep {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes zeus-lightning {
+  0%, 86%, 90%, 94%, 100% {
+    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
+    opacity: 0.95;
+  }
+  88% {
+    filter: drop-shadow(0 0 16px rgba(254, 240, 138, 0.95)) drop-shadow(0 0 24px rgba(245, 158, 11, 0.75));
+    opacity: 1;
+  }
+  92% {
+    filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 20px rgba(251, 191, 36, 0.8));
+    opacity: 1;
+  }
+}
+
+@keyframes zeus-spark {
+  0%, 86%, 90%, 94%, 100% {
+    filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.5));
+    transform: scale(1);
+  }
+  88% {
+    filter: drop-shadow(0 0 12px rgba(254, 240, 138, 1)) drop-shadow(0 0 20px rgba(245, 158, 11, 0.9));
+    transform: scale(1.08);
+  }
+  92% {
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 1));
+    transform: scale(1.04);
+  }
+}
+
 /* Respect user preferences for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

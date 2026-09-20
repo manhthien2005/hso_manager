@@ -78,7 +78,10 @@ export function AccountCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold tracking-tight text-foreground truncate">
+            <h3
+              className="text-base font-semibold tracking-tight text-foreground truncate cursor-default"
+              title={`Mã tài khoản: ${account.id}`}
+            >
               {account.label}
             </h3>
             {account.config_status === "version_mismatch" ? (
@@ -87,7 +90,6 @@ export function AccountCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-0.5 font-mono text-[11px] text-muted/70 truncate">{account.id}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

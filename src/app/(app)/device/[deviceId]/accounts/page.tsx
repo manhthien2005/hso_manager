@@ -75,6 +75,7 @@ export default function DeviceAccountsPage({
   return (
     <>
       <PageHeader
+        icon={<IconUsers />}
         back={{ href: `/device/${device.deviceId}`, label: device.name }}
         title="Quản lý tài khoản"
         subtitle={
@@ -178,5 +179,14 @@ export default function DeviceAccountsPage({
         </div>
       )}
     </>
+  );
+}
+
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path d="M6 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM2 13.5v-1a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M11 2.5a2 2 0 0 1 0 3.5M14 13.5v-1a2.8 2.8 0 0 0-2-2.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
   );
 }

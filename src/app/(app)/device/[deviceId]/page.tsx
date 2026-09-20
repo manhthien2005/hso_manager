@@ -63,6 +63,7 @@ export default function DeviceDetailPage({
     <div className="space-y-5">
       {/* 1. Page Header with Node Identity & Primary Actions */}
       <PageHeader
+        icon={<IconServer />}
         back={{ href: "/", label: "Tổng quan" }}
         title={
           <span className="flex flex-wrap items-center gap-3">
@@ -74,7 +75,7 @@ export default function DeviceDetailPage({
         }
         subtitle={
           <span className="font-mono text-xs text-muted">
-            {device.deviceId} · {device.region} · Lần cuối kết nối {formatRelativeTime(device.lastSeen)}
+            Khu vực: {device.region || "—"} · Lần cuối kết nối {formatRelativeTime(device.lastSeen)}
           </span>
         }
         actions={

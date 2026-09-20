@@ -77,12 +77,13 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* 1. Page Header */}
       <PageHeader
+        icon={<IconGrid />}
         title="Tổng quan hệ thống"
         subtitle={`${metrics.nodesTotal} máy chủ · ${metrics.accountsTotal} tài khoản đã đăng ký`}
         actions={
           <div className="flex items-center gap-2">
             <ButtonLink href="/pair" size="sm" variant="secondary" icon={<IconPlug />}>
-              Ghép nối máy chủ
+              Ghép nối thiết bị
             </ButtonLink>
             <Button
               size="sm"
@@ -143,7 +144,7 @@ export default function DashboardPage() {
             </p>
             <div className="mt-4">
               <ButtonLink href="/pair" variant="primary" size="sm" icon={<IconPlug />}>
-                Ghép nối máy chủ đầu tiên
+                Ghép nối thiết bị đầu tiên
               </ButtonLink>
             </div>
           </Card>
@@ -510,6 +511,14 @@ function IconPlug() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function IconGrid() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4zM9.5 9.5h4v4h-4z" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }

@@ -72,6 +72,7 @@ export default function ViewerPage({
     <div className="space-y-4">
       {/* 1. Header Navigation */}
       <PageHeader
+        icon={<IconMonitor />}
         back={{ href: `/device/${device.deviceId}`, label: device.name }}
         title={
           <span className="flex flex-wrap items-center gap-3">
@@ -83,7 +84,7 @@ export default function ViewerPage({
         }
         subtitle={
           <span className="font-mono text-xs text-muted">
-            {device.name} ({device.deviceId}) · Nhịp kết nối {formatRelativeTime(device.lastSeen)}
+            {device.name} · Nhịp kết nối {formatRelativeTime(device.lastSeen)}
           </span>
         }
         actions={

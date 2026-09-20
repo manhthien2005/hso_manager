@@ -27,12 +27,13 @@ export function DeviceCard({
         <div className="min-w-0">
           <Link
             href={detailHref}
+            title={`Mã thiết bị: ${device.deviceId}`}
             className="truncate font-mono text-sm font-semibold tracking-tight text-foreground hover:text-accent"
           >
             {device.name}
           </Link>
           <p className="mt-0.5 truncate font-mono text-[11px] text-muted">
-            {device.deviceId} · {device.region}
+            Khu vực: {device.region || "—"}
           </p>
         </div>
         <DeviceStatusBadge status={device.status} />

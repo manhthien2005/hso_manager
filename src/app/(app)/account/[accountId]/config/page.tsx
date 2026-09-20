@@ -253,6 +253,7 @@ function ConfigForm({
   return (
     <div className="relative pb-24">
       <PageHeader
+        icon={<IconSliders />}
         back={{
           href: device ? `/device/${device.deviceId}/accounts` : "/",
           label: device ? `Tài khoản trên ${device.name}` : "Tổng quan",
@@ -265,7 +266,7 @@ function ConfigForm({
         }
         subtitle={
           <span className="font-mono text-xs text-muted">
-            {account.id} · {device?.name ?? account.deviceId} · Control v{jarCtlVersion ?? "?"}
+            {device?.name ? `Máy chủ: ${device.name}` : "Hệ thống"} · Control v{jarCtlVersion ?? "?"}
           </span>
         }
       />
@@ -554,8 +555,8 @@ function IconSave() {
 function IconSword() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M10 2l4 4-7 7-1.5-1.5L4 13l-1-1 1.5-1.5L3 9l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M14.5 1.5l-6.5 6.5M11 1.5l3.5 3.5M6.5 9.5l-2.5 2.5-2.5.5.5-2.5 2.5-2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 1.5l6.5 6.5M5 1.5l-3.5 3.5M9.5 9.5l2.5 2.5 2.5.5-.5-2.5-2.5-2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -563,8 +564,10 @@ function IconSword() {
 function IconCompass() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M10.5 5.5L9 9l-3.5 1.5 1.5-3.5 3.5-1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.2" />
+      <polygon points="8,2.5 10,8 8,6.8 6,8" fill="currentColor" />
+      <polygon points="8,13.5 10,8 8,9.2 6,8" stroke="currentColor" strokeWidth="0.8" fill="currentColor" fillOpacity="0.25" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" />
     </svg>
   );
 }
@@ -572,8 +575,10 @@ function IconCompass() {
 function IconBag() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M5 5.5V4a3 3 0 0 1 6 0v1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <rect x="2" y="5.5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6 3.5c-.5-1.2 1-2 2-2s2.5.8 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <rect x="5" y="3.5" width="6" height="1.5" rx="0.5" fill="currentColor" fillOpacity="0.4" stroke="currentColor" strokeWidth="0.8" />
+      <path d="M5 5C3 6 2 8 2 11a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4c0-3-1-5-3-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8" cy="10.5" r="1.5" stroke="currentColor" strokeWidth="1" />
     </svg>
   );
 }
@@ -581,7 +586,9 @@ function IconBag() {
 function IconHeart() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M8 13S2 9 2 5.5a3 3 0 0 1 6-1A3 3 0 0 1 14 5.5C14 9 8 13 8 13z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M6.5 1.5h3M7 1.5v2h2v-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M6.5 3.5h3L13 10.5a3 3 0 0 1-3 4H6a3 3 0 0 1-3-4l3.5-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M8 8v3M6.5 9.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -589,9 +596,15 @@ function IconHeart() {
 function IconMount() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <ellipse cx="8" cy="9" rx="5" ry="3.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M4 9v3M12 9v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M6 9c0-2 4-4 4-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path
+        d="M3 14.5c0-2 .8-3.5 2-4.5.3-.3.8-1.5.8-2.5 0-1.5.5-3.5 1.5-4.8.4-.5 1.4-.3 1.8.2l.5 1.6 2.4 1.2c1 .5 1.5 1.5 1.5 2.5 0 .8-.5 1.3-1.5 1.5L9.5 10.5l-.5 4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M6.5 6.5l-2-1M6 9l-2-1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <circle cx="10" cy="6.8" r="0.8" fill="currentColor" />
     </svg>
   );
 }
@@ -599,8 +612,9 @@ function IconMount() {
 function IconSparkle() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M8 2v3M8 11v3M2 8h3M11 8h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M4.2 4.2l2.1 2.1M9.7 9.7l2.1 2.1M11.8 4.2l-2.1 2.1M6.3 9.7l-2.1 2.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M2 7h12l-1.5 2H11v3.5l1.5 1.5H3.5L5 12.5V9H3.5L2 7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M12.5 2l-3 3M10.5 1.5l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6 3.5l.4-.8.4.8.8.4-.8.4-.4.8-.4-.8-.8-.4.8-.4z" fill="currentColor" />
     </svg>
   );
 }
@@ -608,9 +622,9 @@ function IconSparkle() {
 function IconDoor() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <rect x="3.5" y="2" width="9" height="13" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="11" cy="8.5" r="0.8" fill="currentColor" />
-      <path d="M3.5 15h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M2.5 14.5V6.5a5.5 5.5 0 0 1 11 0v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M1.5 14.5h13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M5.5 7.5v7M8 6v8.5M10.5 7.5v7M3.5 10.5h9" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
 }
@@ -618,8 +632,21 @@ function IconDoor() {
 function IconPin() {
   return (
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M8 2a4 4 0 0 1 4 4c0 3-4 8-4 8S4 9 4 6a4 4 0 0 1 4-4z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <circle cx="8" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconSliders() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="5.5" cy="4" r="1.5" fill="currentColor" />
+      <circle cx="10.5" cy="8" r="1.5" fill="currentColor" />
+      <circle cx="6.5" cy="12" r="1.5" fill="currentColor" />
     </svg>
   );
 }

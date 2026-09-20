@@ -17,7 +17,11 @@ export function NotFoundPanel({
 }) {
   return (
     <>
-      <PageHeader back={{ href: "/", label: "Tổng quan" }} title="Không tìm thấy" />
+      <PageHeader
+        icon={<IconAlertTriangle />}
+        back={{ href: "/", label: "Tổng quan" }}
+        title="Không tìm thấy"
+      />
       <Card>
         <EmptyState
           title={title}
@@ -36,5 +40,14 @@ export function NotFoundPanel({
         </div>
       </Card>
     </>
+  );
+}
+
+function IconAlertTriangle() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <path d="M8 2L14.5 13.5H1.5L8 2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M8 6.5v3M8 11.5v.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
   );
 }

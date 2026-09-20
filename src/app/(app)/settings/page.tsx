@@ -22,11 +22,12 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        icon={<IconGear />}
         title="Cài đặt & Danh sách máy chủ"
         subtitle="Thông tin phiên đăng nhập và thông số môi trường của các máy chủ"
         actions={
           <ButtonLink href="/pair" variant="secondary" size="sm">
-            Ghép nối máy chủ mới
+            Ghép nối thiết bị mới
           </ButtonLink>
         }
       />
@@ -87,7 +88,7 @@ export default function SettingsPage() {
               href="/pair"
               className="text-xs text-muted hover:text-accent transition-colors"
             >
-              + Ghép nối máy chủ khác
+              + Ghép nối thiết bị khác
             </Link>
           ) : null}
         </div>
@@ -100,7 +101,7 @@ export default function SettingsPage() {
               action={
                 <div className="mt-2">
                   <ButtonLink href="/pair" variant="primary" size="sm">
-                    Ghép nối máy chủ
+                    Ghép nối thiết bị
                   </ButtonLink>
                 </div>
               }
@@ -113,7 +114,7 @@ export default function SettingsPage() {
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-border bg-elevated/70 text-muted">
                   <tr>
-                    <th scope="col" className="px-4 py-2.5 font-medium">Máy chủ / Mã thiết bị</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Tên máy chủ</th>
                     <th scope="col" className="px-4 py-2.5 font-medium">Trạng thái</th>
                     <th scope="col" className="px-4 py-2.5 font-medium">Khu vực</th>
                     <th scope="col" className="px-4 py-2.5 font-medium">Phiên bản Agent</th>
@@ -130,11 +131,8 @@ export default function SettingsPage() {
                       className="hover:bg-elevated/40 transition-colors"
                     >
                       <td className="px-4 py-3">
-                        <div className="font-mono font-semibold text-foreground">
+                        <div className="font-mono font-semibold text-foreground" title={device.deviceId}>
                           {device.name}
-                        </div>
-                        <div className="font-mono text-[11px] text-muted truncate max-w-[140px]">
-                          {device.deviceId}
                         </div>
                       </td>
 
@@ -197,11 +195,8 @@ export default function SettingsPage() {
                 <Card key={device.id} className="p-4 bg-surface border-border space-y-3">
                   <div className="flex items-start justify-between gap-2 border-b border-border pb-3">
                     <div>
-                      <div className="font-mono text-sm font-semibold text-foreground">
+                      <div className="font-mono text-sm font-semibold text-foreground" title={device.deviceId}>
                         {device.name}
-                      </div>
-                      <div className="font-mono text-[11px] text-muted truncate max-w-[180px]">
-                        {device.deviceId}
                       </div>
                     </div>
                     <DeviceStatusBadge status={device.status} />
@@ -249,5 +244,14 @@ export default function SettingsPage() {
         )}
       </section>
     </div>
+  );
+}
+
+function IconGear() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
   );
 }

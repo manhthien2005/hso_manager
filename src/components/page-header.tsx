@@ -10,11 +10,13 @@ export function PageHeader({
   subtitle,
   back,
   actions,
+  icon,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   back?: { href: string; label: string };
   actions?: ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <div className="mb-6 flex flex-col gap-3">
@@ -32,8 +34,18 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight">{title}</h1>
-          {subtitle ? <div className="mt-1 text-sm text-muted">{subtitle}</div> : null}
+          <div className="flex items-center gap-2.5">
+            {icon ? (
+              <span
+                className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-elevated/70 text-accent"
+                aria-hidden="true"
+              >
+                {icon}
+              </span>
+            ) : null}
+            <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
+          </div>
+          {subtitle ? <div className={`mt-1 text-sm text-muted ${icon ? "sm:pl-[2.375rem]" : ""}`}>{subtitle}</div> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
