@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:catalog": "node scripts/generate-game-catalog.ts",
+    "verify:catalog": "node scripts/verify-catalog-drift.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
