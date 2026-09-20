@@ -6,17 +6,17 @@ import type { Account, HealthStatus, PlayerSnapshot } from "@/lib/types";
 import { formatGameMap } from "@/lib/game-maps";
 
 export function formatRelativeTime(timestamp: number | null, now = Date.now()): string {
-  if (timestamp === null) return "never";
+  if (timestamp === null) return "chưa kết nối";
   const diff = Math.max(0, now - timestamp);
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 5) return "vừa xong";
+  if (seconds < 60) return `${seconds}s trước`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes}m trước`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
+  if (hours < 24) return `${hours}h ${minutes % 60}m trước`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${days}d trước`;
 }
 
 export function formatUptime(seconds: number): string {
@@ -102,9 +102,9 @@ export function formatGold(value: number | null): string {
  */
 export function formatAtkstate(atkstate: number): string {
   switch (atkstate) {
-    case 0: return "Fighting";
-    case 1: return "Returning";
-    case 2: return "Stabilising";
+    case 0: return "Đang đánh";
+    case 1: return "Quay về";
+    case 2: return "Ổn định";
     default: return "—";
   }
 }
@@ -114,9 +114,9 @@ export function formatAtkstate(atkstate: number): string {
  */
 export function formatStuck(stuck: number): string | null {
   if (stuck === 0) return null;
-  if (stuck === 1) return "No mobs";
-  if (stuck === 2) return "Terrain stuck";
-  return `Stuck (${stuck})`;
+  if (stuck === 1) return "Hết quái";
+  if (stuck === 2) return "Kẹt địa hình";
+  return `Kẹt (${stuck})`;
 }
 
 /**
@@ -124,7 +124,7 @@ export function formatStuck(stuck: number): string | null {
  * quota <= 0 means auto stopped.
  */
 export function formatQuota(snap: PlayerSnapshot): string {
-  if (snap.quota <= 0) return "0 (limit reached)";
+  if (snap.quota <= 0) return "0 (đạt giới hạn)";
   return String(snap.quota);
 }
 
@@ -133,7 +133,7 @@ export function formatQuota(snap: PlayerSnapshot): string {
  * -1 = loading / current map unavailable.
  */
 export function formatTelemetryMap(mapId: number | null | undefined): string {
-  if (mapId === undefined || mapId === null || mapId === -1) return "Loading";
+  if (mapId === undefined || mapId === null || mapId === -1) return "Đang tải";
   return formatGameMap(mapId);
 }
 

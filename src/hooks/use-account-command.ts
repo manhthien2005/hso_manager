@@ -14,12 +14,14 @@ import { useToast } from "@/store/toast-store";
  * applied it via the realtime listener, so only the toast differs.
  */
 
+import { ACCOUNT_STATUS_LABELS } from "@/components/ui/status";
+
 export type AccountCommand = "start" | "stop" | "restart";
 
 const VERBS: Record<AccountCommand, string> = {
-  start: "Start",
-  stop: "Stop",
-  restart: "Restart",
+  start: "Khởi động",
+  stop: "Dừng",
+  restart: "Khởi động lại",
 };
 
 export function useAccountCommand(accountId: string) {
@@ -28,15 +30,16 @@ export function useAccountCommand(accountId: string) {
 
   const run = useCallback(
     async (command: AccountCommand) => {
-      const label = getAccount(accountId)?.label ?? "Account";
+      const label = getAccount(accountId)?.label ?? "Tài khoản";
       try {
         const { account } = await runCommand({ accountId, type: command });
-        push("success", `${VERBS[command]} complete`, `${label} is now ${account.status}`);
+        const statusLabel = ACCOUNT_STATUS_LABELS[account.status] ?? account.status;
+        push("success", `${VERBS[command]} hoàn tất`, `${label} hiện đang ${statusLabel}`);
       } catch (error) {
         const title =
           error instanceof CommandFailedError
-            ? `${VERBS[command]} failed`
-            : `${VERBS[command]} rejected`;
+            ? `${VERBS[command]} thất bại`
+            : `${VERBS[command]} bị từ chối`;
         push("error", title, describeError(error));
       }
     },
