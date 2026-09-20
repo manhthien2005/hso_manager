@@ -18,8 +18,10 @@
   --color-border-interactive: var(--border-interactive);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --color-accent: var(--accent);
   --color-accent-fill: var(--accent-fill);
+  --color-accent-subtle: var(--accent-subtle);
   --color-online: var(--online);
   --color-offline: var(--offline);
   --color-running: var(--running);
@@ -41,10 +43,12 @@
   /* Typography */
   --foreground: oklch(0.94 0.008 255);
   --muted: oklch(0.72 0.012 255);
+  --subtle: oklch(0.55 0.012 255);
 
   /* Brand Accent: Lightning Blue */
   --accent: oklch(0.82 0.11 230);
   --accent-fill: oklch(0.46 0.14 250);
+  --accent-subtle: oklch(0.25 0.05 240);
 
   /* Operational Status Tokens (Strictly segregated from brand accent) */
   --online: oklch(0.76 0.16 145);
@@ -53,6 +57,12 @@
   --warning: oklch(0.78 0.15 75);
   --danger: oklch(0.70 0.20 25);
   --success: oklch(0.76 0.16 145);
+
+  /* Status Background Tokens — for banners and highlight regions */
+  --status-healthy-bg: oklch(0.24 0.06 145 / 0.25);
+  --status-warning-bg: oklch(0.25 0.06 75 / 0.25);
+  --status-danger-bg: oklch(0.25 0.08 25 / 0.25);
+  --status-offline-bg: oklch(0.22 0.015 255 / 0.4);
 }
 
 body {

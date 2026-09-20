@@ -32,7 +32,7 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-bold tracking-tight">{title}</h1>
           {subtitle ? <div className="mt-1 text-sm text-muted">{subtitle}</div> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
