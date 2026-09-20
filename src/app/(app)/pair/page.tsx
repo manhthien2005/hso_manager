@@ -94,21 +94,38 @@ export default function PairPage() {
 
   function handlePaste(e: React.ClipboardEvent) {
     e.preventDefault();
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/[^0-9a-fA-F]/g, "")
-      .toUpperCase()
-      .slice(0, 8);
+    const raw = e.clipboardData.getData("text").trim();
 
-    if (pasted.length > 0) {
+    // Check for standard pairing code patterns:
+    // 1. "PAIR CODE: A3F9B21C" or "pair code: a3f9-b21c"
+    // 2. "A3F9-B21C" or "A3F9 B21C"
+    // 3. Raw hex string up to 8 chars: "A3F9B21C"
+    const prefixMatch = raw.match(/^(?:PAIR\s*CODE:\s*)?([0-9a-fA-F]{4})[-\s]?([0-9a-fA-F]{4})$/i);
+    let hexCode = "";
+
+    if (prefixMatch) {
+      hexCode = (prefixMatch[1] + prefixMatch[2]).toUpperCase();
+    } else {
+      // If the trimmed text consists strictly of hex characters and standard delimiters (- or space)
+      const clean = raw.replace(/[-\s]/g, "");
+      if (/^[0-9a-fA-F]{1,8}$/.test(clean)) {
+        hexCode = clean.toUpperCase();
+      } else {
+        // Arbitrary string with unrelated words - do not cherry-pick letters
+        setError("Pasted text is not a valid hexadecimal pair code.");
+        return;
+      }
+    }
+
+    if (hexCode.length > 0) {
       const next = Array(8).fill("");
-      for (let i = 0; i < pasted.length; i++) {
-        next[i] = pasted[i]!;
+      for (let i = 0; i < hexCode.length; i++) {
+        next[i] = hexCode[i]!;
       }
       setCode(next);
       setError(null);
 
-      const targetIndex = Math.min(pasted.length, 7);
+      const targetIndex = Math.min(hexCode.length, 7);
       focusInput(targetIndex);
     }
   }
