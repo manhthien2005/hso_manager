@@ -228,20 +228,20 @@ function NavLink({
 
 function SidebarDeviceDot({ status }: { status: DeviceStatus }) {
   if (status === "online") {
-    return <span className="size-1.5 shrink-0 rounded-full bg-online" aria-label="Online" />;
+    return <span className="size-1.5 shrink-0 rounded-full bg-online" aria-label="Trực tuyến" />;
   }
   if (status === "error") {
     return (
       <span
         className="size-1.5 shrink-0 rotate-45 rounded-[1px] bg-danger"
-        aria-label="Error"
+        aria-label="Lỗi"
       />
     );
   }
   return (
     <span
       className="size-1.5 shrink-0 rounded-full border border-offline bg-transparent"
-      aria-label="Offline"
+      aria-label="Mất kết nối"
     />
   );
 }

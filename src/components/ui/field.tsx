@@ -183,7 +183,7 @@ export function ToggleField({
           }`}
           aria-hidden="true"
         />
-        <span className="sr-only">{checked ? "ON" : "OFF"}</span>
+        <span className="sr-only">{checked ? "BẬT" : "TẮT"}</span>
       </button>
     </div>
   );

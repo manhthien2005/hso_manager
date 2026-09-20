@@ -107,7 +107,7 @@ export function isApiError(error: unknown): error is ApiError {
 }
 
 export function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error";
+  return error instanceof Error ? error.message : "Lỗi không xác định";
 }
 
 /** The only place the implementation is chosen. */

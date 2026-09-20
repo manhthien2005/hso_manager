@@ -105,7 +105,7 @@ function ToastViewport({
               type="button"
               onClick={() => onDismiss(toast.id)}
               className="shrink-0 rounded p-1 text-muted hover:text-foreground"
-              aria-label="Dismiss notification"
+              aria-label="Đóng thông báo"
             >
               <IconClose />
             </button>
