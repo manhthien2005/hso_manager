@@ -233,7 +233,12 @@ export function ConfigFieldInput({
             />
           ))}
         </div>
-        {error ? <p className="text-xs text-danger">{error}</p> : null}
+        {error ? (
+          <p className="text-xs font-medium text-danger flex items-center gap-1">
+            <span aria-hidden="true">⚠</span>
+            <span>{error}</span>
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -250,11 +255,16 @@ export function ConfigFieldInput({
           type="button"
           disabled={disabled || armed}
           onClick={() => set(1)}
-          className="inline-flex h-9 items-center rounded-md border border-border bg-elevated px-4 text-sm font-medium text-foreground transition-colors hover:bg-elevated/80 disabled:opacity-50"
+          className="inline-flex min-h-[36px] items-center rounded-md border border-border bg-elevated px-4 text-xs font-semibold uppercase tracking-wider text-foreground transition-colors hover:border-accent/40 hover:bg-elevated/80 disabled:opacity-50"
         >
           {armed ? "Queued…" : f.buttonLabel}
         </button>
-        {error ? <p className="text-xs text-danger">{error}</p> : null}
+        {error ? (
+          <p className="text-xs font-medium text-danger flex items-center gap-1">
+            <span aria-hidden="true">⚠</span>
+            <span>{error}</span>
+          </p>
+        ) : null}
       </div>
     );
   }
