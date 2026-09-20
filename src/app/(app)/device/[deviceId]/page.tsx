@@ -6,7 +6,7 @@ import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AccountStatusBadge, DeviceStatusBadge, HealthStatusBadge } from "@/components/ui/status";
+import { AccountStatusBadge, DeviceStatusBadge, HealthStatusBadge, MetricBar } from "@/components/ui/status";
 import { describeError } from "@/services/api";
 import { useAccountCommand } from "@/hooks/use-account-command";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
@@ -95,6 +95,7 @@ export default function DeviceDetailPage({
               href={`/device/${device.deviceId}/accounts`}
               size="sm"
               variant="secondary"
+              icon={<IconUsers />}
             >
               Manage Accounts
             </ButtonLink>
@@ -130,7 +131,7 @@ export default function DeviceDetailPage({
         <div className="flex items-center justify-between px-1">
           <h2
             id="accounts-section-heading"
-            className="text-xs font-semibold tracking-wider text-muted uppercase"
+            className="border-l-2 border-accent pl-2 text-[11px] font-semibold tracking-widest text-muted/90 uppercase"
           >
             Assigned Accounts ({accounts.length})
           </h2>
@@ -176,38 +177,57 @@ export default function DeviceDetailPage({
         <div className="px-1">
           <h2
             id="diagnostics-section-heading"
-            className="text-xs font-semibold tracking-wider text-muted uppercase"
+            className="border-l-2 border-accent pl-2 text-[11px] font-semibold tracking-widest text-muted/90 uppercase"
           >
-            Hardware & Runtime Diagnostics
+            Hardware &amp; Runtime Diagnostics
           </h2>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {/* CPU Metric */}
-          <Card className="p-3.5">
-            <span className="text-[11px] font-medium tracking-wide text-muted uppercase">CPU Load</span>
+          <Card className="p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+              <IconCpu />
+              <span>CPU Load</span>
+            </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
                 {online ? `${Math.round(device.metrics.cpu)}%` : "—"}
               </span>
-              <span className="text-[11px] text-muted">30–60s cadence</span>
+              <span className="text-[11px] text-muted">30–60s</span>
             </div>
+            {online ? (
+              <div className="mt-2">
+                <MetricBar percent={device.metrics.cpu} />
+              </div>
+            ) : null}
           </Card>
 
           {/* RAM Metric */}
-          <Card className="p-3.5">
-            <span className="text-[11px] font-medium tracking-wide text-muted uppercase">Memory Usage</span>
+          <Card className="p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+              <IconRam />
+              <span>Memory</span>
+            </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
                 {online ? formatRam(device.metrics.ramUsedMb, device.metrics.ramTotalMb) : "—"}
               </span>
               <span className="text-[11px] text-muted">RAM</span>
             </div>
+            {online && device.metrics.ramTotalMb > 0 ? (
+              <div className="mt-2">
+                <MetricBar percent={(device.metrics.ramUsedMb / device.metrics.ramTotalMb) * 100} />
+              </div>
+            ) : null}
           </Card>
 
           {/* Uptime */}
-          <Card className="p-3.5">
-            <span className="text-[11px] font-medium tracking-wide text-muted uppercase">System Uptime</span>
+          <Card className="p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+              <IconClock />
+              <span>Uptime</span>
+            </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
                 {online ? formatUptime(device.metrics.uptimeSeconds) : "—"}
@@ -217,12 +237,15 @@ export default function DeviceDetailPage({
           </Card>
 
           {/* Agent Metadata */}
-          <Card className="p-3.5">
-            <span className="text-[11px] font-medium tracking-wide text-muted uppercase">Agent / Wire Contract</span>
+          <Card className="p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+              <IconServer />
+              <span>Agent / Wire</span>
+            </div>
             <div className="mt-1.5 space-y-0.5 font-mono text-xs tabular text-muted">
               <div>Agent: <span className="text-foreground">{device.agentVersion || "—"}</span></div>
               <div>Runtime: <span className="text-foreground">{device.runtimeVersion || "—"}</span></div>
-              <div>CTL Version: <span className="text-foreground">{device.jar_ctl_version ?? "None"}</span></div>
+              <div>CTL v: <span className="text-foreground">{device.jar_ctl_version ?? "None"}</span></div>
             </div>
           </Card>
         </div>
@@ -255,7 +278,7 @@ function DeviceAccountRow({
   const isWaitingTelemetry = isRunning && account.snapshot === null;
 
   return (
-    <Card className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="flex flex-col gap-2.5 p-3 sm:flex-row sm:items-center sm:justify-between">
       {/* Account Info & States */}
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -263,24 +286,15 @@ function DeviceAccountRow({
           {account.characterName ? (
             <span className="text-xs text-muted font-medium">({account.characterName})</span>
           ) : null}
-          <span className="text-muted">·</span>
-          <span className="text-xs text-muted">{formatServerDisplay(account.serverId)}</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs">
           <AccountStatusBadge status={account.status} />
           <HealthStatusBadge health={health} />
+        </div>
 
-          {account.ramMb !== null ? (
-            <span className="font-mono text-[11px] tabular text-muted">
-              {Math.round(account.ramMb)} MB
-            </span>
-          ) : null}
-
+        {/* Quick operational facts row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted font-mono">
+          <span>{formatServerDisplay(account.serverId)}</span>
           {account.snapshot ? (
-            <span className="font-mono text-[11px] tabular text-muted">
-              Lv {account.snapshot.lv}
-            </span>
+            <span className="text-foreground font-medium">Lv {account.snapshot.lv}</span>
           ) : null}
 
           {/* Subdued telemetry notice or actionable warning */}
@@ -307,6 +321,7 @@ function DeviceAccountRow({
             busy={busyWith("start")}
             disabled={actionsDisabled || isBusy}
             onClick={() => run("start")}
+            icon={<IconPlay />}
           >
             Start
           </Button>
@@ -317,6 +332,7 @@ function DeviceAccountRow({
             busy={busyWith("stop")}
             disabled={actionsDisabled || isBusy}
             onClick={() => run("stop")}
+            icon={<IconStop />}
           >
             Stop
           </Button>
@@ -328,6 +344,7 @@ function DeviceAccountRow({
           busy={busyWith("restart")}
           disabled={actionsDisabled || account.status === "stopped" || isBusy}
           onClick={() => run("restart")}
+          icon={<IconRestart />}
         >
           Restart
         </Button>
@@ -336,6 +353,7 @@ function DeviceAccountRow({
           href={`/account/${account.id}/config`}
           size="sm"
           variant="secondary"
+          icon={<IconGear />}
         >
           Config
         </ButtonLink>
@@ -343,6 +361,8 @@ function DeviceAccountRow({
     </Card>
   );
 }
+
+// ── Icon Library ───────────────────────────────────────────────────────────────
 
 function IconRefresh() {
   return (
@@ -363,6 +383,88 @@ function IconMonitor() {
     <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
       <rect x="2" y="2.5" width="12" height="8.5" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
       <path d="M5.5 14h5M8 11v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M1 13c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M11 7c1.1 0 2 .9 2 2M13 13c0-1.66-.9-3.1-2.2-3.85" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCpu() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6 4V2M8 4V2M10 4V2M6 14v-2M8 14v-2M10 14v-2M4 6H2M4 8H2M4 10H2M14 6h-2M14 8h-2M14 10h-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconRam() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="1.5" y="5" width="13" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4 5V3.5M6 5V3.5M8 5V3.5M10 5V3.5M12 5V3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M4 11v1.5M6 11v1.5M8 11v1.5M10 11v1.5M12 11v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconClock() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconServer() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="2" y="3" width="12" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="2" y="9" width="12" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="12.5" cy="5" r="0.8" fill="currentColor" />
+      <circle cx="12.5" cy="11" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M5 3.5l8 4.5-8 4.5V3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function IconRestart() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <path d="M12 8a4 4 0 1 1-1.2-2.85M12 2.5v3h-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconGear() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.75 3.75l1.06 1.06M11.19 11.19l1.06 1.06M12.25 3.75l-1.06 1.06M4.81 11.19l-1.06 1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }
