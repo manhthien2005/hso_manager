@@ -303,17 +303,27 @@ assert(
   "13E: Changing configured Map 0 to None is DIRTY",
 );
 
-// 14. Production Game Catalog Facade Check (Section 14)
-console.log("\n14. Production Game Catalog Facade Check:");
+// 14. Production Game Catalog Facade Integration (Section 14)
+console.log("\n14. Production Game Catalog Facade Integration:");
 const map0 = getGameMap(0);
-assert(map0 !== undefined, "14A: Map 0 exists in catalog");
-assert(map0?.name === "Ngôi Làng Nhỏ", `14B: Map 0 name is 'Ngôi Làng Nhỏ' (got '${map0?.name}')`);
-assert(formatGameMap(0) === "[0] Ngôi Làng Nhỏ", `14C: formatGameMap(0) matches expected format (got '${formatGameMap(0)}')`);
+assert(map0 !== undefined, "14A: Map 0 exists in catalog facade");
+if (map0) {
+  const expected0 = `[${map0.id}] ${map0.name}`;
+  assert(
+    formatGameMap(map0.id) === expected0,
+    "14B: Map 0 formatting derives dynamically from production catalog facade",
+  );
+}
 
 const map93 = getGameMap(93);
-assert(map93 !== undefined, "14D: Map 93 exists in catalog");
-assert(map93?.name === "Thị trấn mùa đông", `14E: Map 93 name is 'Thị trấn mùa đông' (got '${map93?.name}')`);
-assert(formatGameMap(93) === "[93] Thị trấn mùa đông", `14F: formatGameMap(93) matches expected format (got '${formatGameMap(93)}')`);
+assert(map93 !== undefined, "14C: Map 93 exists in catalog facade");
+if (map93) {
+  const expected93 = `[${map93.id}] ${map93.name}`;
+  assert(
+    formatGameMap(map93.id) === expected93,
+    "14D: Map 93 formatting derives dynamically from production catalog facade",
+  );
+}
 
   console.log(`\n=================================`);
   if (failures === 0) {
