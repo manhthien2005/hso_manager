@@ -544,6 +544,27 @@ function main(): void {
     }
 
     const zeusNames = extractZeusMapNames(zeusCls);
+
+    // Baseline invariant guards for CTL_VERSION 13 Zeus mapName() extraction:
+    // Assert that Zeus mapName() extraction produced the complete known extension-name set.
+    const EXPECTED_ZEUS_NAME_IDS = [92, 93, 94, 95, 96, 97, 98, 135];
+    if (zeusNames.has(127)) {
+      throw new Error("Baseline guard failed: Map 127 must NOT be manufactured as a named map in zeusNames");
+    }
+    if (zeusNames.size !== EXPECTED_ZEUS_NAME_IDS.length) {
+      throw new Error(
+        `Baseline guard failed: expected exactly ${EXPECTED_ZEUS_NAME_IDS.length} Zeus mapName entries, got ${zeusNames.size}`
+      );
+    }
+    for (const expectedId of EXPECTED_ZEUS_NAME_IDS) {
+      const name = zeusNames.get(expectedId);
+      if (typeof name !== "string" || name.length === 0) {
+        throw new Error(
+          `Baseline guard failed: missing or empty Zeus mapName for extension ID ${expectedId}`
+        );
+      }
+    }
+
     const mapAdjStr = extractMapAdjString(zeusCls);
 
     // 8. Parse MAP_ADJ and build graph
@@ -604,7 +625,7 @@ function main(): void {
     for (const id of sortedMapIds) {
       const rawNameVi = id < dfGE.length ? dfGE[id] : (zeusNames.get(id) ?? null);
       const rawNameEn = id < egGE.length ? egGE[id] : null;
-      const adjacentTo = [...(adj.get(id) ?? [])].sort((a, b) => a - b);
+      const adjacentTo = [...(adj.get(id) ?? [])];
       const travelEligible = mainSCC.has(id);
 
       generatedMaps.push({
@@ -663,6 +684,42 @@ function main(): void {
         throw new Error(`Invariant failed: expected server index ${i}, got ${generatedServers[i].index}`);
       }
     }
+
+    // Lossless adjacency verification: sequence equality against parsed MAP_ADJ
+    for (const m of generatedMaps) {
+      const expectedAdjacent = adj.get(m.id) ?? [];
+      if (m.adjacentTo.length !== expectedAdjacent.length) {
+        throw new Error(
+          `Lossless adjacency invariant failed for Map ${m.id}: length mismatch (got ${m.adjacentTo.length}, expected ${expectedAdjacent.length})`
+        );
+      }
+      for (let i = 0; i < expectedAdjacent.length; i++) {
+        if (m.adjacentTo[i] !== expectedAdjacent[i]) {
+          throw new Error(
+            `Lossless adjacency invariant failed for Map ${m.id} at index ${i}: got ${m.adjacentTo[i]}, expected ${expectedAdjacent[i]}`
+          );
+        }
+      }
+    }
+
+    // Fail-closed rawNameVi absence assertions:
+    // In CTL_VERSION 13, only Map 127 has rawNameVi === null, Map 81 has rawNameVi === ""
+    for (const m of generatedMaps) {
+      if (m.id === 127) {
+        if (m.rawNameVi !== null) {
+          throw new Error(`Invariant failed: Map 127 rawNameVi must be null, got: ${JSON.stringify(m.rawNameVi)}`);
+        }
+      } else if (m.id === 81) {
+        if (m.rawNameVi !== "") {
+          throw new Error(`Invariant failed: Map 81 rawNameVi must be empty string "", got: ${JSON.stringify(m.rawNameVi)}`);
+        }
+      } else {
+        if (m.rawNameVi === null || typeof m.rawNameVi !== "string" || m.rawNameVi.length === 0) {
+          throw new Error(`Invariant failed: unexpected null or empty rawNameVi for Map ${m.id}`);
+        }
+      }
+    }
+
     console.log("[generate-game-catalog] All baseline invariants PASSED: 101 maps, 78 nodes, 3 SCCs, 76 travelEligible, 8 servers.");
 
     // 12. Format output TypeScript code

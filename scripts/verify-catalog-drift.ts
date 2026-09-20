@@ -142,7 +142,11 @@ function verifyCatalogDrift(): void {
   const genMapById = new Map(GENERATED_GAME_MAPS.map((m) => [m.id, m]));
   for (const webMap of GAME_MAPS) {
     const genMap = genMapById.get(webMap.id);
-    if (!genMap) continue;
+    if (!genMap) {
+      console.error(`[FAIL] Generated catalog missing map ID ${webMap.id}`);
+      errors++;
+      continue;
+    }
 
     const curatedDiff = knownCuratedDifferences[webMap.id];
     if (curatedDiff) {
@@ -159,15 +163,44 @@ function verifyCatalogDrift(): void {
         errors++;
       }
     } else {
-      // Maps not in known curated differences should match raw Vietnamese string
-      if (genMap.rawNameVi !== null && genMap.rawNameVi !== webMap.name) {
-        console.warn(
-          `   [INFO] Display divergence on Map ${webMap.id}: raw="${genMap.rawNameVi}" vs web="${webMap.name}"`,
+      // Maps not in known curated differences: fail closed on unexpected null or name drift
+      if (genMap.rawNameVi === null) {
+        console.error(
+          `[FAIL] Unexpected null rawNameVi for Map ${webMap.id} (authoritative Vietnamese name expected)`,
         );
+        errors++;
+      } else if (webMap.name !== genMap.rawNameVi) {
+        console.error(
+          `[FAIL] Unexpected map name drift on Map ${webMap.id}: raw="${genMap.rawNameVi}" vs web="${webMap.name}"`,
+        );
+        errors++;
       }
     }
   }
-  console.log("   [PASS] Known curated display differences verified and distinguished from drift.");
+
+  // Authoritative catalog check: no unexpected null or empty names across all generated maps
+  for (const genMap of GENERATED_GAME_MAPS) {
+    if (genMap.id === 127) {
+      if (genMap.rawNameVi !== null) {
+        console.error(`[FAIL] Map 127 rawNameVi must be null, got ${JSON.stringify(genMap.rawNameVi)}`);
+        errors++;
+      }
+    } else if (genMap.id === 81) {
+      if (genMap.rawNameVi !== "") {
+        console.error(`[FAIL] Map 81 rawNameVi must be empty string "", got ${JSON.stringify(genMap.rawNameVi)}`);
+        errors++;
+      }
+    } else {
+      if (genMap.rawNameVi === null) {
+        console.error(`[FAIL] Generated Map ${genMap.id} unexpectedly has rawNameVi === null`);
+        errors++;
+      }
+    }
+  }
+
+  if (errors === 0) {
+    console.log("   [PASS] Raw authoritative names and Web display names match fail-closed with known exceptions.");
+  }
 
   // ── 4. SERVER PARITY ────────────────────────────────────────────────────────
   console.log("\n4. Verifying Server identity parity (expected: 8 servers 0..7)...");
