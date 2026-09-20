@@ -50,7 +50,7 @@ export function DeviceCard({
           </div>
         ) : (
           <p className="font-mono text-[11px] text-muted">
-            Last seen {formatRelativeTime(device.lastSeen)}
+            Lần cuối kết nối {formatRelativeTime(device.lastSeen)}
           </p>
         )}
       </div>
@@ -59,10 +59,10 @@ export function DeviceCard({
       <div className="flex-1 px-4 py-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[10px] font-semibold tracking-wider text-muted uppercase">
-            Accounts ({accounts.length})
+            Tài khoản ({accounts.length})
           </span>
           {accounts.length === 0 ? (
-            <span className="text-[11px] text-muted">No accounts assigned</span>
+            <span className="text-[11px] text-muted">Chưa có tài khoản nào</span>
           ) : null}
         </div>
 
@@ -89,11 +89,11 @@ export function DeviceCard({
 
                     {/* Operational sub-status note */}
                     {hasConfigIssue ? (
-                      <p className="mt-0.5 text-[10px] text-danger">Config Version Mismatch</p>
+                      <p className="mt-0.5 text-[10px] text-danger">Phiên bản cấu hình không tương thích</p>
                     ) : hasCtlIssue ? (
-                      <p className="mt-0.5 text-[10px] text-warning">Control Rejected (ctl={account.snapshot?.ctl})</p>
+                      <p className="mt-0.5 text-[10px] text-warning">Điều khiển bị từ chối (ctl={account.snapshot?.ctl})</p>
                     ) : isAliveWaiting ? (
-                      <p className="mt-0.5 text-[10px] text-muted">Waiting for telemetry</p>
+                      <p className="mt-0.5 text-[10px] text-muted">Đang chờ dữ liệu trạng thái</p>
                     ) : account.snapshot ? (
                       <p className="mt-0.5 font-mono text-[10px] text-muted">
                         Lv {account.snapshot.lv}
@@ -119,7 +119,7 @@ export function DeviceCard({
           variant="secondary"
           className="flex-1"
         >
-          Manage Accounts
+          Quản lý tài khoản
         </ButtonLink>
         <ButtonLink
           href={`${detailHref}/viewer`}
@@ -128,7 +128,7 @@ export function DeviceCard({
           disabled={!online}
           className="flex-1"
         >
-          Open Viewer
+          Mở điều khiển từ xa
         </ButtonLink>
       </div>
     </Card>

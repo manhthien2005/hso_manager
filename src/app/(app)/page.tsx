@@ -52,9 +52,9 @@ export default function DashboardPage() {
   async function handleRefresh() {
     try {
       await reloadFleet();
-      push("info", "Fleet refreshed", `${devices.length} device(s) synchronized`);
+      push("info", "Đã làm mới hệ thống", `${devices.length} máy chủ đã đồng bộ`);
     } catch (error) {
-      push("error", "Refresh failed", describeError(error));
+      push("error", "Làm mới thất bại", describeError(error));
     }
   }
 
@@ -77,12 +77,12 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* 1. Page Header */}
       <PageHeader
-        title="Fleet Operations"
-        subtitle={`${metrics.nodesTotal} VPS nodes · ${metrics.accountsTotal} accounts registered`}
+        title="Tổng quan hệ thống"
+        subtitle={`${metrics.nodesTotal} máy chủ · ${metrics.accountsTotal} tài khoản đã đăng ký`}
         actions={
           <div className="flex items-center gap-2">
             <ButtonLink href="/pair" size="sm" variant="secondary" icon={<IconPlug />}>
-              Pair Node
+              Ghép nối máy chủ
             </ButtonLink>
             <Button
               size="sm"
@@ -90,7 +90,7 @@ export default function DashboardPage() {
               onClick={handleRefresh}
               icon={<IconRefresh />}
             >
-              Refresh
+              Làm mới
             </Button>
           </div>
         }
@@ -108,9 +108,9 @@ export default function DashboardPage() {
               className="flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-danger uppercase"
             >
               <span className="size-1.5 rotate-45 rounded-[1px] bg-danger" aria-hidden="true" />
-              Action Required ({attentionItems.length})
+              Cần xử lý ({attentionItems.length})
             </h2>
-            <span className="text-[11px] text-muted">Items remain active until resolved</span>
+            <span className="text-[11px] text-muted">Cảnh báo sẽ giữ nguyên cho đến khi được giải quyết</span>
           </div>
 
           <div className="space-y-2">
@@ -125,9 +125,9 @@ export default function DashboardPage() {
       <section aria-labelledby="nodes-heading" className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 id="nodes-heading" className="text-xs font-semibold tracking-wider text-muted uppercase">
-            Active Fleet ({devices.length})
+            Danh sách máy chủ ({devices.length})
           </h2>
-          <span className="text-[11px] text-muted">Sorted by operational priority</span>
+          <span className="text-[11px] text-muted">Sắp xếp theo độ ưu tiên vận hành</span>
         </div>
 
         {loadingFleet && devices.length === 0 ? (
@@ -137,13 +137,13 @@ export default function DashboardPage() {
           </div>
         ) : devices.length === 0 ? (
           <Card className="flex flex-col items-center justify-center border-dashed border-border px-4 py-12 text-center">
-            <p className="text-sm font-medium text-foreground">No VPS nodes registered to this fleet</p>
+            <p className="text-sm font-medium text-foreground">Chưa có máy chủ nào được ghép nối vào hệ thống</p>
             <p className="mt-1 text-xs text-muted">
-              Connect your first node using the pair code displayed on your server console.
+              Kết nối máy chủ đầu tiên bằng mã ghép nối hiển thị trên bảng điều khiển VPS.
             </p>
             <div className="mt-4">
               <ButtonLink href="/pair" variant="primary" size="sm" icon={<IconPlug />}>
-                Pair First Node
+                Ghép nối máy chủ đầu tiên
               </ButtonLink>
             </div>
           </Card>
@@ -174,17 +174,17 @@ function FleetStatusStrip({ metrics }: { metrics: FleetMetrics }) {
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2.5 text-xs">
       {/* Nodes Summary */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted">Nodes:</span>
+        <span className="text-muted">Máy chủ:</span>
         <span className="font-mono font-medium text-foreground tabular">
-          {metrics.nodesOnline}/{metrics.nodesTotal} Online
+          {metrics.nodesOnline}/{metrics.nodesTotal} Trực tuyến
         </span>
         {!nodesAllGood ? (
           <span className="inline-flex items-center gap-1 rounded bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger">
-            {metrics.nodesNeedingAttention} Need Attention
+            {metrics.nodesNeedingAttention} Cần chú ý
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded bg-online/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-online">
-            All Healthy
+            Tất cả ổn định
           </span>
         )}
       </div>
@@ -194,21 +194,21 @@ function FleetStatusStrip({ metrics }: { metrics: FleetMetrics }) {
 
       {/* Accounts Summary */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted">Accounts:</span>
+        <span className="text-muted">Tài khoản:</span>
         <span className="font-mono font-medium text-foreground tabular">
-          {metrics.accountsRunning} Running
+          {metrics.accountsRunning} Đang chạy
         </span>
         {metrics.accountsTransitioning > 0 ? (
           <span className="font-mono text-warning tabular">
-            · {metrics.accountsTransitioning} In Flight
+            · {metrics.accountsTransitioning} Đang xử lý
           </span>
         ) : null}
         <span className="font-mono text-muted tabular">
-          · {metrics.accountsStopped} Stopped
+          · {metrics.accountsStopped} Đã dừng
         </span>
         {!accountsAllGood ? (
           <span className="inline-flex items-center gap-1 rounded bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-medium text-danger">
-            {metrics.accountsNeedingAttention} Error
+            {metrics.accountsNeedingAttention} Lỗi
           </span>
         ) : null}
       </div>
@@ -374,10 +374,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `device-error-${device.id}`,
         severity: "danger",
-        title: "Node Error",
+        title: "Máy chủ gặp sự cố",
         location: `${device.name} (${device.deviceId})`,
-        reason: "Device reported error state. Agent or container requires inspection.",
-        actionLabel: "Inspect Node",
+        reason: "Máy chủ báo cáo trạng thái lỗi. Vui lòng kiểm tra Agent hoặc container.",
+        actionLabel: "Xem máy chủ",
         actionHref: `/device/${device.deviceId}`,
       });
     }
@@ -389,10 +389,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `device-offline-${device.id}`,
         severity: "warning",
-        title: "Node Offline",
+        title: "Máy chủ mất kết nối",
         location: `${device.name} (${device.deviceId})`,
-        reason: `Heartbeat lost · Last seen ${formatRelativeTime(device.lastSeen)}.`,
-        actionLabel: "Inspect Node",
+        reason: `Không nhận được nhịp kết nối · Lần cuối kết nối ${formatRelativeTime(device.lastSeen)}.`,
+        actionLabel: "Xem máy chủ",
         actionHref: `/device/${device.deviceId}`,
       });
     }
@@ -409,10 +409,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `account-error-${account.id}`,
         severity: "danger",
-        title: "Account Failure",
-        location: `${account.label} on ${nodeName}`,
-        reason: "Bot process exited unexpectedly with an error.",
-        actionLabel: "Manage Account",
+        title: "Tiến trình gặp sự cố",
+        location: `${account.label} trên ${nodeName}`,
+        reason: "Tiến trình bot bị dừng đột ngột do lỗi.",
+        actionLabel: "Quản lý tài khoản",
         actionHref: `/device/${account.deviceId}/accounts`,
       });
       continue;
@@ -424,10 +424,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `account-offline-${account.id}`,
         severity: "warning",
-        title: "Account Offline",
-        location: `${account.label} on ${nodeName}`,
-        reason: "Account is inactive while host node is online.",
-        actionLabel: "Manage Account",
+        title: "Tài khoản mất kết nối",
+        location: `${account.label} trên ${nodeName}`,
+        reason: "Tài khoản không hoạt động trong khi máy chủ vẫn trực tuyến.",
+        actionLabel: "Quản lý tài khoản",
         actionHref: `/device/${account.deviceId}/accounts`,
       });
       continue;
@@ -438,10 +438,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `config-mismatch-${account.id}`,
         severity: "danger",
-        title: "Config Version Mismatch",
-        location: `${account.label} on ${nodeName}`,
-        reason: "Control schema version does not match jar. Config apply was refused.",
-        actionLabel: "Fix Config",
+        title: "Phiên bản cấu hình không tương thích",
+        location: `${account.label} trên ${nodeName}`,
+        reason: "Phiên bản schema cấu hình không khớp với jar. Agent từ chối áp dụng cấu hình.",
+        actionLabel: "Sửa cấu hình",
         actionHref: `/account/${account.id}/config`,
       });
     } else if (account.snapshot !== null && account.snapshot.ctl !== 1) {
@@ -449,10 +449,10 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
       items.push({
         id: `ctl-rejected-${account.id}`,
         severity: "warning",
-        title: `Control Rejected (ctl=${account.snapshot.ctl})`,
-        location: `${account.label} on ${nodeName}`,
-        reason: "Jar reports control file was unaccepted or property missing.",
-        actionLabel: "Configure",
+        title: `Lệnh điều khiển bị từ chối (ctl=${account.snapshot.ctl})`,
+        location: `${account.label} trên ${nodeName}`,
+        reason: "Jar báo cáo file điều khiển chưa được chấp nhận hoặc thiếu thuộc tính.",
+        actionLabel: "Cấu hình",
         actionHref: `/account/${account.id}/config`,
       });
     }
