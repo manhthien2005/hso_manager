@@ -1,19 +1,23 @@
 import type { ReactNode } from "react";
-import type { AccountStatus, DeviceStatus } from "@/lib/types";
+import type { AccountStatus, DeviceStatus, HealthStatus } from "@/lib/types";
 
 /**
- * Status is the most-read signal in this app, so every state gets an explicit
- * colour and an always-on dot. Labels are sentence case, matching the spec's
- * "ONLINE / Running" vocabulary.
+ * Operational Status Primitives — Storm Steel.
+ * Rules:
+ *   - Indicator glyph + Textual label + Semantic color.
+ *   - Healthy stable states (online, running) are completely STATIC.
+ *   - Transitions (starting, restarting) pulse intentionally.
+ *   - Offline/idle states render as a quiet hollow indicator.
+ *   - Error/danger states render as a prominent diamond indicator.
  */
 
 type Tone = "online" | "offline" | "warning" | "danger" | "neutral";
 
 const TONES: Record<Tone, string> = {
-  online: "border-online/40 bg-online/12 text-online",
-  offline: "border-offline/40 bg-offline/12 text-offline",
-  warning: "border-warning/40 bg-warning/12 text-warning",
-  danger: "border-danger/40 bg-danger/12 text-danger",
+  online: "border-online/35 bg-online/10 text-online",
+  offline: "border-offline/35 bg-offline/10 text-offline",
+  warning: "border-warning/35 bg-warning/10 text-warning",
+  danger: "border-danger/35 bg-danger/10 text-danger",
   neutral: "border-border bg-elevated text-muted",
 };
 
@@ -32,11 +36,62 @@ const ACCOUNT_TONES: Record<AccountStatus, Tone> = {
   offline: "neutral",
 };
 
-/** In-flight states get the pulsing dot so "working" reads differently. */
+const HEALTH_TONES: Record<HealthStatus, Tone> = {
+  running: "online",
+  degraded: "warning",
+  stopped: "offline",
+};
+
+/** In-flight transition states get the pulsing dot so "working" reads differently. */
 const ACCOUNT_BUSY: ReadonlySet<AccountStatus> = new Set([
   "starting",
   "restarting",
 ]);
+
+function StatusGlyph({
+  tone,
+  busy = false,
+}: {
+  tone: Tone;
+  busy?: boolean;
+}) {
+  if (busy) {
+    return (
+      <span
+        className="size-1.5 rounded-full bg-current animate-pulse motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (tone === "danger") {
+    // Error / failure glyph: diamond indicator
+    return (
+      <span
+        className="size-1.5 shrink-0 rotate-45 rounded-[1px] bg-current"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (tone === "offline" || tone === "neutral") {
+    // Offline / stopped glyph: hollow ring
+    return (
+      <span
+        className="size-1.5 shrink-0 rounded-full border border-current bg-transparent"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  // Stable healthy (online/running) or warning: solid clean circle
+  return (
+    <span
+      className="size-1.5 shrink-0 rounded-full bg-current"
+      aria-hidden="true"
+    />
+  );
+}
 
 function Badge({
   tone,
@@ -53,10 +108,7 @@ function Badge({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${TONES[tone]} ${className}`}
     >
-      <span
-        className={`size-1.5 rounded-full bg-current ${busy ? "animate-pulse" : ""}`}
-        aria-hidden="true"
-      />
+      <StatusGlyph tone={tone} busy={busy} />
       {label}
     </span>
   );
@@ -73,7 +125,7 @@ export function DeviceStatusBadge({
     <Badge
       tone={DEVICE_TONES[status]}
       label={status}
-      busy={status === "online"}
+      busy={false}
       className={className}
     />
   );
@@ -91,6 +143,23 @@ export function AccountStatusBadge({
       tone={ACCOUNT_TONES[status]}
       label={status}
       busy={ACCOUNT_BUSY.has(status)}
+      className={className}
+    />
+  );
+}
+
+export function HealthStatusBadge({
+  health,
+  className,
+}: {
+  health: HealthStatus;
+  className?: string;
+}) {
+  return (
+    <Badge
+      tone={HEALTH_TONES[health]}
+      label={health}
+      busy={false}
       className={className}
     />
   );
