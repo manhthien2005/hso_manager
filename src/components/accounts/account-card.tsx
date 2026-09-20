@@ -92,7 +92,8 @@ export function AccountCard({
 
         <div className="flex flex-wrap items-center gap-2">
           <AccountStatusBadge status={account.status} />
-          <HealthStatusBadge health={health} />
+          {/* Only show HealthStatusBadge when it adds information beyond the process status */}
+          {health !== "running" ? <HealthStatusBadge health={health} /> : null}
         </div>
       </div>
 
