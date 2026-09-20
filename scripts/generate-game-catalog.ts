@@ -362,6 +362,20 @@ function computeSCCs(adj: Map<number, number[]>): number[][] {
   return sccs;
 }
 
+function checkTarCapabilities(jarPath: string): void {
+  try {
+    childProcess.execFileSync("tar", ["-tf", jarPath, "df.class"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (err) {
+    throw new Error(
+      `'tar' capability preflight check failed: Unable to list entries from ${jarPath}.\n` +
+      `Prerequisite: A bsdtar/libarchive-compatible 'tar' executable supporting ZIP/JAR format is required for catalog generation.\n` +
+      `Underlying error: ${(err as Error).message}`
+    );
+  }
+}
+
 function parseCliArgs(): { sourceRoot: string } {
   const args = process.argv.slice(2);
   let sourceRoot: string | null = null;
@@ -373,10 +387,10 @@ function parseCliArgs(): { sourceRoot: string } {
   }
 
   if (!sourceRoot) {
+    // Portable candidate search relative to repository structure only
     const candidates = [
       path.resolve(import.meta.dirname, "../../docker-build"),
       path.resolve(process.cwd(), "../docker-build"),
-      path.resolve("d:/Gaming/KnightOnline_402/docker-build"),
     ];
     for (const candidate of candidates) {
       if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, "vendor/game/Zeus_Knight.jar"))) {
@@ -387,12 +401,52 @@ function parseCliArgs(): { sourceRoot: string } {
   }
 
   if (!sourceRoot || !fs.existsSync(sourceRoot)) {
-    console.error(`Error: source root not found: ${sourceRoot}`);
-    console.error("Please supply --source-root <path-to-knight_build>");
+    console.error(`Error: knight_build source root not found: ${sourceRoot}`);
+    console.error("Usage: node scripts/generate-game-catalog.ts --source-root <path-to-knight_build>");
     process.exit(1);
   }
 
   return { sourceRoot };
+}
+
+function verifyInputStateAgainstCommit(sourceRoot: string, sourceCommit: string): void {
+  const inputPaths = [
+    "vendor/game/Zeus_Knight.jar",
+    "vendor/game/zeus-jar.json",
+  ];
+
+  try {
+    // 1. Check diff between working tree/index and HEAD for authoritative inputs
+    const diffOutput = childProcess.execFileSync(
+      "git",
+      ["-C", sourceRoot, "diff", "--name-status", "HEAD", "--", ...inputPaths],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    ).trim();
+
+    if (diffOutput.length > 0) {
+      throw new Error(
+        `Authoritative inputs differ from commit ${sourceCommit}:\n${diffOutput}`
+      );
+    }
+
+    // 2. Check untracked/staged/unstaged status for authoritative inputs
+    const statusOutput = childProcess.execFileSync(
+      "git",
+      ["-C", sourceRoot, "status", "--porcelain", "--", ...inputPaths],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    ).trim();
+
+    if (statusOutput.length > 0) {
+      throw new Error(
+        `Authoritative inputs have uncommitted changes relative to ${sourceCommit}:\n${statusOutput}`
+      );
+    }
+  } catch (err) {
+    throw new Error(
+      `Provenance verification failed: Authoritative inputs in sourceRoot (${sourceRoot}) do not match claimed commit ${sourceCommit}.\n` +
+      `Error: ${(err as Error).message}`
+    );
+  }
 }
 
 function main(): void {
@@ -422,21 +476,33 @@ function main(): void {
   console.log(`[generate-game-catalog] Validated jar SHA256: ${actualJarSha256}`);
   console.log(`[generate-game-catalog] Provenance CTL_VERSION: ${ctlVersion}`);
 
-  // 2. Resolve commit SHA of source repo
-  let sourceCommit = "702e1353f638de76602b2e4ee4ea5b4319e179c5";
+  // 2. Resolve commit SHA of source repo (FAIL CLOSED: no hard-coded fallback)
+  let sourceCommit: string;
   try {
-    const rev = childProcess.execFileSync("git", ["-C", sourceRoot, "rev-parse", "HEAD"], {
+    sourceCommit = childProcess.execFileSync("git", ["-C", sourceRoot, "rev-parse", "HEAD"], {
       encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-    if (rev && rev.length === 40) {
-      sourceCommit = rev;
-    }
-  } catch {
-    // fallback to expected commit
+  } catch (err) {
+    throw new Error(
+      `Failed to resolve git HEAD in sourceRoot (${sourceRoot}): ${(err as Error).message}`
+    );
   }
-  console.log(`[generate-game-catalog] Source commit: ${sourceCommit}`);
+  if (!/^[0-9a-f]{40}$/i.test(sourceCommit)) {
+    throw new Error(
+      `Invalid git commit hash obtained from sourceRoot (${sourceRoot}): "${sourceCommit}"`
+    );
+  }
+  console.log(`[generate-game-catalog] Verified source commit: ${sourceCommit}`);
 
-  // 3. Extract required class files to temp dir
+  // 3. Verify authoritative inputs match the claimed commit (no dirty input bytes)
+  verifyInputStateAgainstCommit(sourceRoot, sourceCommit);
+  console.log("[generate-game-catalog] Authoritative inputs verified clean against claimed commit.");
+
+  // 4. Preflight check tar extraction capabilities
+  checkTarCapabilities(jarPath);
+
+  // 5. Extract required class files to temp dir
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "zeus-catalog-"));
   try {
     childProcess.execFileSync("tar", [
@@ -452,13 +518,13 @@ function main(): void {
       "Zeus.class",
     ]);
 
-    // 4. Parse classes
+    // 6. Parse classes
     const dfCls = parseClass(fs.readFileSync(path.join(tempDir, "df.class")));
     const egCls = parseClass(fs.readFileSync(path.join(tempDir, "eg.class")));
     const dxCls = parseClass(fs.readFileSync(path.join(tempDir, "dx.class")));
     const zeusCls = parseClass(fs.readFileSync(path.join(tempDir, "Zeus.class")));
 
-    // 5. Extract raw data
+    // 7. Extract raw data
     const dfGE = extract1DStringArray(dfCls, "<init>", "gE");
     if (dfGE.length !== 92) {
       throw new Error(`Expected df.gE length 92, got ${dfGE.length}`);
@@ -480,7 +546,7 @@ function main(): void {
     const zeusNames = extractZeusMapNames(zeusCls);
     const mapAdjStr = extractMapAdjString(zeusCls);
 
-    // 6. Parse MAP_ADJ and build graph
+    // 8. Parse MAP_ADJ and build graph
     const adj = new Map<number, number[]>();
     const rows = mapAdjStr.split("|");
     for (const row of rows) {
@@ -491,41 +557,38 @@ function main(): void {
       adj.set(from, targets);
     }
 
-    // Assert graph node count
-    if (adj.size !== 78) {
-      throw new Error(`Invariant failed: expected 78 graph nodes, got ${adj.size}`);
-    }
-
     // Compute SCCs via Tarjan
     const sccs = computeSCCs(adj);
-    if (sccs.length !== 3) {
-      throw new Error(`Invariant failed: expected 3 SCCs, got ${sccs.length}`);
-    }
-
     const mainSCCList = sccs.find((s) => s.includes(1));
     if (!mainSCCList) {
-      throw new Error("Invariant failed: main SCC containing Map 1 not found");
+      throw new Error("Topology error: main SCC containing Map 1 not found");
     }
-    if (mainSCCList.length !== 76) {
-      throw new Error(`Invariant failed: expected main SCC size 76, got ${mainSCCList.length}`);
-    }
-
     const mainSCC = new Set(mainSCCList);
-    if (mainSCC.has(127)) {
-      throw new Error("Invariant failed: Map 127 must not be travelEligible");
+
+    // 9. SOURCE-DRIVEN MAP ID DISCOVERY
+    // Build union of IDs from all parsed sources:
+    // - Vietnamese locale array indices (0..dfGE.length-1)
+    // - English locale array indices (0..egGE.length-1)
+    // - Zeus mapName() switch table keys
+    // - All source nodes and destination nodes in MAP_ADJ
+    const mapIdSet = new Set<number>();
+    for (let i = 0; i < dfGE.length; i++) {
+      mapIdSet.add(i);
     }
-    if (mainSCC.has(135)) {
-      throw new Error("Invariant failed: Map 135 must not be travelEligible");
+    for (let i = 0; i < egGE.length; i++) {
+      mapIdSet.add(i);
+    }
+    for (const id of zeusNames.keys()) {
+      mapIdSet.add(id);
+    }
+    for (const [from, toList] of adj.entries()) {
+      mapIdSet.add(from);
+      for (const to of toList) {
+        mapIdSet.add(to);
+      }
     }
 
-    console.log("[generate-game-catalog] All topology assertions PASSED: 78 nodes, 3 SCCs, 76 travelEligible");
-
-    // 7. Assemble 101 referenced Game Map records
-    const mapIds: number[] = [];
-    for (let i = 0; i <= 91; i++) mapIds.push(i);
-    for (let i = 92; i <= 98; i++) mapIds.push(i);
-    mapIds.push(127);
-    mapIds.push(135);
+    const sortedMapIds = Array.from(mapIdSet).sort((a, b) => a - b);
 
     interface GeneratedMapRecord {
       id: number;
@@ -537,24 +600,10 @@ function main(): void {
 
     const generatedMaps: GeneratedMapRecord[] = [];
 
-    for (const id of mapIds) {
-      let rawNameVi: string | null = null;
-      let rawNameEn: string | null = null;
-
-      if (id <= 91) {
-        rawNameVi = dfGE[id];
-        rawNameEn = egGE[id];
-      } else if (id >= 92 && id <= 98) {
-        rawNameVi = zeusNames.get(id) ?? null;
-        rawNameEn = null;
-      } else if (id === 127) {
-        rawNameVi = null;
-        rawNameEn = null;
-      } else if (id === 135) {
-        rawNameVi = zeusNames.get(135) ?? null;
-        rawNameEn = null;
-      }
-
+    // Generic source precedence name resolution
+    for (const id of sortedMapIds) {
+      const rawNameVi = id < dfGE.length ? dfGE[id] : (zeusNames.get(id) ?? null);
+      const rawNameEn = id < egGE.length ? egGE[id] : null;
       const adjacentTo = [...(adj.get(id) ?? [])].sort((a, b) => a - b);
       const travelEligible = mainSCC.has(id);
 
@@ -567,11 +616,7 @@ function main(): void {
       });
     }
 
-    if (generatedMaps.length !== 101) {
-      throw new Error(`Expected 101 generated map records, got ${generatedMaps.length}`);
-    }
-
-    // 8. Assemble 8 Server records
+    // 10. Assemble 8 Server records from dx.b
     interface GeneratedServerRecord {
       index: number;
       name: string;
@@ -579,7 +624,7 @@ function main(): void {
     }
 
     const generatedServers: GeneratedServerRecord[] = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < dxB.length; i++) {
       generatedServers.push({
         index: i,
         name: dxB[i][0],
@@ -587,7 +632,40 @@ function main(): void {
       });
     }
 
-    // 9. Format output TypeScript code
+    // 11. BASELINE INVARIANT ASSERTIONS (CTL_VERSION 13 dataset)
+    if (generatedMaps.length !== 101) {
+      throw new Error(`Invariant failed: expected 101 catalog map records, got ${generatedMaps.length}`);
+    }
+    if (adj.size !== 78) {
+      throw new Error(`Invariant failed: expected 78 graph nodes, got ${adj.size}`);
+    }
+    if (sccs.length !== 3) {
+      throw new Error(`Invariant failed: expected 3 SCCs, got ${sccs.length}`);
+    }
+    if (mainSCCList.length !== 76) {
+      throw new Error(`Invariant failed: expected main SCC size 76, got ${mainSCCList.length}`);
+    }
+    const travelEligibleCount = generatedMaps.filter((m) => m.travelEligible).length;
+    if (travelEligibleCount !== 76) {
+      throw new Error(`Invariant failed: expected 76 travelEligible maps, got ${travelEligibleCount}`);
+    }
+    if (mainSCC.has(127)) {
+      throw new Error("Invariant failed: Map 127 must not be travelEligible");
+    }
+    if (mainSCC.has(135)) {
+      throw new Error("Invariant failed: Map 135 must not be travelEligible");
+    }
+    if (generatedServers.length !== 8) {
+      throw new Error(`Invariant failed: expected 8 server records, got ${generatedServers.length}`);
+    }
+    for (let i = 0; i < 8; i++) {
+      if (generatedServers[i].index !== i) {
+        throw new Error(`Invariant failed: expected server index ${i}, got ${generatedServers[i].index}`);
+      }
+    }
+    console.log("[generate-game-catalog] All baseline invariants PASSED: 101 maps, 78 nodes, 3 SCCs, 76 travelEligible, 8 servers.");
+
+    // 12. Format output TypeScript code
     const outContent = formatGeneratedCatalogFile({
       sourceRepository: "https://github.com/manhthien2005/knight_build",
       sourceCommit,
