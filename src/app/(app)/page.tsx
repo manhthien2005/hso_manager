@@ -287,7 +287,8 @@ function NodeSkeleton() {
 
 /**
  * Deterministic calculation of fleet metrics.
- * Fixes previous bug by accounting for all 6 account statuses.
+ * Eliminates summarize() bug: accounts for all 6 account statuses.
+ * Counts unique affected entities without double-counting symptoms.
  */
 function calculateFleetMetrics(devices: Device[], accounts: Account[]): FleetMetrics {
   let nodesOnline = 0;
@@ -316,16 +317,24 @@ function calculateFleetMetrics(devices: Device[], accounts: Account[]): FleetMet
 
   const nodesNeedingAttention = nodesError + nodesOffline;
 
-  // Derive accounts with actionable issues
-  let accountsNeedingAttention = accountsError + accountsOffline;
+  // Derive unique affected accounts needing attention (Invariant 3.1 & 3.3)
+  const offlineDeviceIds = new Set(
+    devices.filter((d) => d.status === "offline").map((d) => d.deviceId)
+  );
+
+  let accountsNeedingAttention = 0;
   for (const account of accounts) {
-    if (account.status !== "error" && account.status !== "offline") {
-      if (
-        account.config_status === "version_mismatch" ||
-        (account.snapshot !== null && account.snapshot.ctl !== 1)
-      ) {
-        accountsNeedingAttention++;
-      }
+    const parentIsOffline = offlineDeviceIds.has(account.deviceId);
+    const isError = account.status === "error";
+    // Standalone account offline only (parent outage suppresses child offline noise)
+    const isStandaloneOffline = account.status === "offline" && !parentIsOffline;
+    const hasVersionMismatch = account.config_status === "version_mismatch";
+    // ctl rejection only considered if version_mismatch is absent (deduplication)
+    const hasCtlRejection =
+      !hasVersionMismatch && account.snapshot !== null && account.snapshot.ctl !== 1;
+
+    if (isError || isStandaloneOffline || hasVersionMismatch || hasCtlRejection) {
+      accountsNeedingAttention++;
     }
   }
 
@@ -347,12 +356,19 @@ function calculateFleetMetrics(devices: Device[], accounts: Account[]): FleetMet
 
 /**
  * Derives attention items from real fleet data according to strict priority rules.
+ * Enforces Invariants 3.1, 3.2, 3.3, 3.4:
+ *   - Parent outage suppresses child outage cascade.
+ *   - Deduplicates version_mismatch vs ctl != 1.
+ *   - Deterministic sorting by severity -> location -> id.
  */
 function deriveAttentionItems(devices: Device[], accounts: Account[]): AttentionItem[] {
   const items: AttentionItem[] = [];
-  const deviceNameMap = new Map<string, string>(devices.map((d) => [d.deviceId, d.name]));
+  const deviceMap = new Map<string, Device>(devices.map((d) => [d.deviceId, d]));
+  const offlineDeviceIds = new Set(
+    devices.filter((d) => d.status === "offline").map((d) => d.deviceId)
+  );
 
-  // 1. Device Errors
+  // 1. Device Errors (Critical root failure)
   for (const device of devices) {
     if (device.status === "error") {
       items.push({
@@ -367,7 +383,7 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
     }
   }
 
-  // 2. Device Offline
+  // 2. Device Offline (Warning - explains parent node unavailability)
   for (const device of devices) {
     if (device.status === "offline") {
       items.push({
@@ -382,10 +398,14 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
     }
   }
 
-  // 3. Account Errors
+  // 3. Account-Level Issues
   for (const account of accounts) {
+    const parentDevice = deviceMap.get(account.deviceId);
+    const parentIsOffline = offlineDeviceIds.has(account.deviceId);
+    const nodeName = parentDevice?.name ?? account.deviceId;
+
+    // 3a. Account Process Error: Always actionable
     if (account.status === "error") {
-      const nodeName = deviceNameMap.get(account.deviceId) ?? account.deviceId;
       items.push({
         id: `account-error-${account.id}`,
         severity: "danger",
@@ -395,42 +415,58 @@ function deriveAttentionItems(devices: Device[], accounts: Account[]): Attention
         actionLabel: "Manage Account",
         actionHref: `/device/${account.deviceId}/accounts`,
       });
+      continue;
     }
-  }
 
-  // 4. Config Version Mismatch (Agent refused config)
-  for (const account of accounts) {
+    // 3b. Standalone Account Offline: Only alert if parent node is online
+    // If parent node is offline, parent outage already explains the downtime
+    if (account.status === "offline" && !parentIsOffline) {
+      items.push({
+        id: `account-offline-${account.id}`,
+        severity: "warning",
+        title: "Account Offline",
+        location: `${account.label} on ${nodeName}`,
+        reason: "Account is inactive while host node is online.",
+        actionLabel: "Manage Account",
+        actionHref: `/device/${account.deviceId}/accounts`,
+      });
+      continue;
+    }
+
+    // 3c. Config Version Mismatch vs Control Rejection (Deduplicated)
     if (account.config_status === "version_mismatch") {
       items.push({
         id: `config-mismatch-${account.id}`,
         severity: "danger",
         title: "Config Version Mismatch",
-        location: account.label,
+        location: `${account.label} on ${nodeName}`,
         reason: "Control schema version does not match jar. Config apply was refused.",
         actionLabel: "Fix Config",
         actionHref: `/account/${account.id}/config`,
       });
-    }
-  }
-
-  // 5. Control Rejected (ctl != 1 while snapshot exists)
-  for (const account of accounts) {
-    if (
-      account.status !== "error" &&
-      account.snapshot !== null &&
-      account.snapshot.ctl !== 1
-    ) {
+    } else if (account.snapshot !== null && account.snapshot.ctl !== 1) {
+      // Only render generic ctl rejected if version_mismatch is absent
       items.push({
         id: `ctl-rejected-${account.id}`,
         severity: "warning",
         title: `Control Rejected (ctl=${account.snapshot.ctl})`,
-        location: account.label,
+        location: `${account.label} on ${nodeName}`,
         reason: "Jar reports control file was unaccepted or property missing.",
         actionLabel: "Configure",
         actionHref: `/account/${account.id}/config`,
       });
     }
   }
+
+  // 4. Deterministic sorting: severity (danger first) -> location -> id
+  items.sort((a, b) => {
+    const aSev = a.severity === "danger" ? 2 : 1;
+    const bSev = b.severity === "danger" ? 2 : 1;
+    if (aSev !== bSev) return bSev - aSev;
+    const locComp = a.location.localeCompare(b.location);
+    if (locComp !== 0) return locComp;
+    return a.id.localeCompare(b.id);
+  });
 
   return items;
 }
