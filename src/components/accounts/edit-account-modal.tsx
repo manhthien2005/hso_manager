@@ -86,15 +86,15 @@ function EditAccountModalContent({
     const trimmedLabel = label.trim();
 
     if (trimmedLabel.length === 0) {
-      newErrors.label = "Account label must not be empty";
+      newErrors.label = "Tên hiển thị tài khoản không được để trống";
     }
 
     if (username.trim().length === 0) {
-      newErrors.username = "Username must not be empty";
+      newErrors.username = "Tên đăng nhập không được để trống";
     }
 
     if (usernameChanged && password.length === 0) {
-      newErrors.password = "Password is required when changing username.";
+      newErrors.password = "Bắt buộc nhập mật khẩu khi thay đổi tên đăng nhập.";
     }
 
     if (
@@ -102,7 +102,7 @@ function EditAccountModalContent({
       !Number.isInteger(serverIndex) ||
       !SERVER_OPTIONS.some((server) => server.value === serverIndex)
     ) {
-      newErrors.serverIndex = "Please select a valid game server";
+      newErrors.serverIndex = "Vui lòng chọn một máy chủ game hợp lệ";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -144,20 +144,20 @@ function EditAccountModalContent({
       if (isRunning && (serverChanged || credentialsChanged)) {
         push(
           "info",
-          "Account updated",
-          "Saved. Restart the account to apply login/server changes.",
+          "Đã cập nhật tài khoản",
+          "Đã lưu. Khởi động lại tài khoản để áp dụng thay đổi đăng nhập/máy chủ.",
         );
       } else {
         push(
           "success",
-          "Account updated",
-          `${updated.label} was updated successfully.`,
+          "Đã cập nhật tài khoản",
+          `Tài khoản ${updated.label} đã được cập nhật thành công.`,
         );
       }
     } catch (error) {
       // Clear password on error to protect credentials in memory, keep modal open
       setPassword("");
-      push("error", "Failed to update account", describeError(error));
+      push("error", "Cập nhật tài khoản thất bại", describeError(error));
     }
   };
 
@@ -177,7 +177,7 @@ function EditAccountModalContent({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 id="edit-account-title" className="text-sm font-semibold tracking-tight">
-              Edit Account
+              Chỉnh sửa tài khoản
             </h2>
             <p className="mt-0.5 font-mono text-[11px] text-muted">{account.id}</p>
           </div>
@@ -188,7 +188,7 @@ function EditAccountModalContent({
             role="alert"
             className="mb-4 rounded-md border border-accent/30 bg-accent/10 p-3 text-xs text-foreground/90"
           >
-            This account is currently active. Server and credential changes will take effect after you restart the account.
+            Tài khoản này hiện đang hoạt động. Thay đổi máy chủ và thông tin đăng nhập sẽ có hiệu lực sau khi khởi động lại tài khoản.
           </div>
         ) : null}
 
@@ -196,8 +196,8 @@ function EditAccountModalContent({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
               id="edit-account-label"
-              label="Label"
-              placeholder="Main farmer"
+              label="Tên hiển thị tài khoản"
+              placeholder="ví dụ: Xa Thu 01"
               value={label}
               onChange={(e) => {
                 setLabel(e.target.value);
@@ -209,7 +209,7 @@ function EditAccountModalContent({
 
             <SelectField
               id="edit-account-server"
-              label="Server"
+              label="Máy chủ game"
               options={[...SERVER_OPTIONS]}
               value={serverIndex}
               onChange={(e) => {
@@ -224,8 +224,8 @@ function EditAccountModalContent({
 
             <TextField
               id="edit-account-username"
-              label="Username"
-              placeholder="Game username"
+              label="Tên đăng nhập"
+              placeholder="Tài khoản game"
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
@@ -240,9 +240,9 @@ function EditAccountModalContent({
 
             <TextField
               id="edit-account-password"
-              label="Password"
+              label="Mật khẩu"
               type="password"
-              placeholder="Leave blank to keep current password"
+              placeholder="Để trống nếu giữ nguyên mật khẩu"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -254,8 +254,8 @@ function EditAccountModalContent({
               autoComplete="new-password"
               help={
                 usernameChanged
-                  ? "Password is required when changing username."
-                  : "Leave blank to keep the current password"
+                  ? "Bắt buộc nhập mật khẩu khi thay đổi tên đăng nhập."
+                  : "Để trống nếu muốn giữ nguyên mật khẩu hiện tại"
               }
               error={errors.password}
             />
@@ -269,7 +269,7 @@ function EditAccountModalContent({
               disabled={isSubmitting}
               onClick={onClose}
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               type="submit"
@@ -278,7 +278,7 @@ function EditAccountModalContent({
               busy={isSubmitting}
               disabled={isSubmitting}
             >
-              Save Changes
+              Lưu thay đổi
             </Button>
           </div>
         </form>

@@ -63,12 +63,12 @@ function DeleteAccountModalContent({
       await deleteAccount(account.id);
       push(
         "success",
-        "Account deleted",
-        `${account.label} has been permanently deleted.`,
+        "Đã xóa tài khoản",
+        `Tài khoản ${account.label} đã được xóa vĩnh viễn khỏi hệ thống.`,
       );
       onClose();
     } catch (error) {
-      push("error", "Delete failed", describeError(error));
+      push("error", "Xóa tài khoản thất bại", describeError(error));
     } finally {
       isSubmittingRef.current = false;
     }
@@ -92,11 +92,11 @@ function DeleteAccountModalContent({
             id="delete-account-title"
             className="text-sm font-semibold tracking-tight text-danger"
           >
-            Delete Account
+            Xóa tài khoản
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold text-foreground">{account.label}</span>?
+            Bạn có chắc chắn muốn xóa tài khoản{" "}
+            <span className="font-semibold text-foreground">{account.label}</span> không?
           </p>
           <p className="mt-0.5 font-mono text-[11px] text-muted">{account.id}</p>
         </div>
@@ -106,20 +106,20 @@ function DeleteAccountModalContent({
           className="mb-4 rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-foreground/90 space-y-2"
         >
           <p className="font-semibold text-danger">
-            Deleting this account is permanent and cannot be undone.
+            Hành động này mang tính vĩnh viễn và không thể hoàn tác.
           </p>
           <ul className="list-disc pl-4 space-y-1 text-muted">
             <li>
-              The Web will first ask the Agent to stop and verify the emulator process.
+              Hệ thống sẽ yêu cầu Agent dừng và xác minh tiến trình emulator.
             </li>
             <li>
-              Only after that Stop is confirmed will the account record be deleted.
+              Bản ghi tài khoản chỉ được xóa sau khi việc dừng tiến trình được xác nhận.
             </li>
             <li>
-              Account runtime and command history for this account are removed by database cascade.
+              Trạng thái runtime và lịch sử lệnh liên quan sẽ được tự động dọn dẹp.
             </li>
             <li>
-              The slot index is permanently retired and is not reused.
+              Vị trí slot của tài khoản này sẽ được thu hồi vĩnh viễn.
             </li>
           </ul>
         </div>
@@ -129,8 +129,8 @@ function DeleteAccountModalContent({
             <Spinner className="size-4 text-accent" />
             <span className="text-foreground font-medium">
               {isStopping
-                ? "Stopping emulator process..."
-                : "Deleting account records..."}
+                ? "Đang dừng tiến trình emulator..."
+                : "Đang xóa dữ liệu tài khoản..."}
             </span>
           </div>
         ) : null}
@@ -143,7 +143,7 @@ function DeleteAccountModalContent({
             disabled={isDeleting}
             onClick={onClose}
           >
-            Cancel
+            Hủy
           </Button>
           <Button
             type="button"
@@ -155,9 +155,9 @@ function DeleteAccountModalContent({
           >
             {isDeleting
               ? isStopping
-                ? "Stopping..."
-                : "Deleting..."
-              : "Confirm Delete"}
+                ? "Đang dừng..."
+                : "Đang xóa..."
+              : "Xác nhận xóa"}
           </Button>
         </div>
       </Card>

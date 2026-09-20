@@ -83,7 +83,7 @@ export function AccountCard({
             </h3>
             {account.config_status === "version_mismatch" ? (
               <span className="rounded border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold text-danger">
-                Config Mismatch
+                Phiên bản cấu hình không tương thích
               </span>
             ) : null}
           </div>
@@ -136,7 +136,7 @@ export function AccountCard({
           ) : (
             <span className="inline-flex items-center gap-1.5 text-xs text-muted">
               <span className="size-1.5 rounded-full bg-warning/70" />
-              Waiting for telemetry snapshot…
+              Đang chờ dữ liệu trạng thái…
             </span>
           )}
         </div>
@@ -167,7 +167,7 @@ export function AccountCard({
             onClick={() => run("start")}
             icon={<IconPlay />}
           >
-            Start
+            Khởi động
           </Button>
         ) : null}
 
@@ -179,7 +179,7 @@ export function AccountCard({
           onClick={() => setConfirmAction("stop")}
           icon={<IconStop />}
         >
-          Stop
+          Dừng
         </Button>
 
         <Button
@@ -190,7 +190,7 @@ export function AccountCard({
           onClick={() => setConfirmAction("restart")}
           icon={<IconRestart />}
         >
-          Restart
+          Khởi động lại
         </Button>
 
         {/* Secondary Management Actions */}
@@ -202,7 +202,7 @@ export function AccountCard({
             disabled={isDeleting}
             icon={<IconGear />}
           >
-            Configure
+            Cấu hình
           </ButtonLink>
           <Button
             size="sm"
@@ -211,7 +211,7 @@ export function AccountCard({
             onClick={() => setIsEditOpen(true)}
             icon={<IconPencil />}
           >
-            Edit
+            Chỉnh sửa
           </Button>
           <Button
             size="sm"
@@ -221,7 +221,7 @@ export function AccountCard({
             onClick={() => setIsDeleteOpen(true)}
             icon={<IconTrash />}
           >
-            Delete
+            Xóa
           </Button>
         </div>
       </div>
@@ -245,7 +245,7 @@ export function AccountCard({
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <span>{isTelemetryOpen ? "Hide diagnostics" : "Show diagnostics"}</span>
+            <span>{isTelemetryOpen ? "Thu gọn thông tin" : "Xem thông tin chi tiết"}</span>
           </button>
         </div>
       ) : null}
@@ -278,11 +278,14 @@ export function AccountCard({
                   confirmAction === "stop" ? "text-danger" : "text-warning"
                 }`}
               >
-                Confirm {confirmAction === "stop" ? "Stop Account" : "Restart Account"}
+                {confirmAction === "stop" ? "Xác nhận dừng tài khoản" : "Xác nhận khởi động lại tài khoản"}
               </h2>
               <p className="mt-2 text-xs text-muted">
-                Are you sure you want to{" "}
-                <strong className="text-foreground">{confirmAction}</strong> account:
+                Bạn có chắc chắn muốn{" "}
+                <strong className="text-foreground">
+                  {confirmAction === "stop" ? "dừng" : "khởi động lại"}
+                </strong>{" "}
+                tài khoản:
               </p>
               <div className="mt-2 rounded border border-border bg-elevated/60 px-3 py-2">
                 <span className="text-xs font-semibold text-foreground">{account.label}</span>
@@ -296,13 +299,13 @@ export function AccountCard({
             >
               {confirmAction === "stop" ? (
                 <p>
-                  Stopping will terminate the emulator process on this device. Active combat,
-                  farming automation, and telemetry streaming will cease immediately.
+                  Thao tác này sẽ dừng tiến trình giả lập trên máy chủ. Tự động chiến đấu,
+                  luyện cấp và truyền dữ liệu trạng thái sẽ dừng ngay lập tức.
                 </p>
               ) : (
                 <p>
-                  Restarting will terminate the current emulator process and immediately relaunch
-                  a new instance with the active configuration.
+                  Thao tác này sẽ dừng tiến trình giả lập hiện tại và khởi chạy lại ngay lập tức
+                  với cấu hình đang hoạt động.
                 </p>
               )}
             </div>
@@ -315,7 +318,7 @@ export function AccountCard({
                 disabled={isCommandBusy}
                 onClick={() => setConfirmAction(null)}
               >
-                Cancel
+                Hủy
               </Button>
               <Button
                 type="button"
@@ -325,7 +328,7 @@ export function AccountCard({
                 disabled={isCommandBusy}
                 onClick={handleConfirmAction}
               >
-                {confirmAction === "stop" ? "Confirm Stop" : "Confirm Restart"}
+                {confirmAction === "stop" ? "Dừng tài khoản" : "Khởi động lại"}
               </Button>
             </div>
           </Card>

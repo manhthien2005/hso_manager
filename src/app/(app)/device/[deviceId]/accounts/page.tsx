@@ -7,7 +7,7 @@ import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, EmptyState } from "@/components/ui/card";
-import { DeviceStatusBadge } from "@/components/ui/status";
+import { ACCOUNT_STATUS_LABELS, DeviceStatusBadge } from "@/components/ui/status";
 import { useZeusStore } from "@/store/zeus-store";
 import type { AccountStatus } from "@/lib/types";
 
@@ -41,8 +41,8 @@ export default function DeviceAccountsPage({
   if (device === undefined) {
     return (
       <NotFoundPanel
-        title="Device not found"
-        hint="No VPS with this device ID is registered to your account."
+        title="Không tìm thấy máy chủ"
+        hint="Không có máy chủ VPS nào với mã thiết bị này trong hệ thống của bạn."
         identifier={deviceId}
       />
     );
@@ -57,10 +57,10 @@ export default function DeviceAccountsPage({
     counts.set(account.status, (counts.get(account.status) ?? 0) + 1);
   }
   const chips = [
-    { id: "all" as const, label: "All", count: accounts.length },
+    { id: "all" as const, label: "Tất cả", count: accounts.length },
     ...STATUS_ORDER.filter((status) => counts.has(status)).map((status) => ({
       id: status,
-      label: status.charAt(0).toUpperCase() + status.slice(1),
+      label: ACCOUNT_STATUS_LABELS[status] ?? status,
       count: counts.get(status) ?? 0,
     })),
   ];
@@ -76,7 +76,7 @@ export default function DeviceAccountsPage({
     <>
       <PageHeader
         back={{ href: `/device/${device.deviceId}`, label: device.name }}
-        title="Accounts"
+        title="Quản lý tài khoản"
         subtitle={
           <span className="flex items-center gap-2">
             <span className="font-mono text-foreground font-semibold">{device.name}</span>
@@ -91,7 +91,7 @@ export default function DeviceAccountsPage({
               disabled={isSubmitting}
               onClick={() => setIsCreateOpen((open) => !open)}
             >
-              {isCreateOpen ? "Cancel" : "Add Account"}
+              {isCreateOpen ? "Hủy" : "Thêm tài khoản"}
             </Button>
             <ButtonLink
               href={`/device/${device.deviceId}/viewer`}
@@ -99,7 +99,7 @@ export default function DeviceAccountsPage({
               variant="primary"
               disabled={device.status !== "online"}
             >
-              Open Viewer
+              Mở điều khiển từ xa
             </ButtonLink>
           </div>
         }
@@ -149,8 +149,8 @@ export default function DeviceAccountsPage({
       {accounts.length === 0 ? (
         <Card>
           <EmptyState
-            title="No accounts yet"
-            hint="Add a game account to manage it on this device."
+            title="Chưa có tài khoản nào"
+            hint="Thêm tài khoản game để quản lý trên máy chủ này."
             action={
               !isCreateOpen ? (
                 <Button
@@ -158,7 +158,7 @@ export default function DeviceAccountsPage({
                   variant="secondary"
                   onClick={() => setIsCreateOpen(true)}
                 >
-                  Add Account
+                  Thêm tài khoản
                 </Button>
               ) : undefined
             }
@@ -171,7 +171,7 @@ export default function DeviceAccountsPage({
               key={account.id}
               account={account}
               disabledReason={
-                device.status === "online" ? undefined : "Device offline — commands unavailable"
+                device.status === "online" ? undefined : "Máy chủ mất kết nối — không thể gửi lệnh"
               }
             />
           ))}
