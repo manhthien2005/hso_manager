@@ -38,8 +38,8 @@ export default function DeviceDetailPage({
   if (found === undefined) {
     return (
       <NotFoundPanel
-        title="Device not found"
-        hint="No VPS with this device ID is registered to your fleet."
+        title="Không tìm thấy máy chủ"
+        hint="Không có máy chủ VPS nào với mã thiết bị này trong hệ thống của bạn."
         identifier={deviceId}
       />
     );
@@ -53,9 +53,9 @@ export default function DeviceDetailPage({
   async function handleRefresh() {
     try {
       await refreshDevice(device.deviceId);
-      push("success", "Device refreshed", `${device.name} heartbeat updated`);
+      push("success", "Đã làm mới máy chủ", `${device.name} đã cập nhật nhịp kết nối`);
     } catch (error) {
-      push("error", "Refresh failed", describeError(error));
+      push("error", "Làm mới thất bại", describeError(error));
     }
   }
 
@@ -63,7 +63,7 @@ export default function DeviceDetailPage({
     <div className="space-y-5">
       {/* 1. Page Header with Node Identity & Primary Actions */}
       <PageHeader
-        back={{ href: "/", label: "Dashboard" }}
+        back={{ href: "/", label: "Tổng quan" }}
         title={
           <span className="flex flex-wrap items-center gap-3">
             <span className="font-mono text-xl font-bold tracking-tight text-foreground">
@@ -74,13 +74,13 @@ export default function DeviceDetailPage({
         }
         subtitle={
           <span className="font-mono text-xs text-muted">
-            {device.deviceId} · {device.region} · Last seen {formatRelativeTime(device.lastSeen)}
+            {device.deviceId} · {device.region} · Lần cuối kết nối {formatRelativeTime(device.lastSeen)}
           </span>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" busy={busy} onClick={handleRefresh} icon={<IconRefresh />}>
-              Refresh
+              Làm mới
             </Button>
             <ButtonLink
               href={`/device/${device.deviceId}/viewer`}
@@ -89,7 +89,7 @@ export default function DeviceDetailPage({
               disabled={!online}
               icon={<IconMonitor />}
             >
-              Open Viewer
+              Mở điều khiển từ xa
             </ButtonLink>
             <ButtonLink
               href={`/device/${device.deviceId}/accounts`}
@@ -97,7 +97,7 @@ export default function DeviceDetailPage({
               variant="secondary"
               icon={<IconUsers />}
             >
-              Manage Accounts
+              Quản lý tài khoản
             </ButtonLink>
           </div>
         }
@@ -108,20 +108,20 @@ export default function DeviceDetailPage({
         <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-xs text-warning">
           <div className="flex items-center gap-2 font-medium">
             <span className="size-1.5 rounded-full bg-warning" aria-hidden="true" />
-            <span>Node is offline</span>
+            <span>Máy chủ mất kết nối</span>
           </div>
           <p className="mt-1 text-muted">
-            Commands and remote noVNC viewer are unavailable until the agent reconnects. Last heartbeat was recorded {formatRelativeTime(device.lastSeen)}.
+            Lệnh điều khiển và cửa sổ điều khiển từ xa noVNC tạm thời không khả dụng cho đến khi agent kết nối lại. Nhịp kết nối cuối ghi nhận {formatRelativeTime(device.lastSeen)}.
           </p>
         </div>
       ) : device.status === "error" ? (
         <div className="rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-xs text-danger">
           <div className="flex items-center gap-2 font-medium">
             <span className="size-1.5 rotate-45 rounded-[1px] bg-danger" aria-hidden="true" />
-            <span>Node is reporting an error</span>
+            <span>Máy chủ báo cáo sự cố</span>
           </div>
           <p className="mt-1 text-muted">
-            Agent or container failure detected. Check server console logs or restart agent service.
+            Phát hiện sự cố từ Agent hoặc container. Vui lòng kiểm tra log console máy chủ hoặc khởi động lại dịch vụ agent.
           </p>
         </div>
       ) : null}
@@ -133,21 +133,21 @@ export default function DeviceDetailPage({
             id="accounts-section-heading"
             className="border-l-2 border-accent pl-2 text-[11px] font-semibold tracking-widest text-muted/90 uppercase"
           >
-            Assigned Accounts ({accounts.length})
+            Tài khoản trên máy chủ ({accounts.length})
           </h2>
           <Link
             href={`/device/${device.deviceId}/accounts`}
             className="text-xs text-muted transition-colors hover:text-accent"
           >
-            Open Account Manager →
+            Quản lý tài khoản →
           </Link>
         </div>
 
         {accounts.length === 0 ? (
           <Card className="flex flex-col items-center justify-center border-dashed border-border px-4 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">No accounts configured on this node</p>
+            <p className="text-sm font-medium text-foreground">Chưa có tài khoản nào trên máy chủ này</p>
             <p className="mt-1 text-xs text-muted">
-              Add bot accounts to run Knight Online instances on this VPS.
+              Thêm tài khoản bot để chạy các phiên bản Knight Online trên VPS này.
             </p>
             <div className="mt-3">
               <ButtonLink
@@ -155,7 +155,7 @@ export default function DeviceDetailPage({
                 variant="primary"
                 size="sm"
               >
-                Configure Accounts
+                Cấu hình tài khoản
               </ButtonLink>
             </div>
           </Card>
@@ -179,7 +179,7 @@ export default function DeviceDetailPage({
             id="diagnostics-section-heading"
             className="border-l-2 border-accent pl-2 text-[11px] font-semibold tracking-widest text-muted/90 uppercase"
           >
-            Hardware &amp; Runtime Diagnostics
+            Thông tin hệ thống
           </h2>
         </div>
 
@@ -188,7 +188,7 @@ export default function DeviceDetailPage({
           <Card className="p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
               <IconCpu />
-              <span>CPU Load</span>
+              <span>Tải CPU</span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
@@ -207,7 +207,7 @@ export default function DeviceDetailPage({
           <Card className="p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
               <IconRam />
-              <span>Memory</span>
+              <span>Bộ nhớ RAM</span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
@@ -226,13 +226,13 @@ export default function DeviceDetailPage({
           <Card className="p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
               <IconClock />
-              <span>Uptime</span>
+              <span>Thời gian hoạt động</span>
             </div>
             <div className="mt-1.5 flex items-baseline justify-between">
               <span className="font-mono text-xl font-semibold tabular text-foreground">
                 {online ? formatUptime(device.metrics.uptimeSeconds) : "—"}
               </span>
-              <span className="text-[11px] text-muted">VPS runtime</span>
+              <span className="text-[11px] text-muted">Thời gian chạy VPS</span>
             </div>
           </Card>
 
@@ -240,7 +240,7 @@ export default function DeviceDetailPage({
           <Card className="p-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
               <IconServer />
-              <span>Agent / Wire</span>
+              <span>Phiên bản hệ thống</span>
             </div>
             <div className="mt-1.5 space-y-0.5 font-mono text-xs tabular text-muted">
               <div>Agent: <span className="text-foreground">{device.agentVersion || "—"}</span></div>
@@ -301,14 +301,14 @@ function DeviceAccountRow({
           {/* Subdued telemetry notice or actionable warning */}
           {hasConfigMismatch ? (
             <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[10px] font-medium text-danger">
-              Config Mismatch
+              Lệch cấu hình
             </span>
           ) : hasCtlRejected ? (
             <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-              CTL Refused (ctl={account.snapshot?.ctl})
+              Từ chối CTL (ctl={account.snapshot?.ctl})
             </span>
           ) : isWaitingTelemetry ? (
-            <span className="text-[11px] text-muted italic">Waiting for telemetry</span>
+            <span className="text-[11px] text-muted italic">Đang chờ dữ liệu trạng thái</span>
           ) : null}
         </div>
       </div>
@@ -324,7 +324,7 @@ function DeviceAccountRow({
             onClick={() => run("start")}
             icon={<IconPlay />}
           >
-            Start
+            Khởi động
           </Button>
         ) : (
           <Button
@@ -335,7 +335,7 @@ function DeviceAccountRow({
             onClick={() => run("stop")}
             icon={<IconStop />}
           >
-            Stop
+            Dừng
           </Button>
         )}
 
@@ -347,7 +347,7 @@ function DeviceAccountRow({
           onClick={() => run("restart")}
           icon={<IconRestart />}
         >
-          Restart
+          Khởi động lại
         </Button>
 
         <ButtonLink
@@ -356,7 +356,7 @@ function DeviceAccountRow({
           variant="secondary"
           icon={<IconGear />}
         >
-          Config
+          Cấu hình
         </ButtonLink>
       </div>
     </Card>
