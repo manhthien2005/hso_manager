@@ -163,11 +163,11 @@ export default function ViewerPage({
             </span>
           </div>
 
-          <div className="flex items-center gap-3 text-[11px] text-muted font-mono">
-            <span>Transport: {session?.transport || "noVNC"}</span>
-            <span>·</span>
-            <span>Display: 1280×720</span>
-          </div>
+          {session?.transport ? (
+            <div className="flex items-center gap-2 text-[11px] text-muted font-mono">
+              <span>Transport: {session.transport}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* The Mount Point */}
