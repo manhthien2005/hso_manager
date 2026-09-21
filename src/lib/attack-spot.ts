@@ -167,6 +167,7 @@ export function handleAttackMapSelection(selectValue: string): {
   return {
     updates: {
       "atk.map": mapId,
+      "atk.zone": -1,
     },
     isNone: false,
   };
@@ -174,23 +175,27 @@ export function handleAttackMapSelection(selectValue: string): {
 
 export interface AttackSpotValidationResult {
   valid: boolean;
-  errors: Partial<Record<"atk.map" | "atk.x" | "atk.y", string>>;
+  errors: Partial<Record<"atk.map" | "atk.x" | "atk.y" | "atk.mode", string>>;
 }
 
 /**
- * Pure validation rule for saving attack spot configuration (Round 9B3 Corrective 1).
+ * Pure validation rule for saving attack spot configuration (Round 9B3 + Round 4A Auto Farm).
  *
  * Rules:
  * 1. Half-spot rejection: Both X and Y coordinates must be set together (both >= 0 or both < 0).
  *    Authority: Zeus.java line 633, control.rs line 814.
- * 2. Explicit real-map editing intent:
+ * 2. Auto Farm requested mode validation (R4A):
+ *    - Stand (1) or Move (2) requires a valid active farm spot (x >= 0 && y >= 0 and valid map).
+ *    - Stand/Move with missing or unconfigured coordinates blocks save with actionable error.
+ * 3. Explicit real-map editing intent:
  *    - If the user explicitly selected a real map in the UI (e.g. intent is "0" or "93"),
  *      or if the draft has a non-zero attack map (atk.map > 0),
  *      then valid coordinates (x >= 0 && y >= 0) are strictly REQUIRED before Save can proceed.
- * 3. Canonical None:
+ * 4. Canonical None:
  *    - If draft is canonical None (atk.map=0, atk.zone=-1, atk.x=-1, atk.y=-1) and
- *      the user did NOT explicitly select a real map (intent is null or ATTACK_SPOT_NONE_SENTINEL),
- *      it is VALID with 0 errors.
+ *      mode is Off (0) and intent is null/None, it is VALID with 0 errors.
+ * 5. Preserving spot when Off:
+ *    - Turning mode Off preserves configured spot coordinates without blocking Save.
  */
 export function validateAttackSpotSave(
   draft: {
@@ -198,14 +203,16 @@ export function validateAttackSpotSave(
     "atk.zone"?: unknown;
     "atk.x"?: unknown;
     "atk.y"?: unknown;
+    "atk.mode"?: unknown;
   },
   attackMapIntent?: string | null,
 ): AttackSpotValidationResult {
-  const errors: Partial<Record<"atk.map" | "atk.x" | "atk.y", string>> = {};
+  const errors: Partial<Record<"atk.map" | "atk.x" | "atk.y" | "atk.mode", string>> = {};
 
   const xVal = Number(draft["atk.x"]);
   const yVal = Number(draft["atk.y"]);
   const mapVal = Number(draft["atk.map"]);
+  const modeVal = Number(draft["atk.mode"]);
 
   // 1. Half-spot rejection (Zeus.java line 633, control.rs line 814)
   if (!Number.isNaN(xVal) && !Number.isNaN(yVal)) {
@@ -220,10 +227,38 @@ export function validateAttackSpotSave(
     }
   }
 
-  // 2. Explicit real-map intent check
-  // Does the user have explicit intent for a real map?
-  // - attackMapIntent is a valid numeric map string (e.g. "0", "93", etc.) AND !== "__none__"
-  // - OR draft["atk.map"] > 0
+  // 2. Auto Farm mode requirement (R4A): Stand/Move requires a valid configured spot
+  const isAutoFarmRequested = modeVal === 1 || modeVal === 2;
+  const isConfigured = isAttackSpotConfigured({ x: draft["atk.x"], y: draft["atk.y"] });
+
+  if (isAutoFarmRequested && !isConfigured) {
+    errors["atk.mode"] = "Cần chọn vị trí đánh hợp lệ (Map, X, Y) khi bật chế độ Đứng yên hoặc Di chuyển.";
+    if (Number.isNaN(xVal) || xVal < 0) {
+      errors["atk.x"] = "Cần nhập tọa độ X (>= 0) khi bật chế độ tự đánh.";
+    }
+    if (Number.isNaN(yVal) || yVal < 0) {
+      errors["atk.y"] = "Cần nhập tọa độ Y (>= 0) khi bật chế độ tự đánh.";
+    }
+    if (
+      draft["atk.map"] === undefined ||
+      draft["atk.map"] === null ||
+      Number.isNaN(mapVal) ||
+      (mapVal === 0 && (attackMapIntent === null || attackMapIntent === undefined || attackMapIntent === ATTACK_SPOT_NONE_SENTINEL))
+    ) {
+      errors["atk.map"] = "Cần chọn map vị trí đánh khi bật chế độ tự đánh.";
+    }
+  } else if (
+    isAutoFarmRequested &&
+    (draft["atk.map"] === undefined ||
+      draft["atk.map"] === null ||
+      Number.isNaN(mapVal) ||
+      mapVal < 0 ||
+      mapVal > 255)
+  ) {
+    errors["atk.map"] = "Map ID không hợp lệ (0-255)";
+  }
+
+  // 3. Explicit real-map intent check (when mode is Off or map changed)
   const isExplicitRealMapIntent =
     attackMapIntent !== null &&
     attackMapIntent !== undefined &&
@@ -234,7 +269,7 @@ export function validateAttackSpotSave(
 
   const requiresCoordinates = isExplicitRealMapIntent || (!Number.isNaN(mapVal) && mapVal > 0);
 
-  if (requiresCoordinates) {
+  if (requiresCoordinates && !isAutoFarmRequested) {
     if (Number.isNaN(xVal) || xVal < 0) {
       errors["atk.x"] = "Cần nhập tọa độ X (>= 0) khi đã chọn vị trí đánh.";
     }
@@ -246,6 +281,55 @@ export function validateAttackSpotSave(
   return {
     valid: Object.keys(errors).length === 0,
     errors,
+  };
+}
+
+/**
+ * Normalizes a draft for explicit configuration Save (R4A Derived Save Contract).
+ *
+ * Rules:
+ * - atk.mode == Off -> atk.farmOnArrival = 0
+ * - atk.mode in {Stand, Move} and active spot is valid -> atk.farmOnArrival = 1
+ * - atk.mode in {Stand, Move} -> nav.target = -1
+ * - Every normal configuration Save -> nav.detectSpots = 0
+ */
+export function normalizeDraftForSave<T extends Record<string, unknown>>(draft: T): T {
+  const next = { ...draft };
+  const mode = Number(next["atk.mode"]);
+
+  // 1. Normal save always normalizes nav.detectSpots = 0
+  next["nav.detectSpots" as keyof T] = 0 as unknown as T[keyof T];
+
+  if (mode === 0) {
+    // Off -> farmOnArrival = 0
+    next["atk.farmOnArrival" as keyof T] = 0 as unknown as T[keyof T];
+  } else if (mode === 1 || mode === 2) {
+    // Stand or Move -> nav.target = -1
+    next["nav.target" as keyof T] = -1 as unknown as T[keyof T];
+
+    // Stand/Move with valid active spot -> farmOnArrival = 1
+    const xVal = Number(next["atk.x"]);
+    const yVal = Number(next["atk.y"]);
+    if (!Number.isNaN(xVal) && !Number.isNaN(yVal) && xVal >= 0 && yVal >= 0) {
+      next["atk.farmOnArrival" as keyof T] = 1 as unknown as T[keyof T];
+    } else {
+      next["atk.farmOnArrival" as keyof T] = 0 as unknown as T[keyof T];
+    }
+  }
+
+  return next;
+}
+
+/**
+ * Helper to update map, X, or Y while resetting captured zone metadata to -1.
+ */
+export function updateLocationWithZoneReset(
+  path: "atk.map" | "atk.x" | "atk.y",
+  value: string | number | boolean,
+): Partial<Record<"atk.map" | "atk.x" | "atk.y" | "atk.zone", string | number | boolean>> {
+  return {
+    [path]: value,
+    "atk.zone": -1,
   };
 }
 

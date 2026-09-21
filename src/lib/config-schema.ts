@@ -16,7 +16,13 @@
  *   "action"  — one-shot button (e.g. nav.detectSpots); value is 0/1
  */
 
-import { validateAttackSpotSave } from "./attack-spot";
+import {
+  validateAttackSpotSave,
+  normalizeDraftForSave,
+  updateLocationWithZoneReset,
+} from "./attack-spot";
+
+export { normalizeDraftForSave, updateLocationWithZoneReset };
 
 // ── Value types ──────────────────────────────────────────────────────────────
 
@@ -69,6 +75,7 @@ export interface ConfigFieldBase {
   path: ConfigPath;
   label: string;
   help?: string;
+  hidden?: boolean;
 }
 
 export interface ConfigFieldToggle extends ConfigFieldBase {
@@ -133,24 +140,17 @@ export interface ConfigSection {
   id: string;
   title: string;
   description?: string;
+  hidden?: boolean;
   fields: ConfigField[];
 }
 
-// ── Version-keyed schema — add a new version entry here, never mutate v13 ───
-
-/**
- * CONTROL_SCHEMA[version] → sections for that jar CTL_VERSION.
- *
- * Rule (WIRE-CONTRACT §3.2): version is a function of the key set.
- * Any key change bumps the version and requires a new entry here.
- */
 export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
   13: [
-    // ── Combat ───────────────────────────────────────────────────────────
+    // ── Auto Farm ─────────────────────────────────────────────────────────
     {
-      id: "combat",
-      title: "Combat",
-      description: "Attack mode, spot selection and potion settings.",
+      id: "auto_farm",
+      title: "Auto Farm",
+      description: "Chế độ tự đánh, vị trí bãi đánh, chính sách khu vực và nhặt vật phẩm.",
       fields: [
         {
           path: "atk.mode",
@@ -173,64 +173,43 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
           help: "World-pixel radius around the spot centre. Clamped 60–240.",
         },
         {
-          path: "atk.hpOn",
-          label: "HP Potion",
-          type: "toggle",
-          help: "Enable automatic HP potion use.",
-        },
-        {
-          path: "atk.hpPct",
-          label: "HP Threshold",
-          type: "number",
-          min: 1,
-          max: 99,
-          suffix: "%",
-          help: "Drink HP potion when HP falls below this percentage.",
-        },
-        {
-          path: "atk.mpOn",
-          label: "MP Potion",
-          type: "toggle",
-          help: "Enable automatic MP potion use.",
-        },
-        {
-          path: "atk.mpPct",
-          label: "MP Threshold",
-          type: "number",
-          min: 1,
-          max: 99,
-          suffix: "%",
-          help: "Drink MP potion when MP falls below this percentage.",
-        },
-        {
-          path: "atk.buffs",
-          label: "Buff Slots",
-          type: "flags",
-          length: 3,
-          bitLabels: ["Slot 1", "Slot 2", "Slot 3"],
-          help: "Enable each buff slot the character has learned.",
-        },
-        {
-          path: "atk.farmOnArrival",
-          label: "Farm on Arrival",
-          type: "toggle",
-          help: "Start attacking immediately on reaching the spot (off by default).",
-        },
-        {
           path: "ui.ring",
           label: "Show Attack Ring",
           type: "toggle",
           help: "Draw the attack-radius overlay on screen. Local display only.",
         },
-      ],
-    },
-
-    // ── Zone / Nav ────────────────────────────────────────────────────────
-    {
-      id: "travel",
-      title: "Travel & Zone",
-      description: "Navigation target and zone rotation settings.",
-      fields: [
+        {
+          path: "atk.map",
+          label: "Map ID",
+          type: "game-map",
+          min: 0,
+          max: 255,
+          help: "0 = no spot set.",
+        },
+        {
+          path: "atk.zone",
+          label: "Zone",
+          type: "number",
+          min: -1,
+          max: 127,
+          help: "-1 = no zone.",
+        },
+        {
+          path: "atk.x",
+          label: "X (world pixel)",
+          type: "number",
+          min: -1,
+          max: 2147483647,
+          help: "-1 = no spot.",
+        },
+        {
+          path: "atk.y",
+          label: "Y (world pixel)",
+          type: "number",
+          min: -1,
+          max: 2147483647,
+          help: "-1 = no spot.",
+        },
         {
           path: "atk.zoneMode",
           label: "Zone Mode",
@@ -249,30 +228,6 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
           max: 99,
           help: "Zone number to use when Zone Mode is 'Pick'.",
         },
-        {
-          path: "nav.target",
-          label: "Nav Target Map",
-          type: "travel-map",
-          min: -1,
-          max: 135,
-          help: "Map ID to travel to. -1 = off. Agent clears this when destination is reached.",
-        },
-        {
-          path: "nav.detectSpots",
-          label: "Detect Spots",
-          type: "action",
-          buttonLabel: "Run Spot Detection",
-          help: "One-shot: triggers the agent to scan for valid attack spots. Resets automatically after execution.",
-        },
-      ],
-    },
-
-    // ── Loot ─────────────────────────────────────────────────────────────
-    {
-      id: "loot",
-      title: "Loot",
-      description: "Item pickup and drop filters.",
-      fields: [
         {
           path: "item.rank",
           label: "Item Rank (threshold)",
@@ -330,7 +285,71 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
       ],
     },
 
-    // ── Recovery ─────────────────────────────────────────────────────────
+    // ── Combat ────────────────────────────────────────────────────────────
+    {
+      id: "combat",
+      title: "Combat",
+      description: "HP/MP potion thresholds and buff settings.",
+      fields: [
+        {
+          path: "atk.hpOn",
+          label: "HP Potion",
+          type: "toggle",
+          help: "Enable automatic HP potion use.",
+        },
+        {
+          path: "atk.hpPct",
+          label: "HP Threshold",
+          type: "number",
+          min: 1,
+          max: 99,
+          suffix: "%",
+          help: "Drink HP potion when HP falls below this percentage.",
+        },
+        {
+          path: "atk.mpOn",
+          label: "MP Potion",
+          type: "toggle",
+          help: "Enable automatic MP potion use.",
+        },
+        {
+          path: "atk.mpPct",
+          label: "MP Threshold",
+          type: "number",
+          min: 1,
+          max: 99,
+          suffix: "%",
+          help: "Drink MP potion when MP falls below this percentage.",
+        },
+        {
+          path: "atk.buffs",
+          label: "Buff Slots",
+          type: "flags",
+          length: 3,
+          bitLabels: ["Slot 1", "Slot 2", "Slot 3"],
+          help: "Enable each buff slot the character has learned.",
+        },
+      ],
+    },
+
+    // ── Travel ────────────────────────────────────────────────────────────
+    {
+      id: "travel",
+      title: "Travel",
+      description: "Navigation target map settings.",
+      fields: [
+        {
+          path: "nav.target",
+          label: "Nav Target Map",
+          type: "travel-map",
+          min: -1,
+          max: 135,
+          help: "Map ID to travel to. -1 = off. Agent clears this when destination is reached.",
+        },
+      ],
+    },
+
+    // ── Recovery ──────────────────────────────────────────────────────────
     {
       id: "recovery",
       title: "Recovery",
@@ -455,43 +474,26 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
       ],
     },
 
-    // ── Spot coordinates (advanced) ───────────────────────────────────────
+    // ── Internal / Hidden compatibility fields ────────────────────────────
     {
-      id: "spot",
-      title: "Spot Coordinates",
-      description: "Advanced: manually set the attack spot. Normally set by in-game spot selection.",
+      id: "hidden_internal",
+      title: "Internal",
+      hidden: true,
       fields: [
         {
-          path: "atk.map",
-          label: "Map ID",
-          type: "game-map",
-          min: 0,
-          max: 255,
-          help: "0 = no spot set.",
+          path: "atk.farmOnArrival",
+          label: "Farm on Arrival",
+          type: "toggle",
+          hidden: true,
+          help: "Derived on save: 1 when active farm requested and spot valid; 0 when off.",
         },
         {
-          path: "atk.zone",
-          label: "Zone",
-          type: "number",
-          min: -1,
-          max: 127,
-          help: "-1 = no zone.",
-        },
-        {
-          path: "atk.x",
-          label: "X (world pixel)",
-          type: "number",
-          min: -1,
-          max: 2147483647,
-          help: "-1 = no spot.",
-        },
-        {
-          path: "atk.y",
-          label: "Y (world pixel)",
-          type: "number",
-          min: -1,
-          max: 2147483647,
-          help: "-1 = no spot.",
+          path: "nav.detectSpots",
+          label: "Detect Spots",
+          type: "action",
+          buttonLabel: "Run Spot Detection",
+          hidden: true,
+          help: "One-shot spot detection compatibility field. Normalized to 0 on normal save.",
         },
       ],
     },
@@ -598,6 +600,13 @@ export function validateDraft(
 
   for (const section of sections) {
     for (const field of section.fields) {
+      if (field.hidden) continue;
+
+      // Conditional validation: atk.zonePick is only validated when atk.zoneMode is Pick (2)
+      if (field.path === "atk.zonePick" && Number(draft["atk.zoneMode"]) !== 2) {
+        continue;
+      }
+
       const raw = draft[field.path];
       const fieldLabel = CONFIG_FIELD_LABELS_VI[field.path] ?? field.label;
 

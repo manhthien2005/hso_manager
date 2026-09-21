@@ -2,6 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import { ConfigFieldInput } from "@/components/accounts/config-field";
+import { AutoFarmPanel } from "@/components/accounts/auto-farm-panel";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   controlRecordToDraft,
   draftToControlRecord,
   defaultControlDraft,
+  normalizeDraftForSave,
   validateDraft,
   type ConfigDraft,
   type ConfigErrors,
@@ -67,17 +69,17 @@ export default function AccountConfigPage({
 // ── Section icon & metadata map ──────────────────────────────────────────────
 
 const SECTION_METADATA: Record<string, { title: string; description: string }> = {
+  auto_farm: {
+    title: "Tự động đánh",
+    description: "Cấu hình chế độ đánh, vị trí, khu vực và nhặt vật phẩm.",
+  },
   combat: {
     title: "Chiến đấu",
-    description: "Chế độ tấn công, vị trí đánh và thiết lập bình hồi phục.",
+    description: "Thiết lập bình hồi phục HP/MP và kỹ năng hỗ trợ (Buff).",
   },
   travel: {
     title: "Di chuyển",
-    description: "Mục tiêu di chuyển và thiết lập khu vực đánh.",
-  },
-  loot: {
-    title: "Nhặt vật phẩm",
-    description: "Bộ lọc nhặt và bỏ vật phẩm.",
+    description: "Mục tiêu di chuyển thủ công.",
   },
   recovery: {
     title: "Hồi phục",
@@ -95,21 +97,16 @@ const SECTION_METADATA: Record<string, { title: string; description: string }> =
     title: "Phó bản",
     description: "Tự động tham gia phó bản.",
   },
-  spot: {
-    title: "Vị trí đánh",
-    description: "Cấu hình nâng cao: thiết lập thủ công vị trí đánh.",
-  },
 };
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
+  auto_farm: <IconCrosshair />,
   combat: <IconSword />,
   travel: <IconCompass />,
-  loot: <IconBag />,
   recovery: <IconHeart />,
   mount: <IconMount />,
   enhance: <IconSparkle />,
   dungeon: <IconDoor />,
-  spot: <IconPin />,
 };
 
 // ── Config Form ───────────────────────────────────────────────────────────────
@@ -126,7 +123,8 @@ function ConfigForm({
 
   const jarCtlVersion = device?.jar_ctl_version ?? null;
   const sections = jarCtlVersion !== null ? CONTROL_SCHEMA[jarCtlVersion] : undefined;
-  const versionGated = jarCtlVersion === null || sections === undefined;
+  const visibleSections = sections ? sections.filter((s) => !s.hidden) : undefined;
+  const versionGated = jarCtlVersion === null || visibleSections === undefined;
 
   const [draft, setDraft] = useState<ConfigDraft>(() =>
     account.control
@@ -183,7 +181,7 @@ function ConfigForm({
   // Tab-based section navigation — CSS hidden/block keeps all sections mounted
   // so draft state, validation, and attackMapIntent survive tab switches.
   const [activeSection, setActiveSection] = useState<string>(
-    sections?.[0]?.id ?? "combat",
+    visibleSections?.[0]?.id ?? "auto_farm",
   );
 
   function handleChange(path: ConfigPath, value: ConfigValue) {
@@ -219,11 +217,14 @@ function ConfigForm({
       return;
     }
     try {
-      const control = draftToControlRecord(currentDraft);
+      const normalizedDraft = normalizeDraftForSave(currentDraft);
+      const control = draftToControlRecord(normalizedDraft);
       await saveConfig(account.id, {
         control,
         controlVersion: jarCtlVersion,
       });
+      draftRef.current = normalizedDraft;
+      setDraft(normalizedDraft);
       setTouched(false);
       attackMapIntentRef.current = null;
       setAttackMapIntent(null);
@@ -338,7 +339,7 @@ function ConfigForm({
               className="flex items-center gap-0.5 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
-              {sections!.map((sec) => {
+              {visibleSections!.map((sec) => {
                 const secErrors = sec.fields.filter((f) => errors[f.path] !== undefined).length;
                 const isSecDirty = sec.fields.some((f) => {
                   if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y" || f.path === "atk.zone") {
@@ -391,7 +392,7 @@ function ConfigForm({
 
           {/* Section Panels — ALL always mounted; CSS hidden/block preserves state */}
           <div>
-            {sections!.map((section) => {
+            {visibleSections!.map((section) => {
               const secErrors = section.fields.filter((f) => errors[f.path] !== undefined).length;
               const isSecDirty = section.fields.some((f) => {
                 if (f.path === "atk.map" || f.path === "atk.x" || f.path === "atk.y" || f.path === "atk.zone") {
@@ -405,6 +406,7 @@ function ConfigForm({
 
               const isActive = activeSection === section.id;
               const sectionMeta = SECTION_METADATA[section.id];
+              const isAutoFarmActive = Number(draft["atk.mode"]) === 1 || Number(draft["atk.mode"]) === 2;
 
               return (
                 <div
@@ -414,55 +416,91 @@ function ConfigForm({
                   aria-labelledby={`tab-${section.id}`}
                   className={isActive ? "block" : "hidden"}
                 >
-                  <Card className="overflow-hidden border border-border bg-surface shadow-xs">
-                    {/* Section Header */}
-                    <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-muted">{SECTION_ICONS[section.id]}</span>
-                          <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                            {sectionMeta?.title ?? section.title}
-                          </h3>
+                  {section.id === "auto_farm" ? (
+                    <AutoFarmPanel
+                      draft={draft}
+                      persistedDraft={persistedDraft}
+                      errors={errors}
+                      disabled={saving}
+                      ctlVersion={jarCtlVersion!}
+                      onChange={handleChange}
+                      onBatchChange={handleBatchChange}
+                      attackMapIntent={attackMapIntent}
+                      onAttackMapIntentChange={handleAttackMapIntentChange}
+                    />
+                  ) : (
+                    <Card className="overflow-hidden border border-border bg-surface shadow-xs">
+                      {/* Section Header */}
+                      <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted">{SECTION_ICONS[section.id]}</span>
+                            <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                              {sectionMeta?.title ?? section.title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {secErrors > 0 ? (
+                              <span className="rounded border border-danger/35 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-danger">
+                                {secErrors} {secErrors === 1 ? "lỗi" : "lỗi"}
+                              </span>
+                            ) : isSecDirty ? (
+                              <span className="rounded border border-accent/35 bg-accent/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
+                                Đã thay đổi
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {secErrors > 0 ? (
-                            <span className="rounded border border-danger/35 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-danger">
-                              {secErrors} {secErrors === 1 ? "lỗi" : "lỗi"}
-                            </span>
-                          ) : isSecDirty ? (
-                            <span className="rounded border border-accent/35 bg-accent/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
-                              Đã thay đổi
-                            </span>
-                          ) : null}
-                        </div>
+                        {sectionMeta?.description ?? section.description ? (
+                          <p className="mt-0.5 text-xs text-muted">{sectionMeta?.description ?? section.description}</p>
+                        ) : null}
                       </div>
-                      {sectionMeta?.description ?? section.description ? (
-                        <p className="mt-0.5 text-xs text-muted">{sectionMeta?.description ?? section.description}</p>
-                      ) : null}
-                    </div>
 
-                    {/* Section Fields — tighter py-2.5 padding */}
-                    <div className="divide-y divide-border/40 px-4 sm:px-5">
-                      {section.fields.map((field) => (
+                      {/* Manual Travel Lockout Guidance Banner */}
+                      {section.id === "travel" && isAutoFarmActive ? (
                         <div
-                          key={`${field.path}-${resetKey}`}
-                          className="py-2.5 first:pt-2.5 last:pb-2.5"
+                          id="manual-travel-lockout-banner"
+                          className="m-4 mb-2 rounded-md border border-warning/35 bg-warning/10 p-3 text-xs text-warning sm:m-5 sm:mb-2 flex items-start gap-2.5"
                         >
-                          <ConfigFieldInput
-                            field={field}
-                            value={draft[field.path] ?? ""}
-                            values={draft}
-                            error={errors[field.path]}
-                            disabled={saving}
-                            onChange={handleChange}
-                            onBatchChange={handleBatchChange}
-                            attackMapIntent={attackMapIntent}
-                            onAttackMapIntentChange={handleAttackMapIntentChange}
-                          />
+                          <IconWarning className="size-4 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="font-semibold">Di chuyển thủ công đang bị khóa</p>
+                            <p className="text-muted leading-relaxed">
+                              Tự động đánh đang bật ({Number(draft["atk.mode"]) === 1 ? "Đứng yên" : "Di chuyển"}) nên nắm quyền điều khiển điểm đến.
+                              Vui lòng chuyển chế độ Tự động đánh sang Tắt để sử dụng Di chuyển thủ công.
+                            </p>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </Card>
+                      ) : null}
+
+                      {/* Section Fields */}
+                      <div className="divide-y divide-border/40 px-4 sm:px-5">
+                        {section.fields.map((field) => {
+                          const isFieldDisabled =
+                            saving || (section.id === "travel" && field.path === "nav.target" && isAutoFarmActive);
+
+                          return (
+                            <div
+                              key={`${field.path}-${resetKey}`}
+                              className="py-2.5 first:pt-2.5 last:pb-2.5"
+                            >
+                              <ConfigFieldInput
+                                field={field}
+                                value={draft[field.path] ?? ""}
+                                values={draft}
+                                error={errors[field.path]}
+                                disabled={isFieldDisabled}
+                                onChange={handleChange}
+                                onBatchChange={handleBatchChange}
+                                attackMapIntent={attackMapIntent}
+                                onAttackMapIntentChange={handleAttackMapIntentChange}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  )}
                 </div>
               );
             })}
@@ -528,6 +566,21 @@ function ConfigForm({
 
 // ── Icon Library ───────────────────────────────────────────────────────────────
 
+function IconCrosshair({ className = "size-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <path
+        d="M8 1v3M8 12v3M1 8h3M12 8h3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function IconWarning({ className = "size-3.5 shrink-0" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
@@ -568,17 +621,6 @@ function IconCompass() {
       <polygon points="8,2.5 10,8 8,6.8 6,8" fill="currentColor" />
       <polygon points="8,13.5 10,8 8,9.2 6,8" stroke="currentColor" strokeWidth="0.8" fill="currentColor" fillOpacity="0.25" />
       <circle cx="8" cy="8" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconBag() {
-  return (
-    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <path d="M6 3.5c-.5-1.2 1-2 2-2s2.5.8 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <rect x="5" y="3.5" width="6" height="1.5" rx="0.5" fill="currentColor" fillOpacity="0.4" stroke="currentColor" strokeWidth="0.8" />
-      <path d="M5 5C3 6 2 8 2 11a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4c0-3-1-5-3-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="8" cy="10.5" r="1.5" stroke="currentColor" strokeWidth="1" />
     </svg>
   );
 }
@@ -625,17 +667,6 @@ function IconDoor() {
       <path d="M2.5 14.5V6.5a5.5 5.5 0 0 1 11 0v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M1.5 14.5h13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M5.5 7.5v7M8 6v8.5M10.5 7.5v7M3.5 10.5h9" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconPin() {
-  return (
-    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1" />
-      <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <circle cx="8" cy="8" r="0.8" fill="currentColor" />
     </svg>
   );
 }
