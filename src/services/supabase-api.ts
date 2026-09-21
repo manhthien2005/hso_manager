@@ -182,7 +182,7 @@ function mapCommand(row: CommandRow): Command {
 
 // ── implementation ───────────────────────────────────────────────────────────
 
-class SupabaseApi implements ZeusApi {
+export class SupabaseApi implements ZeusApi {
   // ── auth ─────────────────────────────────────────────────────────────────
 
 
@@ -1028,4 +1028,4 @@ export const farmSpotsApi = {
   delete: deleteFarmSpot,
 };
 
-export const supabaseApi: ZeusApi = new SupabaseApi();
+export const supabaseApi: SupabaseApi = new SupabaseApi();

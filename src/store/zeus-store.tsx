@@ -24,8 +24,11 @@ import type {
   AccountControlUpdate,
   CommandType,
   CreateAccountInput,
+  CreateFarmSpotInput,
   Device,
+  FarmSpot,
   UpdateAccountInput,
+  UpdateFarmSpotInput,
   User,
   ViewerSession,
 } from "@/lib/types";
@@ -68,6 +71,14 @@ export const pendingKey = {
   accountDelete(accountId: string) {
     return `account:delete:${accountId}`;
   },
+  farmSpotsLoad: "farm-spots:load",
+  farmSpotCreate: "farm-spots:create",
+  farmSpotUpdate(id: string) {
+    return `farm-spots:update:${id}`;
+  },
+  farmSpotDelete(id: string) {
+    return `farm-spots:delete:${id}`;
+  },
 } as const;
 
 interface ZeusStoreValue {
@@ -78,6 +89,7 @@ interface ZeusStoreValue {
   accounts: Account[];
   /** Viewer session keyed by `deviceId`; absent when none is open. */
   viewerSessions: Record<string, ViewerSession>;
+  farmSpots: FarmSpot[];
   /** True while the initial fleet load is in flight. */
   loadingFleet: boolean;
   pending: Record<string, boolean>;
@@ -92,6 +104,11 @@ interface ZeusStoreValue {
   updateAccount(input: UpdateAccountInput): Promise<Account>;
   saveConfig(accountId: string, input: AccountControlUpdate): Promise<Account>;
   deleteAccount(accountId: string): Promise<string>;
+
+  loadFarmSpots(mapId?: number): Promise<FarmSpot[]>;
+  createFarmSpot(input: CreateFarmSpotInput): Promise<FarmSpot>;
+  updateFarmSpot(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot>;
+  deleteFarmSpot(id: string): Promise<string>;
 
   connectViewer(deviceId: string): Promise<ViewerSession>;
   disconnectViewer(deviceId: string): Promise<ViewerSession>;
@@ -110,6 +127,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [viewerSessions, setViewerSessions] = useState<Record<string, ViewerSession>>({});
+  const [farmSpots, setFarmSpots] = useState<FarmSpot[]>([]);
   const [loadingFleet, setLoadingFleet] = useState(false);
   const [pending, setPending] = useState<Record<string, boolean>>({});
 
@@ -251,7 +269,11 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
       const session = await api.getSession();
       if (cancelled) return;
       setUser(session);
-      if (session) await loadFleet();
+      if (session) {
+        await loadFleet();
+      } else {
+        setFarmSpots([]);
+      }
       if (!cancelled) setReady(true);
     })();
     return () => {
@@ -301,6 +323,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
       async login(credentials) {
         const nextUser = await track(pendingKey.auth, () => api.login(credentials));
         setUser(nextUser);
+        setFarmSpots([]);
         await loadFleet();
         return nextUser;
       },
@@ -312,6 +335,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         setDevices([]);
         setAccounts([]);
         setViewerSessions({});
+        setFarmSpots([]);
       },
 
       reloadFleet: loadFleet,
@@ -386,6 +410,70 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
         });
       },
 
+      farmSpots,
+
+      async loadFarmSpots(mapId?: number) {
+        return track(pendingKey.farmSpotsLoad, async () => {
+          const spots = await api.listFarmSpots(mapId);
+          if (!mounted.current) return spots;
+          if (mapId !== undefined && mapId >= 0) {
+            setFarmSpots((current) => {
+              const otherMaps = current.filter((s) => s.mapId !== mapId);
+              return [...otherMaps, ...spots].sort((a, b) => {
+                if (a.mapId !== b.mapId) return a.mapId - b.mapId;
+                return a.name.localeCompare(b.name);
+              });
+            });
+          } else {
+            setFarmSpots(spots);
+          }
+          return spots;
+        });
+      },
+
+      async createFarmSpot(input) {
+        const created = await track(pendingKey.farmSpotCreate, () =>
+          api.createFarmSpot(input),
+        );
+        if (mounted.current) {
+          setFarmSpots((current) => {
+            const next = [...current.filter((s) => s.id !== created.id), created];
+            return next.sort((a, b) => {
+              if (a.mapId !== b.mapId) return a.mapId - b.mapId;
+              return a.name.localeCompare(b.name);
+            });
+          });
+        }
+        return created;
+      },
+
+      async updateFarmSpot(id, input) {
+        const updated = await track(pendingKey.farmSpotUpdate(id), () =>
+          api.updateFarmSpot(id, input),
+        );
+        if (mounted.current) {
+          setFarmSpots((current) =>
+            current
+              .map((item) => (item.id === id ? updated : item))
+              .sort((a, b) => {
+                if (a.mapId !== b.mapId) return a.mapId - b.mapId;
+                return a.name.localeCompare(b.name);
+              }),
+          );
+        }
+        return updated;
+      },
+
+      async deleteFarmSpot(id) {
+        return track(pendingKey.farmSpotDelete(id), async () => {
+          const deletedId = await api.deleteFarmSpot(id);
+          if (mounted.current) {
+            setFarmSpots((current) => current.filter((item) => item.id !== deletedId));
+          }
+          return deletedId;
+        });
+      },
+
       async connectViewer(deviceId) {
         const session = await track(pendingKey.viewer(deviceId), () =>
           api.connectViewer(deviceId),
@@ -412,6 +500,7 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
     applyUpdate,
     devices,
     executeCommand,
+    farmSpots,
     loadFleet,
     loadingFleet,
     pending,

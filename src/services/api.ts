@@ -4,8 +4,11 @@ import type {
   Command,
   CommandType,
   CreateAccountInput,
+  CreateFarmSpotInput,
   Device,
+  FarmSpot,
   UpdateAccountInput,
+  UpdateFarmSpotInput,
   User,
   ViewerSession,
 } from "@/lib/types";
@@ -54,6 +57,20 @@ export interface ZeusApi {
 
   /** Subscribe to backend-driven state changes. Returns the unsubscribe fn. */
   onUpdate(listener: UpdateListener): () => void;
+
+  listFarmSpots?(mapId?: number): Promise<FarmSpot[]>;
+  getFarmSpot?(id: string): Promise<FarmSpot | null>;
+  createFarmSpot?(input: CreateFarmSpotInput): Promise<FarmSpot>;
+  updateFarmSpot?(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot>;
+  deleteFarmSpot?(id: string): Promise<string>;
+}
+
+export interface FarmSpotApiMethods {
+  listFarmSpots(mapId?: number): Promise<FarmSpot[]>;
+  getFarmSpot(id: string): Promise<FarmSpot | null>;
+  createFarmSpot(input: CreateFarmSpotInput): Promise<FarmSpot>;
+  updateFarmSpot(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot>;
+  deleteFarmSpot(id: string): Promise<string>;
 }
 
 export interface LoginCredentials {
@@ -110,8 +127,50 @@ export function describeError(error: unknown): string {
   return error instanceof Error ? error.message : "Lỗi không xác định";
 }
 
+const mockFarmSpotsFallback: FarmSpotApiMethods = {
+  async listFarmSpots(): Promise<FarmSpot[]> {
+    return [];
+  },
+  async getFarmSpot(): Promise<FarmSpot | null> {
+    return null;
+  },
+  async createFarmSpot(input: CreateFarmSpotInput): Promise<FarmSpot> {
+    return {
+      id: `mock-spot-${Date.now()}`,
+      userId: "mock-user",
+      name: input.name,
+      mapId: input.mapId,
+      x: input.x,
+      y: input.y,
+      capturedZone: input.capturedZone ?? -1,
+      source: input.source ?? "manual",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  },
+  async updateFarmSpot(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot> {
+    return {
+      id,
+      userId: "mock-user",
+      name: input.name ?? "mock-spot",
+      mapId: input.mapId ?? 1,
+      x: input.x ?? 0,
+      y: input.y ?? 0,
+      capturedZone: input.capturedZone ?? -1,
+      source: "manual",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  },
+  async deleteFarmSpot(id: string): Promise<string> {
+    return id;
+  },
+};
+
+export type ZeusApiClient = ZeusApi & FarmSpotApiMethods;
+
 /** The only place the implementation is chosen. */
 // Switch: mockApi ↔ supabaseApi — no component imports change.
-export const api: ZeusApi = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? supabaseApi   // Supabase credentials present → use real backend
-  : mockApi;      // Fallback for local dev without .env.local
+export const api: ZeusApiClient = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? supabaseApi
+  : Object.assign(mockApi, mockFarmSpotsFallback);
