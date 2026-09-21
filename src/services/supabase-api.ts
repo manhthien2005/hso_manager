@@ -38,6 +38,10 @@ import type {
   CreateAccountInput,
   Device,
   DeviceMetrics,
+  FarmSpot,
+  FarmSpotSource,
+  CreateFarmSpotInput,
+  UpdateFarmSpotInput,
   PlayerSnapshot,
   UpdateAccountInput,
   User,
@@ -57,8 +61,24 @@ type DeviceRow = Database["public"]["Tables"]["devices"]["Row"];
 type AccountRow = Database["public"]["Tables"]["accounts"]["Row"];
 type RuntimeRow = Database["public"]["Tables"]["account_runtime"]["Row"];
 type CommandRow = Database["public"]["Tables"]["commands"]["Row"];
+type FarmSpotRow = Database["public"]["Tables"]["farm_spots"]["Row"];
 
 // ── mappers ──────────────────────────────────────────────────────────────────
+
+export function mapFarmSpot(row: FarmSpotRow): FarmSpot {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    mapId: row.map_id,
+    x: row.x,
+    y: row.y,
+    capturedZone: row.captured_zone,
+    source: (row.source as FarmSpotSource) || "manual",
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
 
 function mapDevice(row: DeviceRow): Device {
   const metrics: DeviceMetrics = {
@@ -858,6 +878,154 @@ class SupabaseApi implements ZeusApi {
       void supabase.removeChannel(channel);
     };
   }
+
+  // ── farm spots ─────────────────────────────────────────────────────────────
+
+  listFarmSpots(mapId?: number): Promise<FarmSpot[]> {
+    return listFarmSpots(mapId);
+  }
+
+  getFarmSpot(id: string): Promise<FarmSpot | null> {
+    return getFarmSpot(id);
+  }
+
+  createFarmSpot(input: CreateFarmSpotInput): Promise<FarmSpot> {
+    return createFarmSpot(input);
+  }
+
+  updateFarmSpot(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot> {
+    return updateFarmSpot(id, input);
+  }
+
+  deleteFarmSpot(id: string): Promise<string> {
+    return deleteFarmSpot(id);
+  }
 }
+
+// ── standalone farm spot service functions ───────────────────────────────────
+
+export async function listFarmSpots(mapId?: number): Promise<FarmSpot[]> {
+  let q = supabase
+    .from("farm_spots")
+    .select("*")
+    .order("map_id", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (mapId !== undefined && mapId >= 0) {
+    q = q.eq("map_id", mapId);
+  }
+
+  const { data, error } = await q;
+  if (error) {
+    throw new ApiError("FETCH_FARM_SPOTS", error.message);
+  }
+  return (data ?? []).map(mapFarmSpot);
+}
+
+export async function getFarmSpot(id: string): Promise<FarmSpot | null> {
+  if (!id || typeof id !== "string" || id.trim().length === 0) {
+    throw new ApiError("INVALID_INPUT", "Spot ID is required");
+  }
+  const { data, error } = await supabase
+    .from("farm_spots")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new ApiError("FETCH_FARM_SPOT", error.message);
+  }
+  return data ? mapFarmSpot(data) : null;
+}
+
+export async function createFarmSpot(input: CreateFarmSpotInput): Promise<FarmSpot> {
+  const { data: sessionData, error: authError } = await supabase.auth.getSession();
+  if (authError) {
+    throw new ApiError("AUTH_ERROR", authError.message);
+  }
+  const user = sessionData.session?.user;
+  if (!user) {
+    throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
+  }
+
+  const insertPayload: Database["public"]["Tables"]["farm_spots"]["Insert"] = {
+    user_id: user.id,
+    name: input.name,
+    map_id: input.mapId,
+    x: input.x,
+    y: input.y,
+    captured_zone: input.capturedZone ?? -1,
+    source: input.source ?? "manual",
+  };
+
+  const { data, error } = await supabase
+    .from("farm_spots")
+    .insert(insertPayload)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new ApiError("CREATE_FARM_SPOT", error.message);
+  }
+  if (!data) {
+    throw new ApiError("CREATE_FARM_SPOT", "Không thể tạo điểm đánh");
+  }
+  return mapFarmSpot(data);
+}
+
+export async function updateFarmSpot(
+  id: string,
+  input: UpdateFarmSpotInput,
+): Promise<FarmSpot> {
+  if (!id || typeof id !== "string" || id.trim().length === 0) {
+    throw new ApiError("INVALID_INPUT", "Spot ID is required");
+  }
+
+  const updatePayload: Database["public"]["Tables"]["farm_spots"]["Update"] = {};
+  if (input.name !== undefined) updatePayload.name = input.name;
+  if (input.mapId !== undefined) updatePayload.map_id = input.mapId;
+  if (input.x !== undefined) updatePayload.x = input.x;
+  if (input.y !== undefined) updatePayload.y = input.y;
+  if (input.capturedZone !== undefined) updatePayload.captured_zone = input.capturedZone;
+
+  const { data, error } = await supabase
+    .from("farm_spots")
+    .update(updatePayload)
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new ApiError("UPDATE_FARM_SPOT", error.message);
+  }
+  if (!data) {
+    throw new ApiError("NOT_FOUND", `Farm spot ${id} not found after update`);
+  }
+  return mapFarmSpot(data);
+}
+
+export async function deleteFarmSpot(id: string): Promise<string> {
+  if (!id || typeof id !== "string" || id.trim().length === 0) {
+    throw new ApiError("INVALID_INPUT", "Spot ID is required");
+  }
+
+  const { error } = await supabase
+    .from("farm_spots")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    throw new ApiError("DELETE_FARM_SPOT", error.message);
+  }
+  return id;
+}
+
+export const farmSpotsApi = {
+  list: listFarmSpots,
+  get: getFarmSpot,
+  create: createFarmSpot,
+  update: updateFarmSpot,
+  delete: deleteFarmSpot,
+};
 
 export const supabaseApi: ZeusApi = new SupabaseApi();

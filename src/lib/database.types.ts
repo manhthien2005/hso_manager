@@ -115,6 +115,29 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["commands"]["Insert"]>;
         Relationships: [];
       };
+      farm_spots: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          map_id: number;
+          x: number;
+          y: number;
+          captured_zone: number;
+          source: string; // "manual" | "detected" | "imported"
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["farm_spots"]["Row"], "id" | "captured_zone" | "source" | "created_at" | "updated_at"> & {
+          id?: string;
+          captured_zone?: number;
+          source?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["farm_spots"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

@@ -280,3 +280,40 @@ export interface SealedCredentials {
   nonce: string;
   ct: string;
 }
+
+/** Provenance source for a saved farm spot. */
+export type FarmSpotSource = "manual" | "detected" | "imported";
+
+/**
+ * User-owned monster-farming spot preset library model.
+ * Decoupled from accounts, devices, and Control v13.
+ */
+export interface FarmSpot {
+  id: string;
+  userId: string;
+  name: string;
+  mapId: number;
+  x: number;
+  y: number;
+  capturedZone: number;
+  source: FarmSpotSource;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateFarmSpotInput {
+  name: string;
+  mapId: number;
+  x: number;
+  y: number;
+  capturedZone?: number;
+  source?: FarmSpotSource;
+}
+
+export interface UpdateFarmSpotInput {
+  name?: string;
+  mapId?: number;
+  x?: number;
+  y?: number;
+  capturedZone?: number;
+}
