@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TextField } from "@/components/ui/field";
 import { ConfigFieldInput } from "@/components/accounts/config-field";
@@ -12,6 +14,28 @@ import {
   type ConfigPath,
   type ConfigValue,
 } from "@/lib/config-schema";
+import {
+  isCurrentPositionAvailable,
+  materializeCandidate,
+  materializeCurrentPosition,
+  materializePreset,
+} from "@/lib/farm-spots-util";
+import { formatGameMap } from "@/lib/game-maps";
+import type {
+  Account,
+  CreateFarmSpotInput,
+  FarmSpot,
+  FarmSpotSource,
+  SpotScanCandidate,
+} from "@/lib/types";
+import { describeError } from "@/services/api";
+import { useToast } from "@/store/toast-store";
+import { useZeusStore } from "@/store/zeus-store";
+import {
+  ManagePresetsModal,
+  SavePresetModal,
+} from "@/components/accounts/farm-spot-dialogs";
+import { DetectSpotsSection } from "@/components/accounts/detect-spots-section";
 
 export interface AutoFarmPanelProps {
   draft: ConfigDraft;
@@ -23,23 +47,25 @@ export interface AutoFarmPanelProps {
   onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
   attackMapIntent?: string | null;
   onAttackMapIntentChange?(intent: string | null): void;
+  isActive?: boolean;
+  account?: Account;
 }
 
 /**
- * Dedicated Auto Farm Configuration Panel (Round 4A).
+ * Dedicated Auto Farm Configuration Panel (Round 4A & 4B).
  *
  * Information Architecture:
  * 1. farm_behavior: atk.mode, atk.radius, ui.ring
- * 2. farm_location: atk.map, atk.x, atk.y, atk.zone (read-only metadata)
+ * 2. farm_location: Saved presets, current position, map, X, Y, zone metadata, detect spots
  * 3. zone_policy:   atk.zoneMode, conditional atk.zonePick
  * 4. loot:          item.rank, item.mphp, item.gold, item.medalDialog, item.dropsOn, item.drops
  *
  * Key Semantics:
  * - Single editable authority for all 15 Auto Farm fields.
- * - Editing map, X, or Y normalizes captured metadata atk.zone to -1.
- * - atk.zone is displayed read-only (not an editable numeric policy input).
- * - atk.zonePick is visible only when atk.zoneMode === 2 (Pick).
- * - Loot controls remain fully editable when Auto Farm mode is Off (0).
+ * - Editing map, X, or Y manually normalizes captured metadata atk.zone to -1.
+ * - Selecting preset, using current position, or using candidate preserves known captured zone.
+ * - Location acquisition actions update draft only (no auto-save, mode preserved).
+ * - Presets loaded on-demand only when Auto Farm is active.
  */
 export function AutoFarmPanel({
   draft,
@@ -50,7 +76,148 @@ export function AutoFarmPanel({
   onBatchChange,
   attackMapIntent,
   onAttackMapIntentChange,
+  isActive = true,
+  account,
 }: AutoFarmPanelProps) {
+  const {
+    farmSpots,
+    loadFarmSpots,
+    createFarmSpot,
+    updateFarmSpot,
+    deleteFarmSpot,
+  } = useZeusStore();
+  const { push } = useToast();
+
+  // On-demand preset loading: load presets only when Auto Farm is active
+  const hasLoadedPresetsRef = useRef(false);
+  useEffect(() => {
+    if (isActive && !hasLoadedPresetsRef.current) {
+      hasLoadedPresetsRef.current = true;
+      loadFarmSpots().catch((err) => {
+        push("error", "Tải danh sách mẫu thất bại", describeError(err));
+      });
+    }
+  }, [isActive, loadFarmSpots, push]);
+
+  // Modal states
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveTarget, setSaveTarget] = useState<{
+    mapId: number;
+    x: number;
+    y: number;
+    capturedZone: number;
+    source: FarmSpotSource;
+  } | null>(null);
+  const [manageModalOpen, setManageModalOpen] = useState(false);
+
+  // Location helpers
+  const handleSelectPreset = (spot: FarmSpot) => {
+    const updates = materializePreset(spot);
+    if (onBatchChange) {
+      onBatchChange(updates);
+    } else {
+      onChange("atk.map", spot.mapId);
+      onChange("atk.x", spot.x);
+      onChange("atk.y", spot.y);
+      onChange("atk.zone", spot.capturedZone ?? -1);
+    }
+    push("info", "Đã chọn mẫu vị trí", `Đã chọn mẫu "${spot.name}".`);
+  };
+
+  const snapshot = account?.snapshot;
+  const canUseCurrentPosition = isCurrentPositionAvailable(snapshot);
+
+  const handleUseCurrentPosition = () => {
+    if (!snapshot || !canUseCurrentPosition) return;
+    const updates = materializeCurrentPosition(snapshot);
+    if (onBatchChange) {
+      onBatchChange(updates);
+    } else {
+      onChange("atk.map", snapshot.map);
+      onChange("atk.x", snapshot.px);
+      onChange("atk.y", snapshot.py);
+      onChange("atk.zone", snapshot.zone >= 0 ? snapshot.zone : -1);
+    }
+    push(
+      "info",
+      "Đã lấy vị trí hiện tại",
+      `Đã sao chép vị trí thực tế của nhân vật (X: ${snapshot.px}, Y: ${snapshot.py}).`,
+    );
+  };
+
+  const draftMap = Number(draft["atk.map"]);
+  const draftX = Number(draft["atk.x"]);
+  const draftY = Number(draft["atk.y"]);
+  const draftZone = Number(draft["atk.zone"]);
+  const canSaveDraftPreset =
+    draftMap >= 0 &&
+    draftX >= 0 &&
+    draftY >= 0 &&
+    !Number.isNaN(draftX) &&
+    !Number.isNaN(draftY);
+
+  const handleOpenSaveDraftPreset = () => {
+    if (!canSaveDraftPreset) return;
+    setSaveTarget({
+      mapId: draftMap,
+      x: draftX,
+      y: draftY,
+      capturedZone: draftZone >= 0 ? draftZone : -1,
+      source: "manual",
+    });
+    setSaveModalOpen(true);
+  };
+
+  const handleUseCandidate = (
+    candidate: SpotScanCandidate,
+    candidateMapId: number,
+    candidateZone: number,
+  ) => {
+    const updates = materializeCandidate(candidateMapId, candidateZone, candidate);
+    if (onBatchChange) {
+      onBatchChange(updates);
+    } else {
+      onChange("atk.map", candidateMapId);
+      onChange("atk.x", candidate.x);
+      onChange("atk.y", candidate.y);
+      onChange("atk.zone", candidateZone);
+    }
+    push(
+      "info",
+      "Đã chọn bãi quái",
+      `Đã áp dụng tọa độ ${candidate.mobName || "quái vật"} (X: ${candidate.x}, Y: ${candidate.y}).`,
+    );
+  };
+
+  const handleSaveCandidatePreset = (
+    candidate: SpotScanCandidate,
+    candidateMapId: number,
+    candidateZone: number,
+  ) => {
+    setSaveTarget({
+      mapId: candidateMapId,
+      x: candidate.x,
+      y: candidate.y,
+      capturedZone: candidateZone,
+      source: "detected",
+    });
+    setSaveModalOpen(true);
+  };
+
+  const handleSavePresetSubmit = async (input: CreateFarmSpotInput) => {
+    await createFarmSpot(input);
+    push("success", "Đã lưu mẫu vị trí", `Mẫu "${input.name}" đã được lưu thành công.`);
+  };
+
+  const handleRenamePreset = async (id: string, newName: string) => {
+    await updateFarmSpot(id, { name: newName });
+    push("success", "Đã đổi tên mẫu", `Mẫu vị trí đã đổi tên thành "${newName}".`);
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    await deleteFarmSpot(id);
+    push("success", "Đã xóa mẫu vị trí", "Mẫu vị trí đã được xóa khỏi thư viện.");
+  };
   const sections = CONTROL_SCHEMA[ctlVersion] ?? [];
   const autoFarmSection = sections.find((s) => s.id === "auto_farm");
   const fieldsByPath = new Map<ConfigPath, ConfigField>(
@@ -176,6 +343,91 @@ export function AutoFarmPanel({
           </p>
         </div>
 
+        {/* Preset & Telemetry Toolbar */}
+        <div className="border-b border-border/50 bg-elevated/20 p-3 sm:px-5">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            {/* Preset Selector */}
+            <div className="flex flex-1 items-center gap-2 min-w-0">
+              <label
+                htmlFor="farm-preset-select"
+                className="shrink-0 text-xs font-medium text-muted"
+              >
+                Mẫu đã lưu:
+              </label>
+              <select
+                id="farm-preset-select"
+                className="flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-foreground focus:border-accent focus:outline-none disabled:opacity-50"
+                disabled={disabled || farmSpots.length === 0}
+                value=""
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  if (!selectedId) return;
+                  const spot = farmSpots.find((s) => s.id === selectedId);
+                  if (spot) handleSelectPreset(spot);
+                }}
+              >
+                <option value="">
+                  {farmSpots.length === 0
+                    ? "— Chưa có mẫu vị trí nào —"
+                    : `— Chọn từ mẫu đã lưu (${farmSpots.length}) —`}
+                </option>
+                {farmSpots.map((spot) => (
+                  <option key={spot.id} value={spot.id}>
+                    {formatGameMap(spot.mapId)}: {spot.name} (X: {spot.x}, Y: {spot.y}
+                    {spot.capturedZone >= 0 ? `, K.${spot.capturedZone}` : ""})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+                disabled={disabled || !canUseCurrentPosition}
+                onClick={handleUseCurrentPosition}
+                title={
+                  !canUseCurrentPosition
+                    ? "Chưa có tọa độ nhân vật từ game"
+                    : "Lấy tọa độ hiện tại của nhân vật trong game"
+                }
+              >
+                Vị trí hiện tại
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+                disabled={disabled || !canSaveDraftPreset}
+                onClick={handleOpenSaveDraftPreset}
+                title={
+                  !canSaveDraftPreset
+                    ? "Cần có bản đồ và tọa độ X, Y hợp lệ để lưu mẫu"
+                    : "Lưu vị trí hiện tại thành mẫu"
+                }
+              >
+                Lưu mẫu
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                disabled={disabled}
+                onClick={() => setManageModalOpen(true)}
+              >
+                Quản lý mẫu
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <div className="divide-y divide-border/40 px-4 sm:px-5">
           {mapField ? (
             <div className="py-2.5 first:pt-2.5 last:pb-2.5">
@@ -246,6 +498,18 @@ export function AutoFarmPanel({
               </p>
             </div>
           </div>
+
+          {/* Detect Spots Section */}
+          {account ? (
+            <div className="py-3 first:pt-2.5 last:pb-3">
+              <DetectSpotsSection
+                account={account}
+                disabled={disabled}
+                onUseCandidate={handleUseCandidate}
+                onSaveCandidatePreset={handleSaveCandidatePreset}
+              />
+            </div>
+          ) : null}
         </div>
       </Card>
 
@@ -395,6 +659,34 @@ export function AutoFarmPanel({
           ) : null}
         </div>
       </Card>
+
+      {/* Preset Dialogs */}
+      {saveTarget ? (
+        <SavePresetModal
+          isOpen={saveModalOpen}
+          onClose={() => {
+            setSaveModalOpen(false);
+            setSaveTarget(null);
+          }}
+          mapId={saveTarget.mapId}
+          x={saveTarget.x}
+          y={saveTarget.y}
+          capturedZone={saveTarget.capturedZone}
+          source={saveTarget.source}
+          existingSpots={farmSpots}
+          onSave={handleSavePresetSubmit}
+        />
+      ) : null}
+
+      <ManagePresetsModal
+        isOpen={manageModalOpen}
+        onClose={() => setManageModalOpen(false)}
+        currentMapId={draftMap >= 0 ? draftMap : undefined}
+        presets={farmSpots}
+        onSelectPreset={handleSelectPreset}
+        onRename={handleRenamePreset}
+        onDelete={handleDeletePreset}
+      />
     </div>
   );
 }

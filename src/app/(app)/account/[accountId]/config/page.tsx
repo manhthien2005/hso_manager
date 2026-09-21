@@ -427,6 +427,8 @@ function ConfigForm({
                       onBatchChange={handleBatchChange}
                       attackMapIntent={attackMapIntent}
                       onAttackMapIntentChange={handleAttackMapIntentChange}
+                      isActive={isActive}
+                      account={account}
                     />
                   ) : (
                     <Card className="overflow-hidden border border-border bg-surface shadow-xs">
