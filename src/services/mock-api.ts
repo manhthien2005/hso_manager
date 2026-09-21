@@ -168,6 +168,7 @@ function targetStatus(type: CommandType): AccountStatus {
     case "apply-config":
     case "open-viewer":
     case "close-viewer":
+    case "detect-spots":
       return "running";
   }
 }
@@ -184,6 +185,7 @@ function pendingStatus(type: CommandType): AccountStatus {
     case "apply-config":
     case "open-viewer":
     case "close-viewer":
+    case "detect-spots":
       return "running";
   }
 }
@@ -260,6 +262,16 @@ async function runCommand({ accountId, type }: SendCommandInput): Promise<Comman
     );
   }
   return { command, account: settled, device };
+}
+
+async function runDetectSpots(accountId: string): Promise<Command> {
+  await delay();
+  const account = findAccount(accountId);
+  const device = findDevice(account.deviceId);
+  requireOnline(device);
+
+  const command = recordCommand(account, "detect-spots", "queued", null);
+  return structuredClone(command);
 }
 
 function jitter(value: number, span: number, min: number, max: number): number {
@@ -636,6 +648,7 @@ export const mockApi: ZeusApi = {
   },
 
   sendCommand: runCommand,
+  detectSpots: runDetectSpots,
 
   async getViewerSession(deviceId) {
     const device = findDevice(deviceId);

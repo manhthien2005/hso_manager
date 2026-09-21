@@ -22,6 +22,7 @@ import { sanitizeViewerUrl } from "@/lib/format";
 import type {
   Account,
   AccountControlUpdate,
+  Command,
   CommandType,
   CreateAccountInput,
   CreateFarmSpotInput,
@@ -79,6 +80,9 @@ export const pendingKey = {
   farmSpotDelete(id: string) {
     return `farm-spots:delete:${id}`;
   },
+  detectSpots(accountId: string) {
+    return `detect-spots:${accountId}`;
+  },
 } as const;
 
 interface ZeusStoreValue {
@@ -100,6 +104,7 @@ interface ZeusStoreValue {
   reloadFleet(): Promise<void>;
   refreshDevice(deviceId: string): Promise<Device>;
   runCommand(input: SendCommandInput): Promise<CommandResult>;
+  detectSpots(accountId: string): Promise<Command>;
   createAccount(input: CreateAccountInput): Promise<Account>;
   updateAccount(input: UpdateAccountInput): Promise<Account>;
   saveConfig(accountId: string, input: AccountControlUpdate): Promise<Account>;
@@ -346,6 +351,12 @@ export function ZeusStoreProvider({ children }: { children: ReactNode }) {
 
       runCommand({ accountId, type }) {
         return executeCommand(accountId, type);
+      },
+
+      async detectSpots(accountId: string) {
+        return track(pendingKey.detectSpots(accountId), () =>
+          api.detectSpots(accountId),
+        );
       },
 
       async createAccount(input) {

@@ -43,6 +43,9 @@ import type {
   CreateFarmSpotInput,
   UpdateFarmSpotInput,
   PlayerSnapshot,
+  SpotScanCandidate,
+  SpotScanSnapshot,
+  SpotScanStatus,
   UpdateAccountInput,
   User,
   ViewerSession,
@@ -111,6 +114,136 @@ function mapDevice(row: DeviceRow): Device {
   };
 }
 
+const VALID_SPOT_SCAN_STATUSES = new Set<SpotScanStatus>([
+  "pending",
+  "completed",
+  "empty",
+  "timeout",
+  "error",
+]);
+
+export function mapSpotScanCandidate(raw: unknown): SpotScanCandidate | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const rec = raw as Record<string, unknown>;
+
+  const x = rec.x;
+  const y = rec.y;
+  const mobCount = rec.mob_count ?? rec.mobCount;
+  const spreadRadius = rec.spread_radius ?? rec.spreadRadius;
+  const mobName = rec.mob_name ?? rec.mobName;
+  const mobLevel = rec.mob_level ?? rec.mobLevel;
+
+  if (typeof x !== "number" || !Number.isFinite(x) || x < 0) {
+    return null;
+  }
+  if (typeof y !== "number" || !Number.isFinite(y) || y < 0) {
+    return null;
+  }
+  if (typeof mobCount !== "number" || !Number.isFinite(mobCount) || mobCount < 0) {
+    return null;
+  }
+  if (typeof spreadRadius !== "number" || !Number.isFinite(spreadRadius) || spreadRadius < 0) {
+    return null;
+  }
+  if (typeof mobName !== "string" || mobName.length === 0) {
+    return null;
+  }
+  if (typeof mobLevel !== "number" || !Number.isFinite(mobLevel)) {
+    return null;
+  }
+
+  return {
+    x,
+    y,
+    mobCount: Math.floor(mobCount),
+    spreadRadius,
+    mobName,
+    mobLevel: Math.floor(mobLevel),
+  };
+}
+
+export function mapSpotScanSnapshot(raw: unknown): SpotScanSnapshot | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const rec = raw as Record<string, unknown>;
+
+  const rawScanId = rec.scan_id ?? rec.scanId;
+  if (typeof rawScanId !== "string" || rawScanId.trim().length === 0) {
+    return null;
+  }
+  const scanId = rawScanId.trim();
+
+  const rawStatus = rec.status;
+  if (typeof rawStatus !== "string" || !VALID_SPOT_SCAN_STATUSES.has(rawStatus as SpotScanStatus)) {
+    return null;
+  }
+  const status = rawStatus as SpotScanStatus;
+
+  const result: SpotScanSnapshot = {
+    scanId,
+    status,
+  };
+
+  const rawDetectedAt = rec.detected_at ?? rec.detectedAt;
+  if (typeof rawDetectedAt === "string") {
+    const parsed = new Date(rawDetectedAt).getTime();
+    if (!Number.isNaN(parsed)) {
+      result.detectedAt = parsed;
+    }
+  } else if (typeof rawDetectedAt === "number" && Number.isFinite(rawDetectedAt) && rawDetectedAt > 0) {
+    result.detectedAt = rawDetectedAt;
+  }
+
+  const rawMapId = rec.map_id ?? rec.mapId;
+  if (typeof rawMapId === "number" && Number.isFinite(rawMapId) && rawMapId >= 0) {
+    result.mapId = Math.floor(rawMapId);
+  }
+
+  const rawCapturedZone = rec.captured_zone ?? rec.capturedZone;
+  if (typeof rawCapturedZone === "number" && Number.isFinite(rawCapturedZone)) {
+    result.capturedZone = Math.floor(rawCapturedZone);
+  }
+
+  const rawCandidates = rec.candidates;
+  if (Array.isArray(rawCandidates)) {
+    const parsedCandidates: SpotScanCandidate[] = [];
+    for (const item of rawCandidates) {
+      const candidate = mapSpotScanCandidate(item);
+      if (candidate) {
+        parsedCandidates.push(candidate);
+      }
+    }
+    result.candidates = parsedCandidates;
+  }
+
+  return result;
+}
+
+export function mapPlayerSnapshot(
+  raw: Record<string, unknown> | null | undefined,
+): PlayerSnapshot | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  // Preserve every currently supported PlayerSnapshot field and unknown/additional keys
+  const { spot_scan, spotScan, ...telemetry } = raw;
+  const snapshot = { ...telemetry } as unknown as PlayerSnapshot;
+
+  const rawSpotScan = spot_scan ?? spotScan;
+  if (rawSpotScan !== undefined && rawSpotScan !== null) {
+    const parsed = mapSpotScanSnapshot(rawSpotScan);
+    if (parsed) {
+      snapshot.spotScan = parsed;
+    }
+  }
+
+  return snapshot;
+}
+
 export function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
   const processState = rt?.process_state ?? "stopped";
   const status: import("@/lib/types").AccountStatus =
@@ -122,7 +255,7 @@ export function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
           ? "error"
           : "stopped";
 
-  const snapshot = (rt?.snapshot as PlayerSnapshot | null) ?? null;
+  const snapshot = mapPlayerSnapshot(rt?.snapshot);
   const charName =
     typeof snapshot?.name === "string" && snapshot.name.length > 0
       ? snapshot.name
@@ -697,6 +830,57 @@ export class SupabaseApi implements ZeusApi {
     }
 
     throw new ApiError("UNSUPPORTED_STATUS", `Unsupported command status: ${terminalRow.status}`);
+  }
+
+  async detectSpots(accountId: string): Promise<Command> {
+    if (!accountId || typeof accountId !== "string" || accountId.trim().length === 0) {
+      throw new ApiError("INVALID_ACCOUNT_INPUT", "Account ID is required");
+    }
+
+    // 1. Resolve target account to obtain canonical deviceId
+    const account = await this.getAccount(accountId);
+    if (!account) {
+      throw new ApiError("NOT_FOUND", `Account ${accountId} not found`);
+    }
+
+    // 2. Validate owning device
+    const device = await this.getDevice(account.deviceId);
+    if (!device) {
+      throw new ApiError("NOT_FOUND", `Device ${account.deviceId} not found`);
+    }
+
+    // 3. Insert command row with type = 'detect-spots' and status = 'queued'
+    const { data: insertedRow, error: insertError } = await (
+      supabase.from("commands") as unknown as {
+        insert(values: {
+          device_id: string;
+          account_id: string;
+          type: string;
+          status: string;
+        }): {
+          select(): {
+            single(): Promise<{
+              data: CommandRow | null;
+              error: import("@supabase/supabase-js").PostgrestError | null;
+            }>;
+          };
+        };
+      }
+    )
+      .insert({
+        device_id: account.deviceId,
+        account_id: accountId,
+        type: "detect-spots",
+        status: "queued",
+      })
+      .select()
+      .single();
+
+    if (insertError) throw new ApiError("SEND_COMMAND", insertError.message);
+    if (!insertedRow) throw new ApiError("SEND_COMMAND", "Failed to insert detect-spots command");
+
+    // 4. Return inserted Command immediately without waiting for execution
+    return mapCommand(insertedRow);
   }
 
   // ── viewer ────────────────────────────────────────────────────────────────

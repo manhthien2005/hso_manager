@@ -50,6 +50,7 @@ export interface ZeusApi {
   ): Promise<string>;
 
   sendCommand(input: SendCommandInput): Promise<CommandResult>;
+  detectSpots(accountId: string): Promise<Command>;
 
   getViewerSession(deviceId: string): Promise<ViewerSession | null>;
   connectViewer(deviceId: string): Promise<ViewerSession>;
@@ -171,6 +172,12 @@ export type ZeusApiClient = ZeusApi & FarmSpotApiMethods;
 
 /** The only place the implementation is chosen. */
 // Switch: mockApi ↔ supabaseApi — no component imports change.
-export const api: ZeusApiClient = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? supabaseApi
-  : Object.assign(mockApi, mockFarmSpotsFallback);
+export const api: ZeusApiClient = new Proxy({} as ZeusApiClient, {
+  get(_target, prop) {
+    const target = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? supabaseApi
+      : Object.assign(mockApi, mockFarmSpotsFallback);
+    const value = (target as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+});

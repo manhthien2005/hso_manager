@@ -150,7 +150,8 @@ export type CommandType =
   | "restart"
   | "apply-config"
   | "open-viewer"
-  | "close-viewer";
+  | "close-viewer"
+  | "detect-spots";
 
 export type CommandStatus =
   | "queued"
@@ -234,6 +235,35 @@ export interface PlayerSnapshot {
   enhancewhy: string;
   xprate: number;
   ctl: number;         // -1=no property / 0=parse fail / 1=ok
+  spotScan?: SpotScanSnapshot;
+}
+
+/** Runtime status values for a spot scan operation. */
+export type SpotScanStatus =
+  | "pending"
+  | "completed"
+  | "empty"
+  | "timeout"
+  | "error";
+
+/** A single detected monster group or spawn candidate from a spot scan. */
+export interface SpotScanCandidate {
+  x: number;
+  y: number;
+  mobCount: number;
+  spreadRadius: number;
+  mobName: string;
+  mobLevel: number;
+}
+
+/** Parsed spot scan payload derived from account_runtime.snapshot['spot_scan']. */
+export interface SpotScanSnapshot {
+  scanId: string;
+  status: SpotScanStatus;
+  detectedAt?: number;
+  mapId?: number;
+  capturedZone?: number;
+  candidates?: SpotScanCandidate[];
 }
 
 export type ViewerTransport = "novnc" | "mock";
