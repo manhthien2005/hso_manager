@@ -74,6 +74,11 @@ export interface Account {
   status: AccountStatus;
   characterName: string | null;
   serverId: number | null;
+  /**
+   * 1-based positional character index in the compact vanilla character list (1..3).
+   * Defaults to 1.
+   */
+  character_slot?: number;
   /** Process memory of this emulator instance. */
   ramMb: number | null;
   pid: number | null;
@@ -107,6 +112,8 @@ export interface CreateAccountInput {
   username: string;
   password: string;
   serverIndex: number;
+  /** 1-based positional character index (1..3). Defaults to 1. */
+  character_slot?: number;
 }
 
 export interface UpdateAccountInput {
@@ -117,6 +124,8 @@ export interface UpdateAccountInput {
     username: string;
     password: string;
   };
+  /** 1-based positional character index (1..3). When omitted, preserves existing slot. */
+  character_slot?: number;
 }
 
 export interface AccountConfig {

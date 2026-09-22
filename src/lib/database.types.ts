@@ -44,6 +44,7 @@ export interface Database {
           user_id: string;
           label: string;
           slot_index: number;
+          character_slot: number;
           username: string;
           secret_sealed: Record<string, unknown>;
           server_index: number;
@@ -61,6 +62,7 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["accounts"]["Row"], "id" | "updated_at"> & {
           id?: string;
           updated_at?: string;
+          character_slot?: number;
         };
         Update: Partial<Database["public"]["Tables"]["accounts"]["Insert"]>;
         Relationships: [];
@@ -162,6 +164,7 @@ export interface Database {
           p_server_index: number;
           p_control_version: number;
           p_control: Record<string, unknown>;
+          p_character_slot?: number;
         };
         Returns: string; // uuid của account vừa tạo
       };
@@ -172,6 +175,7 @@ export interface Database {
           p_server_index: number;
           p_username?: string | null;
           p_secret_sealed?: Record<string, unknown> | null;
+          p_character_slot?: number | null;
         };
         Returns: string; // uuid của account vừa cập nhật
       };
