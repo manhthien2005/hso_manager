@@ -147,6 +147,7 @@ export function AccountCard({
       {/* Secondary metadata row — muted, smaller */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-mono text-muted/70">
         <span>{formatServerDisplay(account.serverId)}</span>
+        <span>Slot {account.character_slot ?? 1}</span>
         {account.characterName ? <span>{account.characterName}</span> : null}
         {account.ramMb !== null ? <span>{Math.round(account.ramMb)} MB</span> : null}
         {account.pid !== null ? <span>PID {account.pid}</span> : null}

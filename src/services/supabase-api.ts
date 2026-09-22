@@ -28,10 +28,12 @@ import {
   draftToControlRecord,
   validateDraft,
 } from "@/lib/config-schema";
+import { isValidCharacterSlot } from "@/lib/capabilities";
 import type {
   Account,
   AccountConfig,
   AccountControlUpdate,
+  CharacterSlot,
   Command,
   CommandStatus,
   CommandType,
@@ -110,6 +112,7 @@ function mapDevice(row: DeviceRow): Device {
     ),
     metrics,
     jar_ctl_version: row.jar_ctl_version,
+    jar_sha256: row.jar_sha256,
     viewer_url: row.viewer_url,
   };
 }
@@ -290,6 +293,7 @@ export function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
     status,
     characterName: charName,
     serverId,
+    character_slot: (acc.character_slot ?? 1) as CharacterSlot,
     ramMb: rt?.ram_mb ?? null,
     pid: rt?.pid ?? null,
     config,
@@ -437,6 +441,15 @@ export class SupabaseApi implements ZeusApi {
       );
     }
 
+    // 1. Basic input validation
+    const characterSlot = input.character_slot ?? 1;
+    if (!isValidCharacterSlot(characterSlot)) {
+      throw new ApiError(
+        "INVALID_ACCOUNT_INPUT",
+        `Invalid character slot: ${input.character_slot}. Must be 1, 2, or 3.`,
+      );
+    }
+
     // 2. Load and validate target device
     const device = await this.getDevice(input.deviceId);
     if (!device) {
@@ -499,6 +512,7 @@ export class SupabaseApi implements ZeusApi {
         p_server_index: input.serverIndex,
         p_control_version: ctlVersion,
         p_control: control,
+        p_character_slot: characterSlot,
       },
     );
     if (createError) {
@@ -588,6 +602,17 @@ export class SupabaseApi implements ZeusApi {
       secretSealedArg = sealed as unknown as Record<string, unknown>;
     }
 
+    let characterSlotArg: CharacterSlot | null = null;
+    if (input.character_slot !== undefined) {
+      if (!isValidCharacterSlot(input.character_slot)) {
+        throw new ApiError(
+          "INVALID_ACCOUNT_INPUT",
+          `Invalid character slot: ${input.character_slot}. Must be 1, 2, or 3.`,
+        );
+      }
+      characterSlotArg = input.character_slot;
+    }
+
     // 4. Call atomic update_game_account RPC
     const { data: updatedId, error: updateError } = await supabase.rpc(
       "update_game_account",
@@ -597,6 +622,7 @@ export class SupabaseApi implements ZeusApi {
         p_server_index: input.serverIndex,
         p_username: usernameArg,
         p_secret_sealed: secretSealedArg,
+        p_character_slot: characterSlotArg,
       },
     );
 

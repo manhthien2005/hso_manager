@@ -4,8 +4,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
+import {
+  isCharacterSlotAvailableOnDevice,
+  isValidCharacterSlot,
+  validateCharacterSlotSelection,
+} from "@/lib/capabilities";
 import { SERVER_OPTIONS } from "@/lib/game-servers";
-import type { Account, UpdateAccountInput } from "@/lib/types";
+import type { Account, CharacterSlot, UpdateAccountInput } from "@/lib/types";
 import { describeError } from "@/services/api";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
 import { useToast } from "@/store/toast-store";
@@ -39,27 +44,34 @@ function EditAccountModalContent({
   account: Account;
   onClose: () => void;
 }) {
-  const { updateAccount, isPending } = useZeusStore();
+  const { updateAccount, isPending, getDevice, devices } = useZeusStore();
   const { push } = useToast();
+
+  const device = getDevice(account.deviceId) ?? devices.find((d) => d.deviceId === account.deviceId);
+  const isSlotCapable = isCharacterSlotAvailableOnDevice(device);
 
   const initialServer = account.serverId ?? account.config?.serverId ?? 0;
   const currentUsername = account.config.accountName;
+  const initialSlot = (account.character_slot ?? 1) as CharacterSlot;
 
   const [label, setLabel] = useState(account.label);
   const [username, setUsername] = useState(currentUsername);
   const [password, setPassword] = useState("");
   const [serverIndex, setServerIndex] = useState(initialServer);
+  const [characterSlot, setCharacterSlot] = useState<CharacterSlot>(initialSlot);
 
   const [errors, setErrors] = useState<{
     label?: string;
     username?: string;
     password?: string;
     serverIndex?: string;
+    characterSlot?: string;
   }>({});
 
   const isSubmitting = isPending(pendingKey.accountUpdate(account.id));
   const usernameChanged = username !== currentUsername;
   const isRunning = ["running", "starting", "restarting"].includes(account.status);
+  const isStoredSlotUnsupported = initialSlot > 1 && !isSlotCapable;
 
   // Close on Escape if not submitting
   useEffect(() => {
@@ -81,6 +93,7 @@ function EditAccountModalContent({
       username?: string;
       password?: string;
       serverIndex?: string;
+      characterSlot?: string;
     } = {};
 
     const trimmedLabel = label.trim();
@@ -105,6 +118,13 @@ function EditAccountModalContent({
       newErrors.serverIndex = "Vui lòng chọn một máy chủ game hợp lệ";
     }
 
+    const currentDevice = getDevice(account.deviceId) ?? devices.find((d) => d.deviceId === account.deviceId);
+    const currentCapable = isCharacterSlotAvailableOnDevice(currentDevice);
+    const slotError = validateCharacterSlotSelection(characterSlot, currentCapable, initialSlot);
+    if (slotError) {
+      newErrors.characterSlot = slotError;
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -113,6 +133,7 @@ function EditAccountModalContent({
 
     const serverChanged = serverIndex !== (account.serverId ?? account.config?.serverId);
     const credentialsChanged = usernameChanged || password.length > 0;
+    const slotChanged = characterSlot !== initialSlot;
 
     let credentials: UpdateAccountInput["credentials"] = undefined;
     if (!usernameChanged && password.length > 0) {
@@ -135,17 +156,18 @@ function EditAccountModalContent({
         label: trimmedLabel,
         serverIndex,
         credentials,
+        character_slot: characterSlot,
       });
 
       // Clear password state immediately after Save to minimize sensitive lifetime
       setPassword("");
       onClose();
 
-      if (isRunning && (serverChanged || credentialsChanged)) {
+      if (isRunning && (serverChanged || credentialsChanged || slotChanged)) {
         push(
           "info",
           "Đã cập nhật tài khoản",
-          "Đã lưu. Khởi động lại tài khoản để áp dụng thay đổi đăng nhập/máy chủ.",
+          "Đã lưu. Khởi động lại tài khoản để áp dụng thay đổi máy chủ, thông tin đăng nhập hoặc vị trí nhân vật.",
         );
       } else {
         push(
@@ -160,6 +182,26 @@ function EditAccountModalContent({
       push("error", "Cập nhật tài khoản thất bại", describeError(error));
     }
   };
+
+  const slotOptions = [
+    { value: 1, label: "Slot 1 (Trái)" },
+    {
+      value: 2,
+      label:
+        isSlotCapable || initialSlot === 2
+          ? "Slot 2 (Giữa)" + (initialSlot === 2 && !isSlotCapable ? " (Hiện tại — Chưa hỗ trợ)" : "")
+          : "Slot 2 (Giữa) — Cần cập nhật runtime",
+      disabled: !isSlotCapable && initialSlot !== 2,
+    },
+    {
+      value: 3,
+      label:
+        isSlotCapable || initialSlot === 3
+          ? "Slot 3 (Phải)" + (initialSlot === 3 && !isSlotCapable ? " (Hiện tại — Chưa hỗ trợ)" : "")
+          : "Slot 3 (Phải) — Cần cập nhật runtime",
+      disabled: !isSlotCapable && initialSlot !== 3,
+    },
+  ];
 
   return (
     <div
@@ -183,12 +225,21 @@ function EditAccountModalContent({
           </div>
         </div>
 
+        {isStoredSlotUnsupported ? (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning"
+          >
+            Tài khoản đang cấu hình Slot {initialSlot}, nhưng máy chủ hiện tại chưa thể xác minh hỗ trợ tính năng chọn vị trí nhân vật. Giá trị đã lưu được giữ nguyên trừ khi bạn chuyển về Slot 1.
+          </div>
+        ) : null}
+
         {isRunning ? (
           <div
             role="alert"
             className="mb-4 rounded-md border border-accent/30 bg-accent/10 p-3 text-xs text-foreground/90"
           >
-            Tài khoản này hiện đang hoạt động. Thay đổi máy chủ và thông tin đăng nhập sẽ có hiệu lực sau khi khởi động lại tài khoản.
+            Tài khoản này hiện đang hoạt động. Thay đổi máy chủ, thông tin đăng nhập hoặc vị trí nhân vật sẽ có hiệu lực sau khi khởi động lại tài khoản.
           </div>
         ) : null}
 
@@ -258,6 +309,31 @@ function EditAccountModalContent({
                   : "Để trống nếu muốn giữ nguyên mật khẩu hiện tại"
               }
               error={errors.password}
+            />
+
+            <SelectField
+              id="edit-account-slot"
+              label="Vị trí nhân vật"
+              options={slotOptions}
+              value={characterSlot}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                if (isValidCharacterSlot(val)) {
+                  setCharacterSlot(val);
+                  if (errors.characterSlot) {
+                    setErrors((prev) => ({ ...prev, characterSlot: undefined }));
+                  }
+                }
+              }}
+              disabled={isSubmitting}
+              help={
+                isStoredSlotUnsupported
+                  ? "Máy chủ chưa hỗ trợ chọn vị trí mới. Bạn có thể giữ nguyên giá trị đã lưu hoặc chuyển về Slot 1."
+                  : isSlotCapable
+                    ? "Vị trí nhân vật từ trái sang phải trong danh sách chọn nhân vật game."
+                    : "Slot 2 và 3 yêu cầu phiên bản runtime mới trên máy chủ VPS này. Vị trí từ trái sang phải."
+              }
+              error={errors.characterSlot}
             />
           </div>
 

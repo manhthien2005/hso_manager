@@ -5,9 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
 import { ACCOUNT_STATUS_LABELS } from "@/components/ui/status";
+import {
+  isCharacterSlotAvailableOnDevice,
+  isValidCharacterSlot,
+  validateCharacterSlotSelection,
+} from "@/lib/capabilities";
 import { CONTROL_SCHEMA } from "@/lib/config-schema";
 import { SERVER_OPTIONS } from "@/lib/game-servers";
-import type { Account, Device } from "@/lib/types";
+import type { Account, CharacterSlot, Device } from "@/lib/types";
 import { describeError, isApiError } from "@/services/api";
 import { useToast } from "@/store/toast-store";
 import { useZeusStore } from "@/store/zeus-store";
@@ -25,13 +30,17 @@ export function CreateAccountForm({
   onClose,
   onSubmittingChange,
 }: CreateAccountFormProps) {
-  const { createAccount, runCommand } = useZeusStore();
+  const { devices, createAccount, runCommand } = useZeusStore();
   const { push } = useToast();
+
+  const activeDevice = devices.find((d) => d.deviceId === device.deviceId) ?? device;
+  const isSlotCapable = isCharacterSlotAvailableOnDevice(activeDevice);
 
   const [label, setLabel] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [serverIndex, setServerIndex] = useState(0);
+  const [characterSlot, setCharacterSlot] = useState<CharacterSlot>(1);
 
   const [submitMode, setSubmitMode] = useState<SubmitMode>(null);
   const [errors, setErrors] = useState<{
@@ -39,6 +48,7 @@ export function CreateAccountForm({
     username?: string;
     password?: string;
     serverIndex?: string;
+    characterSlot?: string;
   }>({});
 
   const ctlVersion = device.jar_ctl_version;
@@ -69,6 +79,7 @@ export function CreateAccountForm({
       username?: string;
       password?: string;
       serverIndex?: string;
+      characterSlot?: string;
     } = {};
 
     if (label.trim().length === 0) {
@@ -88,6 +99,13 @@ export function CreateAccountForm({
       newErrors.serverIndex = "Vui lòng chọn một máy chủ game hợp lệ";
     }
 
+    const currentDevice = devices.find((d) => d.deviceId === device.deviceId) ?? activeDevice;
+    const currentCapable = isCharacterSlotAvailableOnDevice(currentDevice);
+    const slotError = validateCharacterSlotSelection(characterSlot, currentCapable);
+    if (slotError) {
+      newErrors.characterSlot = slotError;
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -105,6 +123,7 @@ export function CreateAccountForm({
         username,
         password,
         serverIndex,
+        character_slot: characterSlot,
       });
     } catch (error) {
       // Clear password on failure to minimize sensitive lifetime
@@ -127,6 +146,7 @@ export function CreateAccountForm({
       setLabel("");
       setUsername("");
       setServerIndex(0);
+      setCharacterSlot(1);
       setSubmitMode(null);
       onSubmittingChange?.(false);
       push(
@@ -148,6 +168,7 @@ export function CreateAccountForm({
       setLabel("");
       setUsername("");
       setServerIndex(0);
+      setCharacterSlot(1);
       setSubmitMode(null);
       onSubmittingChange?.(false);
       const statusLabel = ACCOUNT_STATUS_LABELS[result.account.status] ?? result.account.status;
@@ -164,6 +185,7 @@ export function CreateAccountForm({
       setLabel("");
       setUsername("");
       setServerIndex(0);
+      setCharacterSlot(1);
       setSubmitMode(null);
       onSubmittingChange?.(false);
       onClose?.();
@@ -252,6 +274,41 @@ export function CreateAccountForm({
             disabled={isSubmitting}
             autoComplete="new-password"
             error={errors.password}
+          />
+
+          <SelectField
+            id="create-account-slot"
+            label="Vị trí nhân vật"
+            options={[
+              { value: 1, label: "Slot 1 (Trái)" },
+              {
+                value: 2,
+                label: isSlotCapable ? "Slot 2 (Giữa)" : "Slot 2 (Giữa) — Cần cập nhật runtime",
+                disabled: !isSlotCapable,
+              },
+              {
+                value: 3,
+                label: isSlotCapable ? "Slot 3 (Phải)" : "Slot 3 (Phải) — Cần cập nhật runtime",
+                disabled: !isSlotCapable,
+              },
+            ]}
+            help={
+              isSlotCapable
+                ? "Vị trí nhân vật từ trái sang phải trong danh sách chọn nhân vật game."
+                : "Slot 2 và 3 yêu cầu phiên bản runtime mới trên máy chủ VPS này. Vị trí từ trái sang phải."
+            }
+            value={characterSlot}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (isValidCharacterSlot(val)) {
+                setCharacterSlot(val);
+                if (errors.characterSlot) {
+                  setErrors((prev) => ({ ...prev, characterSlot: undefined }));
+                }
+              }
+            }}
+            disabled={isSubmitting}
+            error={errors.characterSlot}
           />
         </div>
 

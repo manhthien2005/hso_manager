@@ -35,6 +35,8 @@ export interface Device {
    * Null when the agent has not yet reported (device never paired).
    */
   jar_ctl_version: number | null;
+  /** JAR hash reported by the agent at boot; null when not yet reported. */
+  jar_sha256?: string | null;
   /** noVNC URL when viewer is available; null otherwise. */
   viewer_url: string | null;
 }
@@ -67,6 +69,8 @@ export type AccountStatus =
  */
 export type HealthStatus = "running" | "degraded" | "stopped";
 
+export type CharacterSlot = 1 | 2 | 3;
+
 export interface Account {
   id: string;
   deviceId: string;
@@ -78,7 +82,7 @@ export interface Account {
    * 1-based positional character index in the compact vanilla character list (1..3).
    * Defaults to 1.
    */
-  character_slot?: number;
+  character_slot?: CharacterSlot;
   /** Process memory of this emulator instance. */
   ramMb: number | null;
   pid: number | null;
@@ -113,7 +117,7 @@ export interface CreateAccountInput {
   password: string;
   serverIndex: number;
   /** 1-based positional character index (1..3). Defaults to 1. */
-  character_slot?: number;
+  character_slot?: CharacterSlot;
 }
 
 export interface UpdateAccountInput {
@@ -125,7 +129,7 @@ export interface UpdateAccountInput {
     password: string;
   };
   /** 1-based positional character index (1..3). When omitted, preserves existing slot. */
-  character_slot?: number;
+  character_slot?: CharacterSlot;
 }
 
 export interface AccountConfig {
