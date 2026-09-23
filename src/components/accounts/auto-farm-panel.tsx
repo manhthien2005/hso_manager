@@ -569,7 +569,7 @@ export function AutoFarmPanel({
             </h4>
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            Bộ lọc nhặt trang bị, bình hồi phục, vàng và đóng hòm đồ (hoạt động độc lập với chế độ tự đánh).
+            Bộ lọc nhặt trang bị, bình hồi phục và vàng khi nhân vật đánh quái.
           </p>
         </div>
 
@@ -615,7 +615,24 @@ export function AutoFarmPanel({
               />
             </div>
           ) : null}
+        </div>
+      </Card>
 
+      {/* ── 5. material_drops ───────────────────────────────────────────── */}
+      <Card id="subcard-material-drops" className="overflow-hidden border border-border bg-surface shadow-xs">
+        <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
+          <div className="flex items-center gap-2">
+            <IconLayers className="size-4 text-muted" />
+            <h4 className="text-sm font-semibold tracking-tight text-foreground">
+              Quản lý nguyên liệu
+            </h4>
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            Tự động xử lý hộp thoại mề đay và đồng bộ trạng thái rớt nguyên liệu theo cấu hình bên dưới.
+          </p>
+        </div>
+
+        <div className="divide-y divide-border/40 px-4 sm:px-5">
           {itemMedalDialogField ? (
             <div className="py-2.5 first:pt-2.5 last:pb-2.5">
               <ConfigFieldInput
@@ -757,3 +774,14 @@ function IconBag({ className = "size-3.5" }: { className?: string }) {
     </svg>
   );
 }
+
+function IconLayers({ className = "size-4 text-muted" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={className} fill="none" aria-hidden="true">
+      <polygon points="8,1.5 14.5,5 8,8.5 1.5,5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M1.5 8.5L8 12l6.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 11.5L8 15l6.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+

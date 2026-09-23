@@ -22,6 +22,7 @@ import {
   updateLocationWithZoneReset,
 } from "./attack-spot";
 import { MOUNT_CATALOG } from "./mounts";
+import { MATERIAL_DROP_LABELS } from "./material-drops";
 
 export { normalizeDraftForSave, updateLocationWithZoneReset };
 
@@ -271,17 +272,17 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
         },
         {
           path: "item.dropsOn",
-          label: "Drop Filter Active",
+          label: "Material Drop Filter",
           type: "toggle",
-          help: "Toggle the drop-close filter. Enabling changes what the character closes over.",
+          help: "Automatically reconcile material drop desired state with game server.",
         },
         {
           path: "item.drops",
-          label: "Drop Close Slots",
+          label: "Material Drop Slots",
           type: "flags",
           length: 6,
-          bitLabels: ["Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6"],
-          help: "Close (1) or open (0) each drop slot. Only active when Drop Filter is on.",
+          bitLabels: [...MATERIAL_DROP_LABELS],
+          help: "Close (1) or open (0) each material drop slot. 1 = Do not drop, 0 = Allow drop.",
         },
       ],
     },
@@ -564,9 +565,9 @@ export const CONFIG_FIELD_LABELS_VI: Partial<Record<ConfigPath, string>> = {
   "item.rank": "Phẩm cấp vật phẩm",
   "item.mphp": "Nhặt bình HP/MP",
   "item.gold": "Nhặt vàng",
-  "item.medalDialog": "Hộp thoại huân chương",
-  "item.dropsOn": "Bật lọc đóng hòm đồ",
-  "item.drops": "Ô lọc hòm đồ",
+  "item.medalDialog": "Tự động xử lý hộp thoại mề đay",
+  "item.dropsOn": "Tự động quản lý rớt nguyên liệu",
+  "item.drops": "Cấu hình rớt nguyên liệu",
   "revive.on": "Tự hồi sinh",
   "revive.mode": "Chế độ hồi sinh",
   "revive.delay": "Thời gian chờ hồi sinh",

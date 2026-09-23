@@ -28,6 +28,11 @@ import {
   parseCarriedMountIds,
   getMountDisplayLabel,
 } from "@/lib/mounts";
+import {
+  MATERIAL_DROP_SLOTS,
+  MATERIAL_DROP_LABELS,
+  setMaterialDropBit,
+} from "@/lib/material-drops";
 import { SelectField, TextField, ToggleField } from "@/components/ui/field";
 
 const FIELD_METADATA: Record<
@@ -132,17 +137,17 @@ const FIELD_METADATA: Record<
     },
   },
   "item.medalDialog": {
-    label: "Hộp thoại huân chương",
-    help: "Tự động đóng hộp thoại nhận thưởng / huân chương.",
+    label: "Tự động xử lý hộp thoại mề đay",
+    help: "Tự động đóng hộp thoại nhận thưởng / mề đay khi xuất hiện.",
   },
   "item.dropsOn": {
-    label: "Bật lọc đóng hòm đồ",
-    help: "Bật bộ lọc đóng hòm đồ rơi.",
+    label: "Tự động quản lý rớt nguyên liệu",
+    help: "Khi bật, tool sẽ đồng bộ trạng thái rớt nguyên liệu theo cấu hình bên dưới.",
   },
   "item.drops": {
-    label: "Ô lọc hòm đồ",
-    bitLabels: ["Ô 1", "Ô 2", "Ô 3", "Ô 4", "Ô 5", "Ô 6"],
-    help: "Đóng (1) hoặc mở (0) từng ô đồ rơi khi bộ lọc hoạt động.",
+    label: "Trạng thái rớt nguyên liệu",
+    bitLabels: [...MATERIAL_DROP_LABELS],
+    help: "Bật = Đóng rớt (chặn không cho rơi). Tắt = Mở rớt (cho phép rơi bình thường).",
   },
   "revive.on": {
     label: "Tự hồi sinh",
@@ -415,6 +420,102 @@ export function ConfigFieldInput({
         disabled={disabled}
         onChange={(e) => set(Number(e.target.value))}
       />
+    );
+  }
+
+  if (field.path === "item.drops") {
+    const str = String(value ?? "").padEnd(6, "0");
+    const isMasterOn = values ? Number(values["item.dropsOn"]) === 1 : true;
+
+    return (
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="block text-xs font-semibold text-foreground">{label}</span>
+            {help ? <p className="mt-0.5 text-xs text-muted/80">{help}</p> : null}
+          </div>
+          <span className="font-mono text-[11px] text-muted rounded bg-elevated px-2 py-0.5 border border-border/60">
+            Mã: {str}
+          </span>
+        </div>
+
+        {!isMasterOn ? (
+          <div className="rounded-md border border-border/60 bg-elevated/40 p-2.5 text-xs text-muted">
+            Tự động quản lý đang tắt. Cấu hình bên dưới vẫn được lưu và sẽ áp dụng khi bạn bật công tắc chính.
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          {MATERIAL_DROP_SLOTS.map((slot) => {
+            const isClosed = str[slot.index] === "1";
+            return (
+              <div
+                key={slot.index}
+                className={`rounded-md border p-3 transition-colors ${
+                  isClosed
+                    ? "border-warning/40 bg-warning/5"
+                    : "border-border/70 bg-elevated/30"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {slot.label}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold border ${
+                          isClosed
+                            ? "border-warning/40 bg-warning/15 text-warning"
+                            : "border-accent/40 bg-accent/15 text-accent"
+                        }`}
+                      >
+                        {isClosed ? "Đóng rớt" : "Mở rớt"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted">
+                      {isClosed
+                        ? "Chặn không nhận vật phẩm này"
+                        : "Cho phép nhận khi đánh quái"}
+                    </p>
+                  </div>
+                  <button
+                    id={`${id}-${slot.index}`}
+                    type="button"
+                    role="switch"
+                    aria-checked={isClosed}
+                    disabled={disabled}
+                    onClick={() => {
+                      const nextVal = setMaterialDropBit(str, slot.index, !isClosed);
+                      set(nextVal);
+                    }}
+                    className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-100 disabled:opacity-50 ${
+                      isClosed ? "border-accent bg-accent/30" : "border-border bg-elevated"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 size-5 rounded-full transition-[left] duration-100 ${
+                        isClosed ? "left-[22px] bg-accent" : "left-0.5 bg-muted"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">
+                      {slot.label}: {isClosed ? "Đóng rớt" : "Mở rớt"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {error ? (
+          <p className="text-xs font-medium text-danger flex items-center gap-1">
+            <IconWarning />
+            <span>{error}</span>
+          </p>
+        ) : null}
+      </div>
     );
   }
 
