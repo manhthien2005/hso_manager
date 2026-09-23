@@ -496,6 +496,7 @@ function ConfigForm({
                                 onBatchChange={handleBatchChange}
                                 attackMapIntent={attackMapIntent}
                                 onAttackMapIntentChange={handleAttackMapIntentChange}
+                                telemetryMounts={account.snapshot?.mounts}
                               />
                             </div>
                           );

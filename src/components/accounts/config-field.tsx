@@ -23,6 +23,11 @@ import {
   handleAttackMapSelection,
   isAttackSpotConfigured,
 } from "@/lib/attack-spot";
+import {
+  MOUNT_NAMES,
+  parseCarriedMountIds,
+  getMountDisplayLabel,
+} from "@/lib/mounts";
 import { SelectField, TextField, ToggleField } from "@/components/ui/field";
 
 const FIELD_METADATA: Record<
@@ -162,14 +167,7 @@ const FIELD_METADATA: Record<
   "mount.id": {
     label: "Loại thú cưỡi",
     help: "0 = bất kỳ thú cưỡi nào có sẵn.",
-    options: {
-      0: "Thú cưỡi bất kỳ",
-      62: "Thú cưỡi 62",
-      63: "Thú cưỡi 63",
-      64: "Thú cưỡi 64",
-      65: "Thú cưỡi 65",
-      66: "Thú cưỡi 66",
-    },
+    options: MOUNT_NAMES,
   },
   "enhance.on": {
     label: "Tự cường hóa",
@@ -238,6 +236,7 @@ export function ConfigFieldInput({
   onBatchChange,
   attackMapIntent,
   onAttackMapIntentChange,
+  telemetryMounts,
 }: {
   field: ConfigField;
   value: ConfigValue;
@@ -248,6 +247,7 @@ export function ConfigFieldInput({
   onBatchChange?(updates: Partial<Record<ConfigPath, ConfigValue>>): void;
   attackMapIntent?: string | null;
   onAttackMapIntentChange?(intent: string | null): void;
+  telemetryMounts?: string | null;
 }) {
   const id = `cfg-${field.path.replace(/\./g, "-")}`;
   const set = (next: ConfigValue) => onChange(field.path, next);
@@ -286,16 +286,28 @@ export function ConfigFieldInput({
   }
 
   if (field.type === "select") {
+    const isMountId = field.path === "mount.id";
+    const carriedIds =
+      isMountId && telemetryMounts
+        ? new Set(parseCarriedMountIds(telemetryMounts))
+        : null;
+
     return (
       <SelectField
         id={id}
         label={label}
         help={help}
         error={error}
-        options={(field as ConfigFieldSelect).options.map((o) => ({
-          value: String(o.value),
-          label: meta?.options?.[o.value] ?? o.label,
-        }))}
+        options={(field as ConfigFieldSelect).options.map((o) => {
+          let optLabel = meta?.options?.[o.value] ?? o.label;
+          if (isMountId && typeof o.value === "number") {
+            optLabel = getMountDisplayLabel(o.value, carriedIds);
+          }
+          return {
+            value: String(o.value),
+            label: optLabel,
+          };
+        })}
         value={String(value)}
         disabled={disabled}
         onChange={(e) => set(Number(e.target.value))}

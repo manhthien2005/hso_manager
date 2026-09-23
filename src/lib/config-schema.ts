@@ -21,6 +21,7 @@ import {
   normalizeDraftForSave,
   updateLocationWithZoneReset,
 } from "./attack-spot";
+import { MOUNT_CATALOG } from "./mounts";
 
 export { normalizeDraftForSave, updateLocationWithZoneReset };
 
@@ -399,14 +400,10 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
           label: "Mount ID",
           type: "select",
           help: "0 = any available mount.",
-          options: [
-            { value: 0, label: "Any mount" },
-            { value: 62, label: "Mount 62" },
-            { value: 63, label: "Mount 63" },
-            { value: 64, label: "Mount 64" },
-            { value: 65, label: "Mount 65" },
-            { value: 66, label: "Mount 66" },
-          ],
+          options: MOUNT_CATALOG.map((m) => ({
+            value: m.id,
+            label: m.name,
+          })),
         },
       ],
     },
