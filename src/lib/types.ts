@@ -249,6 +249,28 @@ export interface PlayerSnapshot {
   xprate: number;
   ctl: number;         // -1=no property / 0=parse fail / 1=ok
   spotScan?: SpotScanSnapshot;
+  inventory?: InventoryCatalogPayload;
+}
+
+export interface InventoryItemCatalog {
+  slot: number;
+  template_id: number;
+  category: number;
+  base_name: string;
+  display_name: string;
+  level: number;
+  tier: number;
+  count: number;
+  durability: number | null;
+  bind: number | null;
+  icon: number | null;
+  candidate_for_enhancement: boolean;
+}
+
+export interface InventoryCatalogPayload {
+  version: 1;
+  bag_capacity: number;
+  items: InventoryItemCatalog[];
 }
 
 /** Runtime status values for a spot scan operation. */

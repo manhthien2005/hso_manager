@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import { ConfigFieldInput } from "@/components/accounts/config-field";
 import { AutoFarmPanel } from "@/components/accounts/auto-farm-panel";
+import { EnhancementPanel } from "@/components/accounts/enhancement-panel";
 import { NotFoundPanel } from "@/components/not-found-panel";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -460,6 +461,17 @@ function ConfigForm({
                       onAttackMapIntentChange={handleAttackMapIntentChange}
                       isActive={isActive}
                       account={account}
+                    />
+                  ) : section.id === "enhance" ? (
+                    <EnhancementPanel
+                      draft={draft}
+                      errors={errors}
+                      disabled={saving}
+                      onChange={handleChange}
+                      onBatchChange={handleBatchChange}
+                      account={account}
+                      resetKey={resetKey}
+                      ctlVersion={targetControlVersion}
                     />
                   ) : (
                     <Card className="overflow-hidden border border-border bg-surface shadow-xs">

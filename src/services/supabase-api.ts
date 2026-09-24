@@ -29,6 +29,7 @@ import {
   validateDraft,
 } from "@/lib/config-schema";
 import { isValidCharacterSlot } from "@/lib/capabilities";
+import { parseInventoryPayload } from "@/lib/inventory";
 import type {
   Account,
   AccountConfig,
@@ -233,7 +234,7 @@ export function mapPlayerSnapshot(
   }
 
   // Preserve every currently supported PlayerSnapshot field and unknown/additional keys
-  const { spot_scan, spotScan, ...telemetry } = raw;
+  const { spot_scan, spotScan, inventory, ...telemetry } = raw;
   const snapshot = { ...telemetry } as unknown as PlayerSnapshot;
 
   const rawSpotScan = spot_scan ?? spotScan;
@@ -241,6 +242,13 @@ export function mapPlayerSnapshot(
     const parsed = mapSpotScanSnapshot(rawSpotScan);
     if (parsed) {
       snapshot.spotScan = parsed;
+    }
+  }
+
+  if (inventory !== undefined && inventory !== null) {
+    const parsedInventory = parseInventoryPayload(inventory);
+    if (parsedInventory) {
+      snapshot.inventory = parsedInventory;
     }
   }
 
