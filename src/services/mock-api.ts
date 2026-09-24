@@ -456,7 +456,7 @@ export const mockApi: ZeusApi = {
       );
     }
 
-    const draft = defaultControlDraft();
+    const draft = defaultControlDraft(ctlVersion);
     const errors = validateDraft(draft, ctlVersion);
     if (Object.keys(errors).length > 0) {
       throw new ApiError(
@@ -464,7 +464,7 @@ export const mockApi: ZeusApi = {
         `Default control block is invalid for CTL version ${ctlVersion}`,
       );
     }
-    const control = draftToControlRecord(draft);
+    const control = draftToControlRecord(draft, ctlVersion);
 
     const newAccount: Account = {
       id: nextId("acc"),

@@ -15,12 +15,14 @@ import {
   defaultControlDraft,
   normalizeDraftForSave,
   validateDraft,
+  determineControlVersionForSave,
   type ConfigDraft,
   type ConfigErrors,
   type ConfigPath,
   type ConfigValue,
 } from "@/lib/config-schema";
 import { isAttackMapSelectionDirty } from "@/lib/attack-spot";
+import { isVisualQoLAvailableOnDevice } from "@/lib/capabilities";
 import { describeError } from "@/services/api";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
 import { useToast } from "@/store/toast-store";
@@ -97,6 +99,10 @@ const SECTION_METADATA: Record<string, { title: string; description: string }> =
     title: "Phó bản",
     description: "Tự động tham gia phó bản.",
   },
+  visual_qol: {
+    title: "Giao diện & Hiệu ứng",
+    description: "Tùy chọn hiển thị và hiệu ứng hình ảnh giúp giảm tải cho game.",
+  },
 };
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
@@ -107,6 +113,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   mount: <IconMount />,
   enhance: <IconSparkle />,
   dungeon: <IconDoor />,
+  visual_qol: <IconEye />,
 };
 
 // ── Config Form ───────────────────────────────────────────────────────────────
@@ -122,14 +129,26 @@ function ConfigForm({
   const { push } = useToast();
 
   const jarCtlVersion = device?.jar_ctl_version ?? null;
-  const sections = jarCtlVersion !== null ? CONTROL_SCHEMA[jarCtlVersion] : undefined;
-  const visibleSections = sections ? sections.filter((s) => !s.hidden) : undefined;
-  const versionGated = jarCtlVersion === null || visibleSections === undefined;
+  const isQoLCapable = isVisualQoLAvailableOnDevice(device);
+  const accountControlVersion = account.control_version === 14 ? 14 : 13;
+  const isExistingV14 = accountControlVersion === 14;
+
+  const [qolEdited, setQolEdited] = useState(false);
+
+  const targetControlVersion = determineControlVersionForSave({
+    accountControlVersion,
+    isDeviceQoLCapable: isQoLCapable,
+    qolSettingsEdited: qolEdited,
+  });
+
+  const sections = CONTROL_SCHEMA[14];
+  const visibleSections = sections.filter((s) => !s.hidden);
+  const versionGated = jarCtlVersion === null || !CONTROL_SCHEMA[jarCtlVersion];
 
   const [draft, setDraft] = useState<ConfigDraft>(() =>
     account.control
-      ? controlRecordToDraft(account.control)
-      : defaultControlDraft(),
+      ? controlRecordToDraft(account.control, accountControlVersion)
+      : defaultControlDraft(accountControlVersion),
   );
   const draftRef = useRef<ConfigDraft>(draft);
   useEffect(() => {
@@ -158,18 +177,22 @@ function ConfigForm({
   const [touched, setTouched] = useState(false);
   const saving = isPending(pendingKey.config(account.id));
   const persistedDraft = account.control
-    ? controlRecordToDraft(account.control)
-    : defaultControlDraft();
+    ? controlRecordToDraft(account.control, accountControlVersion)
+    : defaultControlDraft(accountControlVersion);
 
   const rawFieldsDirty =
-    JSON.stringify(controlRecordToDraft(draftToControlRecord(draft))) !==
+    JSON.stringify(controlRecordToDraft(draftToControlRecord(draft, targetControlVersion), targetControlVersion)) !==
     JSON.stringify(persistedDraft);
+  const qolFieldsDirty =
+    isQoLCapable &&
+    (draft["ui.effects"] !== persistedDraft["ui.effects"] ||
+      draft["ui.hidePlayers"] !== persistedDraft["ui.hidePlayers"]);
   const attackMapDirty = isAttackMapSelectionDirty(
     persistedDraft,
     draft,
     attackMapIntent,
   );
-  const dirty = rawFieldsDirty || attackMapDirty;
+  const dirty = rawFieldsDirty || qolFieldsDirty || attackMapDirty;
   const offline = device?.status !== "online";
   const errorCount = Object.keys(errors).length;
 
@@ -185,31 +208,37 @@ function ConfigForm({
   );
 
   function handleChange(path: ConfigPath, value: ConfigValue) {
+    if (path === "ui.effects" || path === "ui.hidePlayers") {
+      setQolEdited(true);
+    }
     const next = { ...draftRef.current, [path]: value };
     draftRef.current = next;
     setDraft(next);
-    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0, attackMapIntentRef.current));
+    if (touched) setErrors(validateDraft(next, targetControlVersion, attackMapIntentRef.current));
   }
 
   function handleBatchChange(updates: Partial<Record<ConfigPath, ConfigValue>>) {
+    if ("ui.effects" in updates || "ui.hidePlayers" in updates) {
+      setQolEdited(true);
+    }
     const next = { ...draftRef.current, ...updates };
     draftRef.current = next;
     setDraft(next);
-    if (touched) setErrors(validateDraft(next, jarCtlVersion ?? 0, attackMapIntentRef.current));
+    if (touched) setErrors(validateDraft(next, targetControlVersion, attackMapIntentRef.current));
   }
 
   function handleAttackMapIntentChange(nextIntent: string | null) {
     attackMapIntentRef.current = nextIntent;
     setAttackMapIntent(nextIntent);
     if (touched) {
-      setErrors(validateDraft(draftRef.current, jarCtlVersion ?? 0, nextIntent));
+      setErrors(validateDraft(draftRef.current, targetControlVersion, nextIntent));
     }
   }
 
   async function handleSave() {
-    if (jarCtlVersion === null || !sections) return;
+    if (jarCtlVersion === null || !CONTROL_SCHEMA[jarCtlVersion]) return;
     const currentDraft = draftRef.current;
-    const nextErrors = validateDraft(currentDraft, jarCtlVersion, attackMapIntentRef.current);
+    const nextErrors = validateDraft(currentDraft, targetControlVersion, attackMapIntentRef.current);
     setErrors(nextErrors);
     setTouched(true);
     if (Object.keys(nextErrors).length > 0) {
@@ -218,20 +247,21 @@ function ConfigForm({
     }
     try {
       const normalizedDraft = normalizeDraftForSave(currentDraft);
-      const control = draftToControlRecord(normalizedDraft);
+      const control = draftToControlRecord(normalizedDraft, targetControlVersion);
       await saveConfig(account.id, {
         control,
-        controlVersion: jarCtlVersion,
+        controlVersion: targetControlVersion,
       });
       draftRef.current = normalizedDraft;
       setDraft(normalizedDraft);
       setTouched(false);
+      setQolEdited(false);
       attackMapIntentRef.current = null;
       setAttackMapIntent(null);
       push(
         "success",
         "Đã lưu cấu hình",
-        `Đã lưu cấu hình Control v${jarCtlVersion} vào hệ thống điều khiển cho ${device?.name ?? "máy chủ"}`,
+        `Đã lưu cấu hình Control v${targetControlVersion} vào hệ thống điều khiển cho ${device?.name ?? "máy chủ"}`,
       );
     } catch (error) {
       push("error", "Lưu cấu hình thất bại", describeError(error));
@@ -240,12 +270,13 @@ function ConfigForm({
 
   function handleReset() {
     const next = account.control
-      ? controlRecordToDraft(account.control)
-      : defaultControlDraft();
+      ? controlRecordToDraft(account.control, accountControlVersion)
+      : defaultControlDraft(accountControlVersion);
     draftRef.current = next;
     setDraft(next);
     setErrors({});
     setTouched(false);
+    setQolEdited(false);
     attackMapIntentRef.current = null;
     setAttackMapIntent(null);
     setResetKey((k) => k + 1);
@@ -422,7 +453,7 @@ function ConfigForm({
                       persistedDraft={persistedDraft}
                       errors={errors}
                       disabled={saving}
-                      ctlVersion={jarCtlVersion!}
+                      ctlVersion={targetControlVersion}
                       onChange={handleChange}
                       onBatchChange={handleBatchChange}
                       attackMapIntent={attackMapIntent}
@@ -475,11 +506,35 @@ function ConfigForm({
                         </div>
                       ) : null}
 
+                      {/* Visual QoL Compatibility Banner when device not capable */}
+                      {section.id === "visual_qol" && !isQoLCapable ? (
+                        <div
+                          id="visual-qol-compatibility-banner"
+                          className="m-4 mb-2 rounded-md border border-warning/35 bg-warning/10 p-3 text-xs text-warning sm:m-5 sm:mb-2 flex items-start gap-2.5"
+                        >
+                          <IconWarning className="size-4 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="font-semibold">
+                              {isExistingV14
+                                ? "Máy chủ hiện tại chưa hỗ trợ thiết lập Giao diện & Hiệu ứng"
+                                : "Cần cập nhật runtime để sử dụng tính năng này"}
+                            </p>
+                            <p className="text-muted leading-relaxed">
+                              {isExistingV14
+                                ? "Cấu hình đã lưu trước đó vẫn được giữ nguyên đầy đủ. Vui lòng cập nhật phiên bản runtime mới hơn trên máy chủ để có thể áp dụng các tùy chọn này."
+                                : "Tính năng tắt hiệu ứng và ẩn người chơi yêu cầu phiên bản runtime mới hơn trên máy chủ."}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+
                       {/* Section Fields */}
                       <div className="divide-y divide-border/40 px-4 sm:px-5">
                         {section.fields.map((field) => {
                           const isFieldDisabled =
-                            saving || (section.id === "travel" && field.path === "nav.target" && isAutoFarmActive);
+                            saving ||
+                            (section.id === "travel" && field.path === "nav.target" && isAutoFarmActive) ||
+                            (section.id === "visual_qol" && !isQoLCapable);
 
                           return (
                             <div
@@ -681,6 +736,15 @@ function IconSliders() {
       <circle cx="5.5" cy="4" r="1.5" fill="currentColor" />
       <circle cx="10.5" cy="8" r="1.5" fill="currentColor" />
       <circle cx="6.5" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconEye({ className = "size-3.5 shrink-0" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

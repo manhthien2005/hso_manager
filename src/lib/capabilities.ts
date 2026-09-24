@@ -12,6 +12,7 @@ import type { CharacterSlot, Device } from "./types";
  * Producer: zeus-agent (commit bcfd8c78a57786232dd07b10580be510ae977b0b).
  */
 export const CHARACTER_SLOT_CAPABILITY_TOKEN = "character-slot-v1";
+export const VISUAL_QOL_CAPABILITY_TOKEN = "visual-qol-v1";
 
 /**
  * Device heartbeat freshness threshold: 5 minutes (300,000 ms).
@@ -45,16 +46,19 @@ export function isValidCharacterSlot(slot: unknown): slot is CharacterSlot {
 }
 
 /**
- * Parses an agentVersion string and detects whether it contains the exact
- * `character-slot-v1` capability token within its SemVer build metadata.
+ * Parses an agentVersion string and detects whether it contains an exact
+ * capability token within its SemVer build metadata.
  *
  * Requirements:
  * - Build metadata appears after the first '+' delimiter.
- * - Build metadata may contain dot-separated identifiers (e.g. 0.1.0+sha.abcd.character-slot-v1).
+ * - Build metadata may contain dot-separated identifiers (e.g. 0.1.0+sha.abcd.visual-qol-v1).
  * - Exact token equality is required (no arbitrary substring or prefix/suffix containment).
  * - Malformed, missing, null, undefined, or "unknown" versions return false.
  */
-export function hasCharacterSlotCapability(agentVersion: string | null | undefined): boolean {
+export function hasBuildMetadataToken(
+  agentVersion: string | null | undefined,
+  targetToken: string,
+): boolean {
   if (typeof agentVersion !== "string") {
     return false;
   }
@@ -83,21 +87,29 @@ export function hasCharacterSlotCapability(agentVersion: string | null | undefin
 
   // Check each dot-separated identifier for exact token match
   const identifiers = buildMetadata.split(".").map((id) => id.trim());
-  return identifiers.some((token) => token === CHARACTER_SLOT_CAPABILITY_TOKEN);
+  return identifiers.some((token) => token === targetToken);
 }
 
 /**
- * Evaluates whether a device is currently capable, online, and fresh enough
- * to safely select or switch to Character Slot 2 or 3.
- *
- * Fail-closed conditions:
- * - Device is absent, null, or undefined -> false
- * - Device status is not "online" (offline or error) -> false
- * - Device has never reported a heartbeat (lastSeen === null) -> false
- * - Device heartbeat is older than DEVICE_FRESHNESS_THRESHOLD_MS (5 min) -> false
- * - Device agentVersion does not advertise character-slot-v1 -> false
+ * Parses an agentVersion string and detects whether it contains the exact
+ * `character-slot-v1` capability token within its SemVer build metadata.
  */
-export function isCharacterSlotAvailableOnDevice(
+export function hasCharacterSlotCapability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, CHARACTER_SLOT_CAPABILITY_TOKEN);
+}
+
+/**
+ * Parses an agentVersion string and detects whether it contains the exact
+ * `visual-qol-v1` capability token within its SemVer build metadata.
+ */
+export function hasVisualQoLCapability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, VISUAL_QOL_CAPABILITY_TOKEN);
+}
+
+/**
+ * Evaluates whether a device is currently online and fresh within DEVICE_FRESHNESS_THRESHOLD_MS (5 min).
+ */
+export function isDeviceOnlineAndFresh(
   device: Device | null | undefined,
   now = Date.now(),
 ): boolean {
@@ -121,8 +133,42 @@ export function isCharacterSlotAvailableOnDevice(
     return false;
   }
 
-  // 4. Exact capability token must be present
-  return hasCharacterSlotCapability(device.agentVersion);
+  return true;
+}
+
+/**
+ * Evaluates whether a device is currently capable, online, and fresh enough
+ * to safely select or switch to Character Slot 2 or 3.
+ */
+export function isCharacterSlotAvailableOnDevice(
+  device: Device | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!isDeviceOnlineAndFresh(device, now)) {
+    return false;
+  }
+  return hasCharacterSlotCapability(device!.agentVersion);
+}
+
+/**
+ * Evaluates whether a device is currently capable, online, and fresh enough
+ * to safely configure or promote Visual QoL (Control v14).
+ *
+ * Fail-closed conditions:
+ * - Device is absent, null, or undefined -> false
+ * - Device status is not "online" (offline or error) -> false
+ * - Device has never reported a heartbeat (lastSeen === null) -> false
+ * - Device heartbeat is older than DEVICE_FRESHNESS_THRESHOLD_MS (5 min) -> false
+ * - Device agentVersion does not advertise visual-qol-v1 -> false
+ */
+export function isVisualQoLAvailableOnDevice(
+  device: Device | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!isDeviceOnlineAndFresh(device, now)) {
+    return false;
+  }
+  return hasVisualQoLCapability(device!.agentVersion);
 }
 
 /**

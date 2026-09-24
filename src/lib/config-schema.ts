@@ -66,7 +66,17 @@ export type ConfigPath =
   | "enhance.charm"
   | "dungeon.on"
   | "dungeon.max"
-  | "dungeon.schedule";
+  | "dungeon.schedule"
+  | "ui.effects"
+  | "ui.hidePlayers";
+
+export const VISUAL_QOL_KEYS = ["ui.effects", "ui.hidePlayers"] as const;
+export type VisualQoLPath = (typeof VISUAL_QOL_KEYS)[number];
+
+export const VISUAL_QOL_DEFAULTS: Record<VisualQoLPath, ConfigValue> = {
+  "ui.effects": 1,
+  "ui.hidePlayers": 0,
+};
 
 export type ConfigDraft = Record<ConfigPath, ConfigValue>;
 export type ConfigErrors = Partial<Record<ConfigPath, string>>;
@@ -146,8 +156,7 @@ export interface ConfigSection {
   fields: ConfigField[];
 }
 
-export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
-  13: [
+const CONTROL_SCHEMA_V13: ConfigSection[] = [
     // ── Auto Farm ─────────────────────────────────────────────────────────
     {
       id: "auto_farm",
@@ -495,13 +504,46 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
         },
       ],
     },
+  ];
+
+const VISUAL_QOL_SECTION: ConfigSection = {
+  id: "visual_qol",
+  title: "Giao diện & Hiệu ứng",
+  description: "Tùy chọn hiển thị và hiệu ứng hình ảnh.",
+  fields: [
+    {
+      path: "ui.effects",
+      label: "Hiệu ứng hình ảnh",
+      type: "toggle",
+      help: "Tắt hiệu ứng giúp giảm tải hiển thị ở khu vực đông người.",
+    },
+    {
+      path: "ui.hidePlayers",
+      label: "Người chơi khác",
+      type: "select",
+      help: "Cấu hình hiển thị nhân vật người chơi khác để giảm tải.",
+      options: [
+        { value: 0, label: "Hiện tất cả" },
+        { value: 1, label: "Ẩn đơn giản / hiện bóng" },
+        { value: 2, label: "Ẩn toàn bộ / chỉ hiện tên" },
+      ],
+    },
+  ],
+};
+
+export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
+  13: CONTROL_SCHEMA_V13,
+  14: [
+    ...CONTROL_SCHEMA_V13.filter((s) => s.id !== "hidden_internal"),
+    VISUAL_QOL_SECTION,
+    ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
   ],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Default control draft for a brand-new account (all modules off). */
-export function defaultControlDraft(): ConfigDraft {
+export function defaultControlDraft(version: number = 13): ConfigDraft {
   return {
     "atk.mode": 0,
     "atk.map": 0,
@@ -537,6 +579,8 @@ export function defaultControlDraft(): ConfigDraft {
     "dungeon.on": 0,
     "dungeon.max": -1,
     "dungeon.schedule": -1,
+    "ui.effects": 1,
+    "ui.hidePlayers": 0,
   };
 }
 
@@ -583,6 +627,8 @@ export const CONFIG_FIELD_LABELS_VI: Partial<Record<ConfigPath, string>> = {
   "atk.zone": "Khu vực",
   "atk.x": "Tọa độ X",
   "atk.y": "Tọa độ Y",
+  "ui.effects": "Hiệu ứng hình ảnh",
+  "ui.hidePlayers": "Người chơi khác",
 };
 
 /** Return per-field error messages. Empty object = draft is safe to save. */
@@ -607,6 +653,21 @@ export function validateDraft(
 
       const raw = draft[field.path];
       const fieldLabel = CONFIG_FIELD_LABELS_VI[field.path] ?? field.label;
+
+      if (field.path === "ui.effects") {
+        const n = Number(raw);
+        if (
+          raw === "" ||
+          raw === undefined ||
+          raw === null ||
+          Number.isNaN(n) ||
+          !Number.isInteger(n) ||
+          (n !== 0 && n !== 1)
+        ) {
+          errors[field.path] = `${fieldLabel}: tùy chọn không hợp lệ ${String(raw)}`;
+          continue;
+        }
+      }
 
       if (field.type === "toggle") continue;
       if (field.type === "action") continue;
@@ -669,8 +730,9 @@ export function validateDraft(
 /** Convert a raw control record from Supabase/mock to a ConfigDraft. */
 export function controlRecordToDraft(
   control: Record<string, unknown>,
+  targetVersion: number = 13,
 ): ConfigDraft {
-  const defaults = defaultControlDraft();
+  const defaults = defaultControlDraft(targetVersion);
   const draft = { ...defaults };
   for (const key of Object.keys(defaults) as ConfigPath[]) {
     if (key in control && control[key] !== undefined && control[key] !== null) {
@@ -683,11 +745,46 @@ export function controlRecordToDraft(
   return draft;
 }
 
-/** Convert a ConfigDraft back to a plain Record for Supabase storage. */
+/** Convert a ConfigDraft back to a plain Record for Supabase storage based on target CTL version. */
 export function draftToControlRecord(
   draft: ConfigDraft,
+  targetVersion: number = 13,
 ): Record<string, unknown> {
-  return { ...draft } as Record<string, unknown>;
+  const record: Record<string, unknown> = {};
+  const sections = CONTROL_SCHEMA[targetVersion] ?? CONTROL_SCHEMA[13];
+  const allowedKeys = new Set(sections.flatMap((s) => s.fields.map((f) => f.path)));
+  for (const key of allowedKeys) {
+    if (key in draft && draft[key] !== undefined) {
+      record[key] = draft[key];
+    }
+  }
+  return record;
+}
+
+export interface VersionSelectionInput {
+  accountControlVersion?: number | null;
+  isDeviceQoLCapable: boolean;
+  qolSettingsEdited?: boolean;
+}
+
+/**
+ * Determines whether to save an account configuration as Control v13 or Control v14.
+ *
+ * Rules:
+ * - Existing v14 account => always remains v14 (never silently downgrade).
+ * - Existing v13 account + device capable + user edited QoL setting => promote to v14.
+ * - Existing v13 account + unrelated save => preserve v13.
+ * - Existing v13 account + device not capable => preserve v13.
+ */
+export function determineControlVersionForSave(input: VersionSelectionInput): number {
+  const currentVersion = input.accountControlVersion === 14 ? 14 : 13;
+  if (currentVersion === 14) {
+    return 14;
+  }
+  if (input.isDeviceQoLCapable && input.qolSettingsEdited) {
+    return 14;
+  }
+  return 13;
 }
 
 // ── Legacy compat — keep until mock-api and seed-data are migrated ──────────

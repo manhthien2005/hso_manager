@@ -87,6 +87,19 @@ const FIELD_METADATA: Record<
     label: "Hiển thị phạm vi tấn công",
     help: "Hiển thị vòng tròn bán kính tấn công trên màn hình (chỉ hiển thị cục bộ).",
   },
+  "ui.effects": {
+    label: "Hiệu ứng hình ảnh",
+    help: "Tắt hiệu ứng giúp giảm tải hiển thị ở khu vực đông người.",
+  },
+  "ui.hidePlayers": {
+    label: "Người chơi khác",
+    help: "Cấu hình hiển thị nhân vật người chơi khác để giảm tải.",
+    options: {
+      0: "Hiện tất cả",
+      1: "Ẩn đơn giản / hiện bóng",
+      2: "Ẩn toàn bộ / chỉ hiện tên",
+    },
+  },
   "atk.zoneMode": {
     label: "Chế độ khu vực",
     options: {

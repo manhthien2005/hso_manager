@@ -465,7 +465,7 @@ export class SupabaseApi implements ZeusApi {
     }
 
     // 3. Build and validate canonical default control block
-    const draft = defaultControlDraft();
+    const draft = defaultControlDraft(ctlVersion);
     const validationErrors = validateDraft(draft, ctlVersion);
     if (Object.keys(validationErrors).length > 0) {
       throw new ApiError(
@@ -473,7 +473,7 @@ export class SupabaseApi implements ZeusApi {
         `Default control block is invalid for CTL version ${ctlVersion}: ${Object.values(validationErrors).join(", ")}`,
       );
     }
-    const control = draftToControlRecord(draft);
+    const control = draftToControlRecord(draft, ctlVersion);
 
     // 4. Fetch canonical device sealing pubkey RPC
     const { data: pubkey, error: pubkeyError } = await supabase.rpc(
