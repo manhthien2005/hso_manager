@@ -382,3 +382,128 @@ export interface UpdateFarmSpotInput {
   y?: number;
   capturedZone?: number;
 }
+
+// =============================================================================
+// Enhancement Queue v1 Domain Types (Task ENHANCE-05A)
+// =============================================================================
+
+export type EnhancementQueueJobStatus =
+  | "DRAFT"
+  | "QUEUED"
+  | "RUNNING"
+  | "PAUSING"
+  | "PAUSED"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "MANUAL_REVIEW_REQUIRED";
+
+export type EnhancementQueueItemStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "MANUAL_REVIEW_REQUIRED";
+
+export type EnhancementAttemptPhase =
+  | "NONE"
+  | "PREPARING"
+  | "READY_TO_EXECUTE"
+  | "EXECUTE_MAY_HAVE_BEEN_SENT"
+  | "WAITING_RESULT"
+  | "WAITING_SETTLEMENT"
+  | "SETTLED";
+
+export type EnhancementPaymentType = "GOLD" | "GEMS";
+
+export type EnhancementCharmMode =
+  | "NONE"
+  | "CO_3_LA"
+  | "CO_4_LA"
+  | "AUTO_POLICY"
+  | "THREE_LEAF"
+  | "FOUR_LEAF";
+
+export interface EnhancementQueueJob {
+  id: string;
+  accountId: string;
+  deviceId: string;
+  userId: string;
+  status: EnhancementQueueJobStatus;
+  activeItemId: string | null;
+  activeAttemptUuid: string | null;
+  activeCommandId: string | null;
+  totalItems: number;
+  completedItems: number;
+  claimedBy: string | null;
+  claimedAt: string | null;
+  claimExpiresAt: string | null;
+  pauseRequestedAt: string | null;
+  cancelRequestedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  updatedAt: string;
+}
+
+export interface EnhancementQueueItem {
+  id: string;
+  jobId: string;
+  accountId: string;
+  userId: string;
+  queueOrder: number;
+  capturedSlot: number;
+  templateId: number;
+  category: number;
+  baseName: string;
+  tier: number;
+  icon: number | null;
+  initialLevel: number;
+  currentLevel: number;
+  targetLevel: number;
+  paymentType: EnhancementPaymentType;
+  charmMode: EnhancementCharmMode;
+  status: EnhancementQueueItemStatus;
+  attemptCount: number;
+
+  // Durable attempt phase tracking
+  activeAttemptUuid: string | null;
+  attemptPhase: EnhancementAttemptPhase;
+  attemptExpectedLevel: number | null;
+  attemptTargetLevel: number | null;
+  attemptStartedAt: string | null;
+  executeMayHaveBeenSentAt: string | null;
+  attemptSettledAt: string | null;
+  lastResultCode: string | null;
+
+  // Authoritative item spend
+  actualGoldSpent: number;
+  actualGemSpent: number;
+  actualMaterial1Spent: number;
+  actualMaterial2Spent: number;
+  actualMaterial3Spent: number;
+  actualMaterial4Spent: number;
+  actualCharmSpent: number;
+
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnhancementQueueJobSummary extends EnhancementQueueJob {
+  actualGoldSpent: number;
+  actualGemSpent: number;
+  actualMaterial1Spent: number;
+  actualMaterial2Spent: number;
+  actualMaterial3Spent: number;
+  actualMaterial4Spent: number;
+  actualCharmSpent: number;
+  totalAttemptCount: number;
+}
+

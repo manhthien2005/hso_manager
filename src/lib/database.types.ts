@@ -140,8 +140,127 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["farm_spots"]["Insert"]>;
         Relationships: [];
       };
+      enhancement_queue_jobs: {
+        Row: {
+          id: string;
+          account_id: string;
+          device_id: string;
+          user_id: string;
+          status: string; // "DRAFT" | "QUEUED" | "RUNNING" | "PAUSING" | "PAUSED" | "COMPLETED" | "FAILED" | "CANCELLED" | "MANUAL_REVIEW_REQUIRED"
+          active_item_id: string | null;
+          active_attempt_uuid: string | null;
+          active_command_id: string | null;
+          total_items: number;
+          completed_items: number;
+          claimed_by: string | null;
+          claimed_at: string | null;
+          claim_expires_at: string | null;
+          pause_requested_at: string | null;
+          cancel_requested_at: string | null;
+          error_code: string | null;
+          error_message: string | null;
+          created_at: string;
+          started_at: string | null;
+          finished_at: string | null;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"], "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["enhancement_queue_jobs"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "enhancement_queue_jobs_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "enhancement_queue_jobs_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "devices";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      enhancement_queue_items: {
+        Row: {
+          id: string;
+          job_id: string;
+          account_id: string;
+          user_id: string;
+          queue_order: number;
+          captured_slot: number;
+          template_id: number;
+          category: number;
+          base_name: string;
+          tier: number;
+          icon: number | null;
+          initial_level: number;
+          current_level: number;
+          target_level: number;
+          payment_type: string; // "GOLD" | "GEMS"
+          charm_mode: string; // "NONE" | "CO_3_LA" | "CO_4_LA" | "AUTO_POLICY" | "THREE_LEAF" | "FOUR_LEAF"
+          status: string; // "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "MANUAL_REVIEW_REQUIRED"
+          attempt_count: number;
+          active_attempt_uuid: string | null;
+          attempt_phase: string; // "NONE" | "PREPARING" | "READY_TO_EXECUTE" | "EXECUTE_MAY_HAVE_BEEN_SENT" | "WAITING_RESULT" | "WAITING_SETTLEMENT" | "SETTLED"
+          attempt_expected_level: number | null;
+          attempt_target_level: number | null;
+          attempt_started_at: string | null;
+          execute_may_have_been_sent_at: string | null;
+          attempt_settled_at: string | null;
+          last_result_code: string | null;
+          actual_gold_spent: number;
+          actual_gem_spent: number;
+          actual_material_1_spent: number;
+          actual_material_2_spent: number;
+          actual_material_3_spent: number;
+          actual_material_4_spent: number;
+          actual_charm_spent: number;
+          error_code: string | null;
+          error_message: string | null;
+          started_at: string | null;
+          finished_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["enhancement_queue_items"]["Row"], "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["enhancement_queue_items"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "enhancement_queue_items_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "enhancement_queue_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
-    Views: Record<string, never>;
+    Views: {
+      enhancement_queue_job_summaries: {
+        Row: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"] & {
+          actual_gold_spent: number;
+          actual_gem_spent: number;
+          actual_material_1_spent: number;
+          actual_material_2_spent: number;
+          actual_material_3_spent: number;
+          actual_material_4_spent: number;
+          actual_charm_spent: number;
+          total_attempt_count: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       claim_device: {
         Args: {
@@ -186,8 +305,15 @@ export interface Database {
         };
         Returns: string;
       };
+      publish_enhancement_queue_job: {
+        Args: {
+          p_job_id: string;
+        };
+        Returns: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
 }
+
