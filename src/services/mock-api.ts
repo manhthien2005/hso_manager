@@ -29,10 +29,15 @@ import type {
   CommandType,
   Device,
   EnhancementQueueJob,
+  EnhancementQueueItem,
   ViewerSession,
 } from "@/lib/types";
 import { hasEnhancementQueueCapability } from "@/lib/capabilities";
 import { clampNumber } from "@/lib/format";
+import {
+  type AuthoritativeQueueWithItems,
+  deriveQueueSpend,
+} from "@/lib/queue-progress";
 
 /**
  * In-memory implementation of `ZeusApi`.
@@ -60,6 +65,7 @@ interface MockState {
   listeners: Set<UpdateListener>;
   viewer: Map<string, ViewerSession>;
   queueJobs: Map<string, EnhancementQueueJob>;
+  queueItems: Map<string, EnhancementQueueItem[]>;
   /** `window.setInterval` handle; null when the simulation is idle. */
   tick: number | null;
 }
@@ -72,6 +78,7 @@ function load(): MockState {
       commands: [],
       viewer: new Map(),
       queueJobs: new Map(),
+      queueItems: new Map(),
       listeners: new Set(),
       tick: null,
     };
@@ -755,6 +762,50 @@ export const mockApi: ZeusApi = {
       updatedAt: new Date().toISOString(),
     };
     current.queueJobs.set(job.id, job);
+
+    const queueItems: EnhancementQueueItem[] = params.items.map((it, idx) => ({
+      id: nextId("eq_item"),
+      jobId: job.id,
+      accountId: account.id,
+      userId: device.userId,
+      queueOrder: it.queueOrder ?? idx + 1,
+      capturedSlot: it.capturedSlot,
+      templateId: it.templateId,
+      category: it.category,
+      baseName: it.baseName,
+      tier: it.tier,
+      icon: it.icon ?? null,
+      initialLevel: it.initialLevel,
+      currentLevel: it.initialLevel,
+      targetLevel: it.targetLevel,
+      paymentType: it.paymentType,
+      charmMode: it.charmMode,
+      status: "PENDING",
+      attemptCount: 0,
+      activeAttemptUuid: null,
+      attemptPhase: "NONE",
+      attemptExpectedLevel: null,
+      attemptTargetLevel: null,
+      attemptStartedAt: null,
+      executeMayHaveBeenSentAt: null,
+      attemptSettledAt: null,
+      lastResultCode: null,
+      actualGoldSpent: 0,
+      actualGemSpent: 0,
+      actualMaterial1Spent: 0,
+      actualMaterial2Spent: 0,
+      actualMaterial3Spent: 0,
+      actualMaterial4Spent: 0,
+      actualCharmSpent: 0,
+      errorCode: null,
+      errorMessage: null,
+      startedAt: null,
+      finishedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+    current.queueItems.set(job.id, queueItems);
+
     return structuredClone(job);
   },
 
@@ -784,5 +835,51 @@ export const mockApi: ZeusApi = {
         ["QUEUED", "RUNNING", "PAUSING", "PAUSED", "MANUAL_REVIEW_REQUIRED"].includes(j.status),
     );
     return job ? structuredClone(job) : null;
+  },
+
+  async getActiveQueueWithItems(accountId: string): Promise<AuthoritativeQueueWithItems | null> {
+    await delay();
+    const current = load();
+    const job = Array.from(current.queueJobs.values()).find(
+      (j) =>
+        j.accountId === accountId &&
+        ["QUEUED", "RUNNING", "PAUSING", "PAUSED", "MANUAL_REVIEW_REQUIRED"].includes(j.status),
+    );
+    if (!job) return null;
+    const items = current.queueItems.get(job.id) ?? [];
+    const derivedSpend = deriveQueueSpend(items);
+    return {
+      job: structuredClone(job),
+      items: structuredClone(items),
+      derivedSpend,
+    };
+  },
+
+  async getRecentQueueHistory(accountId: string, limit = 5): Promise<AuthoritativeQueueWithItems[]> {
+    await delay();
+    const current = load();
+    const jobs = Array.from(current.queueJobs.values())
+      .filter(
+        (j) =>
+          j.accountId === accountId &&
+          ["COMPLETED", "FAILED", "CANCELLED"].includes(j.status),
+      )
+      .slice(0, limit);
+
+    return jobs.map((job) => {
+      const items = current.queueItems.get(job.id) ?? [];
+      const derivedSpend = deriveQueueSpend(items);
+      return {
+        job: structuredClone(job),
+        items: structuredClone(items),
+        derivedSpend,
+      };
+    });
+  },
+
+  subscribeQueueUpdates(_accountId: string, _onUpdate: () => void): () => void {
+    void _accountId;
+    void _onUpdate;
+    return () => {};
   },
 };

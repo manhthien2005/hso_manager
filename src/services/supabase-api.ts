@@ -60,7 +60,10 @@ import {
   executePauseQueueFlow,
   executeCancelQueueFlow,
   mapQueueJobRow,
+  fetchActiveQueueWithItems,
+  fetchRecentQueueHistory,
 } from "@/services/queue-service";
+import type { AuthoritativeQueueWithItems } from "@/lib/queue-progress";
 import type {
   ZeusApi,
   LoginCredentials,
@@ -1170,6 +1173,42 @@ export class SupabaseApi implements ZeusApi {
 
     if (error || !data) return null;
     return mapQueueJobRow(data);
+  }
+
+  async getActiveQueueWithItems(accountId: string): Promise<AuthoritativeQueueWithItems | null> {
+    return fetchActiveQueueWithItems(supabase, accountId);
+  }
+
+  async getRecentQueueHistory(accountId: string, limit = 5): Promise<AuthoritativeQueueWithItems[]> {
+    return fetchRecentQueueHistory(supabase, accountId, limit);
+  }
+
+  subscribeQueueUpdates(accountId: string, onUpdate: () => void): () => void {
+    if (!accountId) return () => {};
+    const channelName = `eq_jobs_${accountId}_${Math.random().toString(36).slice(2, 8)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "enhancement_queue_jobs",
+          filter: `account_id=eq.${accountId}`,
+        },
+        () => {
+          onUpdate();
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          onUpdate();
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }
 }
 

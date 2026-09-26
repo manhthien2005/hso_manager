@@ -14,6 +14,7 @@ import type {
   ViewerSession,
 } from "@/lib/types";
 import type { QueueItemSubmissionPayload } from "@/lib/queue";
+import type { AuthoritativeQueueWithItems } from "@/lib/queue-progress";
 import { mockApi } from "@/services/mock-api";
 import { supabaseApi } from "@/services/supabase-api";
 
@@ -71,6 +72,9 @@ export interface ZeusApi {
   pauseEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
   cancelEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
   getActiveEnhancementQueue?(accountId: string): Promise<EnhancementQueueJob | null>;
+  getActiveQueueWithItems?(accountId: string): Promise<AuthoritativeQueueWithItems | null>;
+  getRecentQueueHistory?(accountId: string, limit?: number): Promise<AuthoritativeQueueWithItems[]>;
+  subscribeQueueUpdates?(accountId: string, onUpdate: () => void): () => void;
 }
 
 export interface FarmSpotApiMethods {

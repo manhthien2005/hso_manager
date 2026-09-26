@@ -25,8 +25,10 @@ import {
 import { isEnhancementQueueAvailableOnDevice } from "@/lib/capabilities";
 import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
 import { api } from "@/services/api";
+import { type AuthoritativeQueueWithItems } from "@/lib/queue-progress";
 import { InventoryBagGrid } from "./inventory-bag-grid";
 import { EnhancementQueueDraft } from "./enhancement-queue-draft";
+import { EnhancementQueueProgress } from "./enhancement-queue-progress";
 import { ConfigFieldInput } from "./config-field";
 import { Card } from "@/components/ui/card";
 
@@ -61,6 +63,8 @@ export function EnhancementPanel({
   // Local-only state for enhancement queue draft
   const [queue, setQueue] = useState<EnhancementQueueEntry[]>([]);
   const [activeQueue, setActiveQueue] = useState<EnhancementQueueJob | null>(null);
+  const [activeQueueWithItems, setActiveQueueWithItems] = useState<AuthoritativeQueueWithItems | null>(null);
+  const [queueHistory, setQueueHistory] = useState<AuthoritativeQueueWithItems[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -78,28 +82,69 @@ export function EnhancementPanel({
   // Capability gate: Start Queue requires enhancement-queue-v1 token and fresh online device
   const isQueueCapable = isEnhancementQueueAvailableOnDevice(device);
 
-  // Fetch active queue on mount and when account changes
+  const activeJobStatus = activeQueueWithItems?.job.status;
+
+  // Fetch active queue on mount and when account changes, with reload recovery
   useEffect(() => {
     let cancelled = false;
 
     async function loadActiveQueue() {
       try {
-        if (api.getActiveEnhancementQueue) {
+        if (api.getActiveQueueWithItems) {
+          const active = await api.getActiveQueueWithItems(account.id);
+          if (!cancelled) {
+            setActiveQueueWithItems(active);
+            setActiveQueue(active ? active.job : null);
+          }
+        } else if (api.getActiveEnhancementQueue) {
           const active = await api.getActiveEnhancementQueue(account.id);
           if (!cancelled) {
             setActiveQueue(active);
           }
         }
-      } catch {
-        // Fallback silently if active queue check fails
+
+        if (api.getRecentQueueHistory) {
+          const hist = await api.getRecentQueueHistory(account.id, 5);
+          if (!cancelled) {
+            setQueueHistory(hist);
+          }
+        }
+      } catch (err) {
+        if (!cancelled && err instanceof Error) {
+          setActionError(err.message);
+        }
       }
     }
 
     void loadActiveQueue();
+
+    // Subscribe to realtime changes on enhancement_queue_jobs
+    let unsubscribeRealtime = () => {};
+    if (api.subscribeQueueUpdates) {
+      unsubscribeRealtime = api.subscribeQueueUpdates(account.id, () => {
+        if (!cancelled) {
+          void loadActiveQueue();
+        }
+      });
+    }
+
+    // Read-only bounded fallback polling when an unresolved queue is running
+    const pollInterval = setInterval(() => {
+      if (
+        !cancelled &&
+        activeJobStatus &&
+        ["QUEUED", "RUNNING", "PAUSING"].includes(activeJobStatus)
+      ) {
+        void loadActiveQueue();
+      }
+    }, 4000);
+
     return () => {
       cancelled = true;
+      unsubscribeRealtime();
+      clearInterval(pollInterval);
     };
-  }, [account.id]);
+  }, [account.id, activeJobStatus]);
 
   // Selected slots set for bag grid rendering
   const selectedSlots = useMemo(() => {
@@ -194,7 +239,14 @@ export function EnhancementPanel({
         items: payload,
       });
 
-      setActiveQueue(job);
+      // Refetch full authoritative active queue with items immediately
+      if (api.getActiveQueueWithItems) {
+        const fullQueue = await api.getActiveQueueWithItems(account.id);
+        setActiveQueueWithItems(fullQueue);
+        setActiveQueue(fullQueue ? fullQueue.job : job);
+      } else {
+        setActiveQueue(job);
+      }
       setQueue([]);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Xuất bản hàng đợi thất bại.");
@@ -212,8 +264,14 @@ export function EnhancementPanel({
       if (!api.pauseEnhancementQueue) {
         throw new Error("pauseEnhancementQueue is not implemented");
       }
-      const updated = await api.pauseEnhancementQueue(activeQueue.id);
-      setActiveQueue(updated);
+      await api.pauseEnhancementQueue(activeQueue.id);
+
+      // Refetch authoritative queue state
+      if (api.getActiveQueueWithItems) {
+        const updated = await api.getActiveQueueWithItems(account.id);
+        setActiveQueueWithItems(updated);
+        setActiveQueue(updated ? updated.job : null);
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Yêu cầu tạm dừng thất bại.");
     } finally {
@@ -230,8 +288,14 @@ export function EnhancementPanel({
       if (!api.cancelEnhancementQueue) {
         throw new Error("cancelEnhancementQueue is not implemented");
       }
-      const updated = await api.cancelEnhancementQueue(activeQueue.id);
-      setActiveQueue(updated);
+      await api.cancelEnhancementQueue(activeQueue.id);
+
+      // Refetch authoritative queue state
+      if (api.getActiveQueueWithItems) {
+        const updated = await api.getActiveQueueWithItems(account.id);
+        setActiveQueueWithItems(updated);
+        setActiveQueue(updated ? updated.job : null);
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Yêu cầu hủy thất bại.");
     } finally {
@@ -302,32 +366,44 @@ export function EnhancementPanel({
         </div>
       </Card>
 
-      {/* 3. Ordered Enhancement Queue Draft & Dispatch */}
+      {/* 3. Ordered Enhancement Queue Progress or Draft & Dispatch */}
       <Card className="overflow-hidden border border-border bg-surface shadow-xs">
         <div className="p-4 sm:p-5">
-          <EnhancementQueueDraft
-            queue={validatedQueue}
-            onRemove={handleRemove}
-            onReorder={handleReorder}
-            onUpdateTargetLevel={handleUpdateTargetLevel}
-            onUpdatePaymentType={handleUpdatePaymentType}
-            onUpdateCharmMode={handleUpdateCharmMode}
-            onClearQueue={handleClearQueue}
-            onStartQueue={handleStartQueue}
-            isStarting={isStarting}
-            canStartQueue={isQueueCapable}
-            startDisabledReason={
-              !isQueueCapable
-                ? "Máy chủ chưa kích hoạt capability enhancement-queue-v1 hoặc đang mất kết nối."
-                : undefined
-            }
-            activeQueue={activeQueue}
-            onPauseQueue={handlePauseQueue}
-            onCancelQueue={handleCancelQueue}
-            isPausing={isPausing}
-            isCancelling={isCancelling}
-            errorMessage={actionError}
-          />
+          {activeQueueWithItems ? (
+            <EnhancementQueueProgress
+              activeQueue={activeQueueWithItems}
+              history={queueHistory}
+              onPauseQueue={handlePauseQueue}
+              onCancelQueue={handleCancelQueue}
+              isPausing={isPausing}
+              isCancelling={isCancelling}
+              errorMessage={actionError}
+            />
+          ) : (
+            <EnhancementQueueDraft
+              queue={validatedQueue}
+              onRemove={handleRemove}
+              onReorder={handleReorder}
+              onUpdateTargetLevel={handleUpdateTargetLevel}
+              onUpdatePaymentType={handleUpdatePaymentType}
+              onUpdateCharmMode={handleUpdateCharmMode}
+              onClearQueue={handleClearQueue}
+              onStartQueue={handleStartQueue}
+              isStarting={isStarting}
+              canStartQueue={isQueueCapable}
+              startDisabledReason={
+                !isQueueCapable
+                  ? "Máy chủ chưa kích hoạt capability enhancement-queue-v1 hoặc đang mất kết nối."
+                  : undefined
+              }
+              activeQueue={activeQueue}
+              onPauseQueue={handlePauseQueue}
+              onCancelQueue={handleCancelQueue}
+              isPausing={isPausing}
+              isCancelling={isCancelling}
+              errorMessage={actionError}
+            />
+          )}
         </div>
       </Card>
     </div>

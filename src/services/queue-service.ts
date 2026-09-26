@@ -14,7 +14,6 @@
 
 import {
   QUEUE_ERROR_CODES,
-  type QueueErrorCode,
   type QueueItemSubmissionPayload,
   validateQueueDraft,
   QueueError,
@@ -26,11 +25,21 @@ import {
 import type {
   EnhancementQueueJob,
   EnhancementQueueJobStatus,
+  EnhancementQueueItem,
   DeviceStatus,
 } from "../lib/types";
 import type { InventoryCatalogPayload } from "../lib/inventory";
+import {
+  type AuthoritativeQueueWithItems,
+  mapQueueItemRow,
+  orderQueueItems,
+  deriveQueueSpend,
+  UNRESOLVED_QUEUE_STATUSES,
+  TERMINAL_QUEUE_STATUSES,
+} from "../lib/queue-progress";
 
 export { QueueError };
+export type { AuthoritativeQueueWithItems };
 
 export interface StartQueueParams {
   accountId: string;
@@ -526,3 +535,115 @@ export function mapQueueJobRow(row: Record<string, unknown>): EnhancementQueueJo
     updatedAt: String(row.updated_at),
   };
 }
+
+/**
+ * Loads the current owned unresolved queue for the given account with ordered items.
+ *
+ * Requirements:
+ * 1. Matches exact unresolved statuses from migration 013.
+ * 2. Orders items explicitly by queue_order ascending (never relies on DB insertion order).
+ * 3. Fails visibly with QUEUE_STATE_CONFLICT if multiple unresolved queues are found.
+ * 4. Derives queue-wide actual spend purely from settled item rows.
+ */
+export async function fetchActiveQueueWithItems(
+  client: SupabaseClientLike,
+  accountId: string,
+): Promise<AuthoritativeQueueWithItems | null> {
+  if (!accountId) return null;
+
+  // 1. Query unresolved jobs for account
+  const { data: jobRows, error: jobErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("account_id", accountId)
+    .in("status", [...UNRESOLVED_QUEUE_STATUSES]);
+
+  if (jobErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể truy vấn trạng thái hàng đợi: ${jobErr.message}`,
+    );
+  }
+
+  if (!jobRows || jobRows.length === 0) {
+    return null;
+  }
+
+  // Multi-queue protection: fail visibly if multiple unresolved queues exist
+  if (jobRows.length > 1) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Phát hiện nhiều hơn 1 hàng đợi (${jobRows.length}) chưa hoàn tất cho tài khoản ${accountId}. Vui lòng kiểm tra lại.`,
+    );
+  }
+
+  const job = mapQueueJobRow(jobRows[0]);
+
+  // 2. Query items ordered explicitly by queue_order ascending
+  const { data: itemRows, error: itemErr } = await client
+    .from("enhancement_queue_items")
+    .select("*")
+    .eq("job_id", job.id)
+    .order("queue_order", { ascending: true });
+
+  if (itemErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể tải danh sách trang bị của hàng đợi ${job.id}: ${itemErr.message}`,
+    );
+  }
+
+  const items = orderQueueItems((itemRows ?? []).map(mapQueueItemRow));
+  const derivedSpend = deriveQueueSpend(items);
+
+  return {
+    job,
+    items,
+    derivedSpend,
+  };
+}
+
+/**
+ * Loads recent terminal queue history (COMPLETED, FAILED, CANCELLED) with ordered items.
+ */
+export async function fetchRecentQueueHistory(
+  client: SupabaseClientLike,
+  accountId: string,
+  limit = 5,
+): Promise<AuthoritativeQueueWithItems[]> {
+  if (!accountId) return [];
+
+  // Query terminal jobs
+  const { data: jobRows, error: jobErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("account_id", accountId)
+    .in("status", [...TERMINAL_QUEUE_STATUSES])
+    .order("finished_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (jobErr || !jobRows || jobRows.length === 0) {
+    return [];
+  }
+
+  const jobIds = jobRows.map((j: Record<string, unknown>) => String(j.id));
+  const { data: itemRows } = await client
+    .from("enhancement_queue_items")
+    .select("*")
+    .in("job_id", jobIds)
+    .order("queue_order", { ascending: true });
+
+  const allItems = (itemRows ?? []).map(mapQueueItemRow);
+
+  return jobRows.map((rawJob: Record<string, unknown>) => {
+    const job = mapQueueJobRow(rawJob);
+    const items = orderQueueItems(allItems.filter((it: EnhancementQueueItem) => it.jobId === job.id));
+    const derivedSpend = deriveQueueSpend(items);
+    return {
+      job,
+      items,
+      derivedSpend,
+    };
+  });
+}
+
