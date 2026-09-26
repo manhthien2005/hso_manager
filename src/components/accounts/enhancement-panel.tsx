@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Account } from "@/lib/types";
-import type { ConfigDraft, ConfigErrors, ConfigPath, ConfigValue, ConfigField } from "@/lib/config-schema";
+import type {
+  Account,
+  Device,
+  EnhancementCharmMode,
+  EnhancementPaymentType,
+  EnhancementQueueJob,
+} from "@/lib/types";
+import type { ConfigDraft, ConfigErrors, ConfigPath, ConfigValue } from "@/lib/config-schema";
 import { CONTROL_SCHEMA } from "@/lib/config-schema";
 import {
   type EnhancementQueueEntry,
@@ -12,8 +18,13 @@ import {
   removeQueueEntry,
   reorderQueueEntry,
   updateQueueEntryTargetLevel,
+  updateQueueEntryPaymentType,
+  updateQueueEntryCharmMode,
   validateQueue,
 } from "@/lib/inventory";
+import { isEnhancementQueueAvailableOnDevice } from "@/lib/capabilities";
+import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
+import { api } from "@/services/api";
 import { InventoryBagGrid } from "./inventory-bag-grid";
 import { EnhancementQueueDraft } from "./enhancement-queue-draft";
 import { ConfigFieldInput } from "./config-field";
@@ -26,6 +37,7 @@ interface EnhancementPanelProps {
   onChange: (path: ConfigPath, value: ConfigValue) => void;
   onBatchChange?: (updates: Partial<Record<ConfigPath, ConfigValue>>) => void;
   account: Account;
+  device?: Device;
   resetKey?: number;
   ctlVersion?: number;
 }
@@ -37,6 +49,7 @@ export function EnhancementPanel({
   onChange,
   onBatchChange,
   account,
+  device,
   resetKey = 0,
   ctlVersion = 14,
 }: EnhancementPanelProps) {
@@ -47,37 +60,67 @@ export function EnhancementPanel({
 
   // Local-only state for enhancement queue draft
   const [queue, setQueue] = useState<EnhancementQueueEntry[]>([]);
+  const [activeQueue, setActiveQueue] = useState<EnhancementQueueJob | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isPausing, setIsPausing] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const liveInventory = account.snapshot?.inventory ?? null;
   const isAvailable = isInventoryAvailable(account.status, account.snapshot);
 
-  // Re-check queue whenever live inventory snapshot or account status changes
+  // Derive validated queue reactively without calling setState inside an effect
+  const validatedQueue = useMemo(() => {
+    if (queue.length === 0) return queue;
+    return validateQueue(queue, isAvailable ? liveInventory : null);
+  }, [queue, isAvailable, liveInventory]);
+
+  // Capability gate: Start Queue requires enhancement-queue-v1 token and fresh online device
+  const isQueueCapable = isEnhancementQueueAvailableOnDevice(device);
+
+  // Fetch active queue on mount and when account changes
   useEffect(() => {
-    setQueue((currentQueue) => {
-      if (currentQueue.length === 0) return currentQueue;
-      return validateQueue(currentQueue, isAvailable ? liveInventory : null);
-    });
-  }, [liveInventory, isAvailable, account.status]);
+    let cancelled = false;
+
+    async function loadActiveQueue() {
+      try {
+        if (api.getActiveEnhancementQueue) {
+          const active = await api.getActiveEnhancementQueue(account.id);
+          if (!cancelled) {
+            setActiveQueue(active);
+          }
+        }
+      } catch {
+        // Fallback silently if active queue check fails
+      }
+    }
+
+    void loadActiveQueue();
+    return () => {
+      cancelled = true;
+    };
+  }, [account.id]);
 
   // Selected slots set for bag grid rendering
   const selectedSlots = useMemo(() => {
     return new Set(
-      queue
+      validatedQueue
         .filter((entry) => entry.status === "VALID")
         .map((entry) => entry.reference.captured_slot),
     );
-  }, [queue]);
+  }, [validatedQueue]);
 
   const staleSlots = useMemo(() => {
     return new Set(
-      queue
+      validatedQueue
         .filter((entry) => entry.status === "STALE_SELECTION")
         .map((entry) => entry.reference.captured_slot),
     );
-  }, [queue]);
+  }, [validatedQueue]);
 
   function handleSelectItem(item: InventoryItemCatalog) {
     if (!item.candidate_for_enhancement) return;
+    setActionError(null);
 
     setQueue((current) => {
       const existingIndex = current.findIndex(
@@ -95,6 +138,7 @@ export function EnhancementPanel({
   }
 
   function handleRemove(id: string) {
+    setActionError(null);
     setQueue((current) => removeQueueEntry(current, id));
   }
 
@@ -106,8 +150,93 @@ export function EnhancementPanel({
     setQueue((current) => updateQueueEntryTargetLevel(current, id, targetLevel));
   }
 
+  function handleUpdatePaymentType(id: string, paymentType: EnhancementPaymentType) {
+    setQueue((current) => updateQueueEntryPaymentType(current, id, paymentType));
+  }
+
+  function handleUpdateCharmMode(id: string, charmMode: EnhancementCharmMode) {
+    setQueue((current) => updateQueueEntryCharmMode(current, id, charmMode));
+  }
+
   function handleClearQueue() {
+    setActionError(null);
     setQueue([]);
+  }
+
+  async function handleStartQueue() {
+    if (!isQueueCapable) {
+      setActionError("Runtime hiện tại chưa hỗ trợ hàng đợi cường hóa (cần token enhancement-queue-v1).");
+      return;
+    }
+
+    if (validatedQueue.length === 0) {
+      setActionError("Hàng đợi cường hóa trống. Vui lòng chọn ít nhất một trang bị.");
+      return;
+    }
+
+    // Client-side preliminary validation
+    const draftValidation = validateQueueDraft(validatedQueue, liveInventory);
+    if (!draftValidation.valid) {
+      setActionError(draftValidation.message ?? "Dự thảo hàng đợi không hợp lệ.");
+      return;
+    }
+
+    setIsStarting(true);
+    setActionError(null);
+
+    try {
+      const payload = draftToSubmissionPayload(validatedQueue);
+      if (!api.startEnhancementQueue) {
+        throw new Error("startEnhancementQueue is not implemented");
+      }
+      const job = await api.startEnhancementQueue({
+        accountId: account.id,
+        items: payload,
+      });
+
+      setActiveQueue(job);
+      setQueue([]);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Xuất bản hàng đợi thất bại.");
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
+  async function handlePauseQueue() {
+    if (!activeQueue) return;
+    setIsPausing(true);
+    setActionError(null);
+
+    try {
+      if (!api.pauseEnhancementQueue) {
+        throw new Error("pauseEnhancementQueue is not implemented");
+      }
+      const updated = await api.pauseEnhancementQueue(activeQueue.id);
+      setActiveQueue(updated);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Yêu cầu tạm dừng thất bại.");
+    } finally {
+      setIsPausing(false);
+    }
+  }
+
+  async function handleCancelQueue() {
+    if (!activeQueue) return;
+    setIsCancelling(true);
+    setActionError(null);
+
+    try {
+      if (!api.cancelEnhancementQueue) {
+        throw new Error("cancelEnhancementQueue is not implemented");
+      }
+      const updated = await api.cancelEnhancementQueue(activeQueue.id);
+      setActiveQueue(updated);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Yêu cầu hủy thất bại.");
+    } finally {
+      setIsCancelling(false);
+    }
   }
 
   return (
@@ -173,15 +302,31 @@ export function EnhancementPanel({
         </div>
       </Card>
 
-      {/* 3. Ordered Enhancement Queue Draft */}
+      {/* 3. Ordered Enhancement Queue Draft & Dispatch */}
       <Card className="overflow-hidden border border-border bg-surface shadow-xs">
         <div className="p-4 sm:p-5">
           <EnhancementQueueDraft
-            queue={queue}
+            queue={validatedQueue}
             onRemove={handleRemove}
             onReorder={handleReorder}
             onUpdateTargetLevel={handleUpdateTargetLevel}
+            onUpdatePaymentType={handleUpdatePaymentType}
+            onUpdateCharmMode={handleUpdateCharmMode}
             onClearQueue={handleClearQueue}
+            onStartQueue={handleStartQueue}
+            isStarting={isStarting}
+            canStartQueue={isQueueCapable}
+            startDisabledReason={
+              !isQueueCapable
+                ? "Máy chủ chưa kích hoạt capability enhancement-queue-v1 hoặc đang mất kết nối."
+                : undefined
+            }
+            activeQueue={activeQueue}
+            onPauseQueue={handlePauseQueue}
+            onCancelQueue={handleCancelQueue}
+            isPausing={isPausing}
+            isCancelling={isCancelling}
+            errorMessage={actionError}
           />
         </div>
       </Card>

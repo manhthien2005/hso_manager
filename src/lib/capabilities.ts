@@ -13,6 +13,7 @@ import type { CharacterSlot, Device } from "./types";
  */
 export const CHARACTER_SLOT_CAPABILITY_TOKEN = "character-slot-v1";
 export const VISUAL_QOL_CAPABILITY_TOKEN = "visual-qol-v1";
+export const ENHANCEMENT_QUEUE_CAPABILITY_TOKEN = "enhancement-queue-v1";
 
 /**
  * Device heartbeat freshness threshold: 5 minutes (300,000 ms).
@@ -107,10 +108,18 @@ export function hasVisualQoLCapability(agentVersion: string | null | undefined):
 }
 
 /**
+ * Parses an agentVersion string and detects whether it contains the exact
+ * `enhancement-queue-v1` capability token within its SemVer build metadata.
+ */
+export function hasEnhancementQueueCapability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, ENHANCEMENT_QUEUE_CAPABILITY_TOKEN);
+}
+
+/**
  * Evaluates whether a device is currently online and fresh within DEVICE_FRESHNESS_THRESHOLD_MS (5 min).
  */
 export function isDeviceOnlineAndFresh(
-  device: Device | null | undefined,
+  device: Pick<Device, "status" | "lastSeen"> | null | undefined,
   now = Date.now(),
 ): boolean {
   if (!device) {
@@ -169,6 +178,27 @@ export function isVisualQoLAvailableOnDevice(
     return false;
   }
   return hasVisualQoLCapability(device!.agentVersion);
+}
+
+/**
+ * Evaluates whether a device is currently capable, online, and fresh enough
+ * to safely create and execute an Enhancement Queue (ENHANCE-05D).
+ *
+ * Fail-closed conditions:
+ * - Device is absent, null, or undefined -> false
+ * - Device status is not "online" (offline or error) -> false
+ * - Device has never reported a heartbeat (lastSeen === null) -> false
+ * - Device heartbeat is older than DEVICE_FRESHNESS_THRESHOLD_MS (5 min) -> false
+ * - Device agentVersion does not advertise enhancement-queue-v1 -> false
+ */
+export function isEnhancementQueueAvailableOnDevice(
+  device: Device | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!isDeviceOnlineAndFresh(device, now)) {
+    return false;
+  }
+  return hasEnhancementQueueCapability(device!.agentVersion);
 }
 
 /**

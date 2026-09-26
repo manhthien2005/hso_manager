@@ -14,6 +14,8 @@ import type {
   PlayerSnapshot,
   InventoryItemCatalog,
   InventoryCatalogPayload,
+  EnhancementPaymentType,
+  EnhancementCharmMode,
 } from "./types";
 
 export type { InventoryItemCatalog, InventoryCatalogPayload };
@@ -35,6 +37,8 @@ export interface EnhancementQueueEntry {
   id: string;
   reference: SelectedItemReference;
   target_level: number;
+  payment_type?: EnhancementPaymentType;
+  charm_mode?: EnhancementCharmMode;
   status: SelectionStatus;
 }
 
@@ -218,6 +222,8 @@ export function addQueueEntry(
     id,
     reference: createSelectedItemReference(item),
     target_level: defaultTargetLevel,
+    payment_type: "GOLD",
+    charm_mode: "NONE",
     status: "VALID",
   };
 
@@ -275,6 +281,40 @@ export function updateQueueEntryTargetLevel(
     return {
       ...entry,
       target_level: clamped,
+    };
+  });
+}
+
+/**
+ * Update payment type ('GOLD' | 'GEMS') for a queue entry.
+ */
+export function updateQueueEntryPaymentType(
+  queue: EnhancementQueueEntry[],
+  id: string,
+  paymentType: EnhancementPaymentType,
+): EnhancementQueueEntry[] {
+  return queue.map((entry) => {
+    if (entry.id !== id) return entry;
+    return {
+      ...entry,
+      payment_type: paymentType,
+    };
+  });
+}
+
+/**
+ * Update charm mode for a queue entry.
+ */
+export function updateQueueEntryCharmMode(
+  queue: EnhancementQueueEntry[],
+  id: string,
+  charmMode: EnhancementCharmMode,
+): EnhancementQueueEntry[] {
+  return queue.map((entry) => {
+    if (entry.id !== id) return entry;
+    return {
+      ...entry,
+      charm_mode: charmMode,
     };
   });
 }

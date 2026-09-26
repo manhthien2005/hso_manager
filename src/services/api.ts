@@ -7,11 +7,13 @@ import type {
   CreateFarmSpotInput,
   Device,
   FarmSpot,
+  EnhancementQueueJob,
   UpdateAccountInput,
   UpdateFarmSpotInput,
   User,
   ViewerSession,
 } from "@/lib/types";
+import type { QueueItemSubmissionPayload } from "@/lib/queue";
 import { mockApi } from "@/services/mock-api";
 import { supabaseApi } from "@/services/supabase-api";
 
@@ -64,6 +66,11 @@ export interface ZeusApi {
   createFarmSpot?(input: CreateFarmSpotInput): Promise<FarmSpot>;
   updateFarmSpot?(id: string, input: UpdateFarmSpotInput): Promise<FarmSpot>;
   deleteFarmSpot?(id: string): Promise<string>;
+
+  startEnhancementQueue?(params: { accountId: string; items: QueueItemSubmissionPayload[] }): Promise<EnhancementQueueJob>;
+  pauseEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
+  cancelEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
+  getActiveEnhancementQueue?(accountId: string): Promise<EnhancementQueueJob | null>;
 }
 
 export interface FarmSpotApiMethods {

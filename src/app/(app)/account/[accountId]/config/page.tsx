@@ -470,6 +470,7 @@ function ConfigForm({
                       onChange={handleChange}
                       onBatchChange={handleBatchChange}
                       account={account}
+                      device={device}
                       resetKey={resetKey}
                       ctlVersion={targetControlVersion}
                     />

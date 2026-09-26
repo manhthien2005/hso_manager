@@ -28,8 +28,10 @@ import type {
   Command,
   CommandType,
   Device,
+  EnhancementQueueJob,
   ViewerSession,
 } from "@/lib/types";
+import { hasEnhancementQueueCapability } from "@/lib/capabilities";
 import { clampNumber } from "@/lib/format";
 
 /**
@@ -57,6 +59,7 @@ interface MockState {
   commands: Command[];
   listeners: Set<UpdateListener>;
   viewer: Map<string, ViewerSession>;
+  queueJobs: Map<string, EnhancementQueueJob>;
   /** `window.setInterval` handle; null when the simulation is idle. */
   tick: number | null;
 }
@@ -68,6 +71,7 @@ function load(): MockState {
       accounts: structuredClone(SEED_ACCOUNTS),
       commands: [],
       viewer: new Map(),
+      queueJobs: new Map(),
       listeners: new Set(),
       tick: null,
     };
@@ -701,5 +705,84 @@ export const mockApi: ZeusApi = {
       current.listeners.delete(listener);
       if (current.listeners.size === 0) stopTick();
     };
+  },
+
+  async startEnhancementQueue(params) {
+    await delay();
+    const account = findAccount(params.accountId);
+    const device = findDevice(account.deviceId);
+    requireOnline(device);
+    if (!hasEnhancementQueueCapability(device.agentVersion)) {
+      throw new ApiError(
+        "QUEUE_RUNTIME_UNSUPPORTED",
+        "Runtime không hỗ trợ enhancement-queue-v1",
+      );
+    }
+    const current = load();
+    const existing = Array.from(current.queueJobs.values()).find(
+      (j) =>
+        j.accountId === params.accountId &&
+        ["QUEUED", "RUNNING", "PAUSING", "PAUSED", "MANUAL_REVIEW_REQUIRED"].includes(j.status),
+    );
+    if (existing) {
+      throw new ApiError(
+        "QUEUE_ALREADY_ACTIVE",
+        "Tài khoản đã có hàng đợi đang hoạt động",
+      );
+    }
+
+    const job: EnhancementQueueJob = {
+      id: nextId("eq_job"),
+      accountId: account.id,
+      deviceId: device.id,
+      userId: device.userId,
+      status: "QUEUED",
+      activeItemId: null,
+      activeAttemptUuid: null,
+      activeCommandId: null,
+      totalItems: params.items.length,
+      completedItems: 0,
+      claimedBy: null,
+      claimedAt: null,
+      claimExpiresAt: null,
+      pauseRequestedAt: null,
+      cancelRequestedAt: null,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      startedAt: null,
+      finishedAt: null,
+      updatedAt: new Date().toISOString(),
+    };
+    current.queueJobs.set(job.id, job);
+    return structuredClone(job);
+  },
+
+  async pauseEnhancementQueue(jobId) {
+    await delay();
+    const current = load();
+    const job = current.queueJobs.get(jobId);
+    if (!job) throw new ApiError("NOT_FOUND", "Không tìm thấy hàng đợi");
+    job.pauseRequestedAt = new Date().toISOString();
+    return structuredClone(job);
+  },
+
+  async cancelEnhancementQueue(jobId) {
+    await delay();
+    const current = load();
+    const job = current.queueJobs.get(jobId);
+    if (!job) throw new ApiError("NOT_FOUND", "Không tìm thấy hàng đợi");
+    job.cancelRequestedAt = new Date().toISOString();
+    return structuredClone(job);
+  },
+
+  async getActiveEnhancementQueue(accountId) {
+    const current = load();
+    const job = Array.from(current.queueJobs.values()).find(
+      (j) =>
+        j.accountId === accountId &&
+        ["QUEUED", "RUNNING", "PAUSING", "PAUSED", "MANUAL_REVIEW_REQUIRED"].includes(j.status),
+    );
+    return job ? structuredClone(job) : null;
   },
 };

@@ -30,6 +30,7 @@ import {
 } from "@/lib/config-schema";
 import { isValidCharacterSlot } from "@/lib/capabilities";
 import { parseInventoryPayload } from "@/lib/inventory";
+import type { QueueItemSubmissionPayload } from "@/lib/queue";
 import type {
   Account,
   AccountConfig,
@@ -41,6 +42,7 @@ import type {
   CreateAccountInput,
   Device,
   DeviceMetrics,
+  EnhancementQueueJob,
   FarmSpot,
   FarmSpotSource,
   CreateFarmSpotInput,
@@ -53,6 +55,12 @@ import type {
   User,
   ViewerSession,
 } from "@/lib/types";
+import {
+  executeStartQueueFlow,
+  executePauseQueueFlow,
+  executeCancelQueueFlow,
+  mapQueueJobRow,
+} from "@/services/queue-service";
 import type {
   ZeusApi,
   LoginCredentials,
@@ -1117,6 +1125,51 @@ export class SupabaseApi implements ZeusApi {
 
   deleteFarmSpot(id: string): Promise<string> {
     return deleteFarmSpot(id);
+  }
+
+  async startEnhancementQueue(params: { accountId: string; items: QueueItemSubmissionPayload[] }): Promise<EnhancementQueueJob> {
+    const { data: sessionData, error: authErr } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (authErr || !user) {
+      throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
+    }
+    return executeStartQueueFlow(supabase, params, { userId: user.id });
+  }
+
+  async pauseEnhancementQueue(jobId: string): Promise<EnhancementQueueJob> {
+    const { data: sessionData, error: authErr } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (authErr || !user) {
+      throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
+    }
+    return executePauseQueueFlow(supabase, jobId, user.id);
+  }
+
+  async cancelEnhancementQueue(jobId: string): Promise<EnhancementQueueJob> {
+    const { data: sessionData, error: authErr } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (authErr || !user) {
+      throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
+    }
+    return executeCancelQueueFlow(supabase, jobId, user.id);
+  }
+
+  async getActiveEnhancementQueue(accountId: string): Promise<EnhancementQueueJob | null> {
+    const { data, error } = await supabase
+      .from("enhancement_queue_jobs")
+      .select("*")
+      .eq("account_id", accountId)
+      .in("status", [
+        "QUEUED",
+        "RUNNING",
+        "PAUSING",
+        "PAUSED",
+        "MANUAL_REVIEW_REQUIRED",
+      ])
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return mapQueueJobRow(data);
   }
 }
 
