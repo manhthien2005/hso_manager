@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         [QUEUE_ERROR_CODES.QUEUE_NOT_OWNED]: 403,
         [QUEUE_ERROR_CODES.QUEUE_DRAFT_WRITE_FAILED]: 500,
         [QUEUE_ERROR_CODES.QUEUE_PUBLISH_FAILED]: 500,
+        [QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED]: 500,
       };
 
       return NextResponse.json(

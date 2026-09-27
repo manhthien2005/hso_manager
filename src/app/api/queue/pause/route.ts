@@ -57,7 +57,12 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     if (err instanceof QueueError) {
-      const status = err.code === QUEUE_ERROR_CODES.QUEUE_NOT_OWNED ? 403 : 409;
+      const status =
+        err.code === QUEUE_ERROR_CODES.QUEUE_NOT_OWNED
+          ? 403
+          : err.code === QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED
+            ? 500
+            : 409;
       return NextResponse.json({ code: err.code, error: err.message }, { status });
     }
 

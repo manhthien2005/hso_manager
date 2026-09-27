@@ -137,7 +137,130 @@ interface MockDatabaseState {
   failItemInsert?: boolean;
   failPublish?: boolean;
   simulateActiveQueueConflictOnPublish?: boolean;
+  simulateAccountQueryError?: boolean;
+  simulateDeviceQueryError?: boolean;
 }
+
+const KNOWN_TABLE_COLUMNS: Record<string, Set<string>> = {
+  accounts: new Set([
+    "id",
+    "device_id",
+    "user_id",
+    "label",
+    "slot_index",
+    "character_slot",
+    "username",
+    "secret_sealed",
+    "server_index",
+    "desired_state",
+    "runtime",
+    "control_version",
+    "control",
+    "config_version",
+    "updated_at",
+  ]),
+  devices: new Set([
+    "id",
+    "user_id",
+    "pair_code",
+    "name",
+    "pubkey",
+    "agent_version",
+    "jar_sha256",
+    "jar_ctl_version",
+    "jar_snapshot_version",
+    "jar_ctl_key_count",
+    "status",
+    "cpu_pct",
+    "ram_used_mb",
+    "ram_total_mb",
+    "uptime_s",
+    "viewer_url",
+    "viewer_expires_at",
+    "next_slot_index",
+    "last_seen",
+    "created_at",
+    "device_auth_id",
+  ]),
+  account_runtime: new Set([
+    "account_id",
+    "process_state",
+    "pid",
+    "ram_mb",
+    "cpu_pct",
+    "snapshot_version",
+    "snapshot",
+    "config_status",
+    "config_error",
+    "applied_version",
+    "restarts",
+    "updated_at",
+  ]),
+  enhancement_queue_jobs: new Set([
+    "id",
+    "account_id",
+    "device_id",
+    "user_id",
+    "status",
+    "active_item_id",
+    "active_attempt_uuid",
+    "active_command_id",
+    "total_items",
+    "completed_items",
+    "claimed_by",
+    "claimed_at",
+    "claim_expires_at",
+    "pause_requested_at",
+    "cancel_requested_at",
+    "error_code",
+    "error_message",
+    "created_at",
+    "started_at",
+    "finished_at",
+    "updated_at",
+  ]),
+  enhancement_queue_items: new Set([
+    "id",
+    "job_id",
+    "account_id",
+    "user_id",
+    "queue_order",
+    "captured_slot",
+    "template_id",
+    "category",
+    "base_name",
+    "tier",
+    "icon",
+    "initial_level",
+    "current_level",
+    "target_level",
+    "payment_type",
+    "charm_mode",
+    "status",
+    "attempt_count",
+    "active_attempt_uuid",
+    "attempt_phase",
+    "attempt_expected_level",
+    "attempt_target_level",
+    "attempt_started_at",
+    "execute_may_have_been_sent_at",
+    "attempt_settled_at",
+    "last_result_code",
+    "actual_gold_spent",
+    "actual_gem_spent",
+    "actual_material_1_spent",
+    "actual_material_2_spent",
+    "actual_material_3_spent",
+    "actual_material_4_spent",
+    "actual_charm_spent",
+    "error_code",
+    "error_message",
+    "started_at",
+    "finished_at",
+    "created_at",
+    "updated_at",
+  ]),
+};
 
 function createMockSupabaseClient(initialState: Partial<MockDatabaseState> = {}) {
   const state: MockDatabaseState = {
@@ -153,6 +276,8 @@ function createMockSupabaseClient(initialState: Partial<MockDatabaseState> = {})
     failItemInsert: initialState.failItemInsert ?? false,
     failPublish: initialState.failPublish ?? false,
     simulateActiveQueueConflictOnPublish: initialState.simulateActiveQueueConflictOnPublish ?? false,
+    simulateAccountQueryError: initialState.simulateAccountQueryError ?? false,
+    simulateDeviceQueryError: initialState.simulateDeviceQueryError ?? false,
   };
 
   const client = {
@@ -161,9 +286,30 @@ function createMockSupabaseClient(initialState: Partial<MockDatabaseState> = {})
       const currentTable = table;
       const filters: Record<string, any> = {};
       const inFilters: Record<string, any[]> = {};
+      let queryError: { message: string; code: string } | null = null;
+
+      if (table === "accounts" && state.simulateAccountQueryError) {
+        queryError = { message: "Simulated accounts query error", code: "XX000" };
+      }
+      if (table === "devices" && state.simulateDeviceQueryError) {
+        queryError = { message: "Simulated devices query error", code: "XX000" };
+      }
 
       const queryBuilder = {
-        select(_cols: string = "*") {
+        select(cols: string = "*") {
+          if (cols !== "*" && KNOWN_TABLE_COLUMNS[currentTable]) {
+            const known = KNOWN_TABLE_COLUMNS[currentTable];
+            const parsed = cols.split(",").map((c) => c.trim());
+            for (const col of parsed) {
+              if (!known.has(col)) {
+                queryError = {
+                  message: `column ${currentTable}.${col} does not exist`,
+                  code: "42703",
+                };
+                break;
+              }
+            }
+          }
           return queryBuilder;
         },
         eq(col: string, val: any) {
@@ -175,15 +321,21 @@ function createMockSupabaseClient(initialState: Partial<MockDatabaseState> = {})
           return queryBuilder;
         },
         async maybeSingle() {
+          if (queryError) {
+            return { data: null, error: queryError };
+          }
           const list = getTableData(currentTable);
           const filtered = list.filter((row: any) => matchRow(row, filters, inFilters));
           return { data: filtered[0] ?? null, error: null };
         },
         async single() {
+          if (queryError) {
+            return { data: null, error: queryError };
+          }
           const list = getTableData(currentTable);
           const filtered = list.filter((row: any) => matchRow(row, filters, inFilters));
           if (filtered.length === 0) {
-            return { data: null, error: { message: "Row not found" } };
+            return { data: null, error: { message: "Row not found", code: "PGRST116" } };
           }
           return { data: filtered[0], error: null };
         },
@@ -707,7 +859,7 @@ describe("3. Queue Draft Validation", () => {
 
 describe("4. Atomic Publish & Partial Creation Safety", () => {
   const setupDb = (overrides: Partial<MockDatabaseState> = {}) => {
-    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1", name: "Acc 1" };
+    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1", label: "Acc 1" };
     const device = {
       id: "dev-1",
       user_id: "user-1",
@@ -839,7 +991,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
   ];
 
   test("pre-check blocks Start Queue if active queue already exists", async () => {
-    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1" };
+    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1", label: "Acc 1" };
     const device = {
       id: "dev-1",
       user_id: "user-1",
@@ -878,7 +1030,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
   });
 
   test("concurrent publication race handles exclusivity conflict deterministically", async () => {
-    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1" };
+    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1", label: "Acc 1" };
     const device = {
       id: "dev-1",
       user_id: "user-1",
@@ -933,7 +1085,7 @@ describe("6. Field Ownership & Non-Write of Runtime Fields", () => {
   ];
 
   test("submission never writes runtime-owned fields on jobs or items", async () => {
-    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1" };
+    const account = { id: "acc-1", user_id: "user-1", device_id: "dev-1", label: "Acc 1" };
     const device = {
       id: "dev-1",
       user_id: "user-1",
@@ -1116,3 +1268,402 @@ describe("8. Browser Lifetime Independence & No Browser Sequencing", () => {
     }
   });
 });
+
+describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corrective)", () => {
+  const sampleItems: QueueItemSubmissionPayload[] = [
+    {
+      queueOrder: 1,
+      capturedSlot: 0,
+      templateId: 101,
+      category: 1,
+      baseName: "Kiếm Thần",
+      tier: 2,
+      icon: 50,
+      initialLevel: 3,
+      targetLevel: 5,
+      paymentType: "GOLD",
+      charmMode: "NONE",
+    },
+  ];
+
+  const createValidSetup = (overrides: Partial<MockDatabaseState> = {}) => {
+    const inv = createSampleInventory([
+      { slot: 0, template_id: 101, category: 1, base_name: "Kiếm Thần", level: 3, tier: 2, icon: 50 },
+    ]);
+    return createMockSupabaseClient({
+      accounts: [
+        { id: "acc-owned", user_id: "user-alice", device_id: "dev-fresh", label: "Knight Master" },
+        { id: "acc-other", user_id: "user-bob", device_id: "dev-fresh", label: "Bob Account" },
+      ],
+      devices: [
+        {
+          id: "dev-fresh",
+          user_id: "user-alice",
+          status: "online",
+          agent_version: "0.1.0+enhancement-queue-v1",
+          last_seen: new Date().toISOString(),
+        },
+        {
+          id: "dev-stale",
+          user_id: "user-alice",
+          status: "online",
+          agent_version: "0.1.0+enhancement-queue-v1",
+          last_seen: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        },
+        {
+          id: "dev-offline",
+          user_id: "user-alice",
+          status: "offline",
+          agent_version: "0.1.0+enhancement-queue-v1",
+          last_seen: new Date().toISOString(),
+        },
+        {
+          id: "dev-no-token",
+          user_id: "user-alice",
+          status: "online",
+          agent_version: "0.1.0+visual-qol-v1",
+          last_seen: new Date().toISOString(),
+        },
+        {
+          id: "dev-unknown-version",
+          user_id: "user-alice",
+          status: "online",
+          agent_version: "unknown",
+          last_seen: new Date().toISOString(),
+        },
+      ],
+      accountRuntime: [
+        { account_id: "acc-owned", snapshot: { inventory: inv }, process_state: "running" },
+      ],
+      ...overrides,
+    });
+  };
+
+  describe("Account Lookup Corrective", () => {
+    test("owned account with label succeeds", async () => {
+      const client = createValidSetup();
+      const job = await executeStartQueueFlow(
+        client as any,
+        { accountId: "acc-owned", items: sampleItems },
+        { userId: "user-alice" },
+      );
+      assert.equal(job.status, "QUEUED");
+      assert.equal(job.accountId, "acc-owned");
+    });
+
+    test("no reference to accounts.name remains in the queue start path", () => {
+      const queueServiceSource = fs.readFileSync(
+        path.resolve(process.cwd(), "src/services/queue-service.ts"),
+        "utf-8",
+      );
+      assert.doesNotMatch(
+        queueServiceSource,
+        /\.from\s*\(\s*["']accounts["']\s*\)[\s\S]*?select\([^)]*\bname\b[^)]*\)/,
+        "accounts query must not select 'name'",
+      );
+    });
+
+    test("unowned account returns QUEUE_NOT_OWNED", async () => {
+      const client = createValidSetup();
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-other", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_NOT_OWNED);
+          assert.match(err.message, /không thuộc quyền sở hữu/);
+          return true;
+        },
+      );
+    });
+
+    test("missing account returns existing safe not-found QUEUE_NOT_OWNED result", async () => {
+      const client = createValidSetup();
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-nonexistent", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_NOT_OWNED);
+          assert.match(err.message, /Không tìm thấy tài khoản/);
+          return true;
+        },
+      );
+    });
+
+    test("database query error does not return QUEUE_NOT_OWNED", async () => {
+      const client = createValidSetup({ simulateAccountQueryError: true });
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.notEqual(err.code, QUEUE_ERROR_CODES.QUEUE_NOT_OWNED);
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED);
+          return true;
+        },
+      );
+      // Ensure no DRAFT was created on DB error
+      assert.equal(client._state.jobs.length, 0);
+    });
+  });
+
+  describe("Device Lookup Corrective", () => {
+    test("online fresh device using last_seen passes freshness evaluation", async () => {
+      const client = createValidSetup();
+      const job = await executeStartQueueFlow(
+        client as any,
+        { accountId: "acc-owned", items: sampleItems },
+        { userId: "user-alice" },
+      );
+      assert.equal(job.status, "QUEUED");
+    });
+
+    test("stale last_seen fails closed with QUEUE_RUNTIME_STALE", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-stale";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_STALE);
+          assert.match(err.message, /quá 5 phút/);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+
+    test("offline device fails closed with QUEUE_RUNTIME_STALE", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-offline";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_STALE);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+
+    test("no reference to devices.updated_at remains in the queue start path", () => {
+      const queueServiceSource = fs.readFileSync(
+        path.resolve(process.cwd(), "src/services/queue-service.ts"),
+        "utf-8",
+      );
+      assert.doesNotMatch(
+        queueServiceSource,
+        /\.from\s*\(\s*["']devices["']\s*\)[\s\S]*?select\([^)]*\bupdated_at\b[^)]*\)/,
+        "devices query must not select 'updated_at'",
+      );
+    });
+
+    test("database query error fails closed with backend error classification", async () => {
+      const client = createValidSetup({ simulateDeviceQueryError: true });
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.notEqual(err.code, QUEUE_ERROR_CODES.QUEUE_NOT_OWNED);
+          assert.notEqual(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_STALE);
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+  });
+
+  describe("Capability Gate & Preflight Safety", () => {
+    test("fresh device with enhancement-queue-v1 passes capability eligibility", async () => {
+      const client = createValidSetup();
+      const job = await executeStartQueueFlow(
+        client as any,
+        { accountId: "acc-owned", items: sampleItems },
+        { userId: "user-alice" },
+      );
+      assert.equal(job.status, "QUEUED");
+    });
+
+    test("missing token rejects Start Queue with QUEUE_RUNTIME_UNSUPPORTED", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-no-token";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+
+    test("unknown runtime rejects Start Queue with QUEUE_RUNTIME_UNSUPPORTED", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-unknown-version";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+
+    test("no DRAFT is created when ownership lookup errors", async () => {
+      const client = createValidSetup({ simulateAccountQueryError: true });
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+      assert.equal(client._state.rpcLog.length, 0);
+    });
+
+    test("no DRAFT is created when device lookup errors", async () => {
+      const client = createValidSetup({ simulateDeviceQueryError: true });
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+      assert.equal(client._state.rpcLog.length, 0);
+    });
+
+    test("no DRAFT is created when capability is absent", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-no-token";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+      assert.equal(client._state.rpcLog.length, 0);
+    });
+
+    test("no publish occurs on preflight failure", async () => {
+      const client = createValidSetup({ simulateAccountQueryError: true });
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+      );
+      assert.equal(client._state.rpcLog.length, 0);
+    });
+  });
+
+  describe("Schema Contract Projections & RPC Specification", () => {
+    test("all literal queue-service database projections reference columns that exist in current schema fixtures/types", () => {
+      const queueServiceSource = fs.readFileSync(
+        path.resolve(process.cwd(), "src/services/queue-service.ts"),
+        "utf-8",
+      );
+
+      // Verify account projection
+      assert.match(queueServiceSource, /ACCOUNT_QUEUE_START_COLUMNS\s*=\s*["']id,\s*user_id,\s*device_id,\s*label["']/);
+      const accountDecl = queueServiceSource.match(/ACCOUNT_QUEUE_START_COLUMNS\s*=\s*["'][^"']+["']/)?.[0] ?? "";
+      assert.doesNotMatch(accountDecl, /\bname\b/);
+
+      // Verify device projection
+      assert.match(queueServiceSource, /DEVICE_QUEUE_START_COLUMNS\s*=\s*["']id,\s*status,\s*agent_version,\s*last_seen["']/);
+      const deviceDecl = queueServiceSource.match(/DEVICE_QUEUE_START_COLUMNS\s*=\s*["'][^"']+["']/)?.[0] ?? "";
+      assert.doesNotMatch(deviceDecl, /\bupdated_at\b/);
+
+      // All fields in ACCOUNT_QUEUE_START_COLUMNS must exist in KNOWN_TABLE_COLUMNS.accounts
+      const accCols = "id, user_id, device_id, label".split(",").map((s) => s.trim());
+      for (const col of accCols) {
+        assert.ok(KNOWN_TABLE_COLUMNS.accounts.has(col), `account column ${col} must exist`);
+      }
+
+      // All fields in DEVICE_QUEUE_START_COLUMNS must exist in KNOWN_TABLE_COLUMNS.devices
+      const devCols = "id, status, agent_version, last_seen".split(",").map((s) => s.trim());
+      for (const col of devCols) {
+        assert.ok(KNOWN_TABLE_COLUMNS.devices.has(col), `device column ${col} must exist`);
+      }
+    });
+
+    test("publish_enhancement_queue_job RPC contract matches migration 013", () => {
+      const migration013 = fs.readFileSync(
+        path.resolve(process.cwd(), "supabase/migrations/013_enhancement_queue.sql"),
+        "utf-8",
+      );
+      assert.match(
+        migration013,
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.publish_enhancement_queue_job\s*\(\s*p_job_id\s+uuid\s*\)/i,
+        "migration 013 must define publish_enhancement_queue_job(p_job_id uuid)",
+      );
+
+      const queueServiceSource = fs.readFileSync(
+        path.resolve(process.cwd(), "src/services/queue-service.ts"),
+        "utf-8",
+      );
+      assert.match(
+        queueServiceSource,
+        /client\.rpc\(\s*["']publish_enhancement_queue_job["']\s*,\s*\{\s*p_job_id\s*:\s*draftJobId\s*,?\s*\}\s*,?\s*\)/,
+        "queue service must call publish_enhancement_queue_job with p_job_id parameter",
+      );
+    });
+  });
+});
+

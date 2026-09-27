@@ -38,6 +38,21 @@ import {
   TERMINAL_QUEUE_STATUSES,
 } from "../lib/queue-progress";
 
+import type { Database } from "../lib/database.types";
+
+export type AccountQueueStartRow = Pick<
+  Database["public"]["Tables"]["accounts"]["Row"],
+  "id" | "user_id" | "device_id" | "label"
+>;
+
+export type DeviceQueueStartRow = Pick<
+  Database["public"]["Tables"]["devices"]["Row"],
+  "id" | "status" | "agent_version" | "last_seen"
+>;
+
+export const ACCOUNT_QUEUE_START_COLUMNS = "id, user_id, device_id, label" as const;
+export const DEVICE_QUEUE_START_COLUMNS = "id, status, agent_version, last_seen" as const;
+
 export { QueueError };
 export type { AuthoritativeQueueWithItems };
 
@@ -94,11 +109,18 @@ export async function executeStartQueueFlow(
   // 1 & 2. Resolve account and device; verify ownership
   const { data: accountRow, error: accountErr } = await client
     .from("accounts")
-    .select("id, user_id, device_id, name")
+    .select(ACCOUNT_QUEUE_START_COLUMNS)
     .eq("id", accountId)
     .maybeSingle();
 
-  if (accountErr || !accountRow) {
+  if (accountErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi xác thực tài khoản.",
+    );
+  }
+
+  if (!accountRow) {
     throw new QueueError(
       QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
       `Không tìm thấy tài khoản ${accountId} hoặc không có quyền truy cập.`,
@@ -114,11 +136,18 @@ export async function executeStartQueueFlow(
 
   const { data: deviceRow, error: deviceErr } = await client
     .from("devices")
-    .select("id, status, agent_version, last_seen, updated_at")
+    .select(DEVICE_QUEUE_START_COLUMNS)
     .eq("id", accountRow.device_id)
     .maybeSingle();
 
-  if (deviceErr || !deviceRow) {
+  if (deviceErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi xác định thiết bị điều khiển.",
+    );
+  }
+
+  if (!deviceRow) {
     throw new QueueError(
       QUEUE_ERROR_CODES.QUEUE_RUNTIME_STALE,
       "Không tìm thấy thiết bị điều khiển liên kết với tài khoản.",
@@ -390,7 +419,14 @@ export async function executePauseQueueFlow(
     .eq("id", jobId)
     .maybeSingle();
 
-  if (fetchErr || !job) {
+  if (fetchErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi kiểm tra hàng đợi.",
+    );
+  }
+
+  if (!job) {
     throw new QueueError(
       QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
       `Không tìm thấy hàng đợi ${jobId}.`,
@@ -457,7 +493,14 @@ export async function executeCancelQueueFlow(
     .eq("id", jobId)
     .maybeSingle();
 
-  if (fetchErr || !job) {
+  if (fetchErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi kiểm tra hàng đợi.",
+    );
+  }
+
+  if (!job) {
     throw new QueueError(
       QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
       `Không tìm thấy hàng đợi ${jobId}.`,
