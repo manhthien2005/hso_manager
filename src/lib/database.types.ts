@@ -219,6 +219,9 @@ export interface Database {
           execute_may_have_been_sent_at: string | null;
           attempt_settled_at: string | null;
           last_result_code: string | null;
+          settlement_source: string | null;
+          reconciled_at: string | null;
+          reconciliation_reason: string | null;
           actual_gold_spent: number;
           actual_gem_spent: number;
           actual_material_1_spent: number;

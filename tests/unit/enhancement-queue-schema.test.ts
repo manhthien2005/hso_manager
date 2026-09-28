@@ -282,4 +282,32 @@ describe("Enhancement Queue Schema Contract & Invariants (ENHANCE-05A)", () => {
       assert.equal(mockSummary.totalAttemptCount, 2);
     });
   });
+
+  describe("Migration 015 Specification & Provenance Schema Contract", () => {
+    const mig015Path = path.resolve(process.cwd(), "supabase/migrations/015_enhancement_reconciliation_provenance.sql");
+    const mig015Content = fs.readFileSync(mig015Path, "utf-8");
+
+    it("migration 015 file exists and is forward-only", () => {
+      assert.ok(fs.existsSync(mig015Path));
+      assert.ok(mig015Content.length > 200);
+      assert.doesNotMatch(mig015Content, /DROP\s+TABLE/i);
+      assert.doesNotMatch(mig015Content, /TRUNCATE/i);
+    });
+
+    it("migration 015 adds settlement_source, reconciled_at, reconciliation_reason to enhancement_queue_items", () => {
+      assert.match(mig015Content, /ALTER\s+TABLE\s+public\.enhancement_queue_items/i);
+      assert.match(mig015Content, /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+settlement_source\s+text/i);
+      assert.match(mig015Content, /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+reconciled_at\s+timestamptz/i);
+      assert.match(mig015Content, /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+reconciliation_reason\s+text/i);
+    });
+
+    it("enforces settlement_source allowlist CHECK constraint ('RESULT_CODE', 'STATE_RECONCILED')", () => {
+      assert.match(mig015Content, /CHECK\s*\(settlement_source\s+IS\s+NULL\s+OR\s+settlement_source\s+IN\s+\('RESULT_CODE',\s*'STATE_RECONCILED'\)\)/i);
+    });
+
+    it("enforces reconciliation_reason length limit CHECK constraint (<= 500 chars)", () => {
+      assert.match(mig015Content, /CHECK\s*\(reconciliation_reason\s+IS\s+NULL\s+OR\s+char_length\(reconciliation_reason\)\s*<=\s*500\)/i);
+    });
+  });
 });
+

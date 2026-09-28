@@ -482,6 +482,9 @@ export interface EnhancementQueueItem {
   executeMayHaveBeenSentAt: string | null;
   attemptSettledAt: string | null;
   lastResultCode: string | null;
+  settlementSource?: "RESULT_CODE" | "STATE_RECONCILED" | null;
+  reconciledAt?: string | null;
+  reconciliationReason?: string | null;
 
   // Authoritative item spend
   actualGoldSpent: number;

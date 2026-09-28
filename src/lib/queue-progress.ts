@@ -256,6 +256,10 @@ export function mapQueueItemRow(row: Record<string, unknown>): EnhancementQueueI
       (row.execute_may_have_been_sent_at as string | null) ?? null,
     attemptSettledAt: (row.attempt_settled_at as string | null) ?? null,
     lastResultCode: (row.last_result_code as string | null) ?? null,
+    settlementSource:
+      (row.settlement_source as "RESULT_CODE" | "STATE_RECONCILED" | null) ?? null,
+    reconciledAt: (row.reconciled_at as string | null) ?? null,
+    reconciliationReason: (row.reconciliation_reason as string | null) ?? null,
     actualGoldSpent: Number(row.actual_gold_spent) || 0,
     actualGemSpent: Number(row.actual_gem_spent) || 0,
     actualMaterial1Spent: Number(row.actual_material_1_spent) || 0,
