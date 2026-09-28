@@ -671,6 +671,120 @@ export async function executeResolveManualReviewFlow(
   return mapQueueJobRow(resolvedRow);
 }
 
+export interface AtomicReconcileAndCloseParams {
+  jobId: string;
+  targetItemId: string;
+  attemptUuid: string;
+  provenTargetLevel: number;
+  spendGold?: number;
+  spendGem?: number;
+  spendMaterial1?: number;
+  spendMaterial2?: number;
+  spendMaterial3?: number;
+  spendMaterial4?: number;
+  spendCharm?: number;
+  reconciliationReason?: string;
+  resolutionNote?: string | null;
+}
+
+/**
+ * Executes the atomic state reconcile and close flow (ENHANCE-05N).
+ * Settle proven Candidate A, cancel remaining unattempted Candidate B, and terminalize job.
+ */
+export async function executeAtomicReconcileAndCloseFlow(
+  client: SupabaseClientLike,
+  params: AtomicReconcileAndCloseParams,
+  context?: QueueServiceContext,
+): Promise<EnhancementQueueJob> {
+  const {
+    jobId,
+    targetItemId,
+    attemptUuid,
+    provenTargetLevel,
+    spendGold = 0,
+    spendGem = 0,
+    spendMaterial1 = 0,
+    spendMaterial2 = 0,
+    spendMaterial3 = 0,
+    spendMaterial4 = 0,
+    spendCharm = 0,
+    reconciliationReason = "STATE_RECONCILED_SUCCESS",
+    resolutionNote = null,
+  } = params;
+
+  if (!jobId || !targetItemId || !attemptUuid) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      "Thiếu tham số bắt buộc (jobId, targetItemId, attemptUuid).",
+    );
+  }
+
+  if (typeof provenTargetLevel !== "number" || provenTargetLevel < 1 || provenTargetLevel > 15) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      `Cấp độ đích xác thực không hợp lệ: ${provenTargetLevel} (phải từ 1 đến 15).`,
+    );
+  }
+
+  // 1. Fetch job to verify existence and ownership
+  const { data: job, error: fetchErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi kiểm tra hàng đợi.",
+    );
+  }
+
+  if (!job) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      `Không tìm thấy hàng đợi ${jobId}.`,
+    );
+  }
+
+  if (context?.userId && job.user_id !== context.userId) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      "Không có quyền thao tác trên hàng đợi của người dùng khác.",
+    );
+  }
+
+  // 2. Call canonical transactional RPC (RPC handles concurrency, idempotency, and all guards)
+  const { data: resolvedRow, error: rpcErr } = await client.rpc(
+    "reconcile_enhancement_manual_review_and_close",
+    {
+      p_job_id: jobId,
+      p_target_item_id: targetItemId,
+      p_attempt_uuid: attemptUuid,
+      p_proven_target_level: provenTargetLevel,
+      p_actual_gold_spent: spendGold,
+      p_actual_gem_spent: spendGem,
+      p_actual_material_1_spent: spendMaterial1,
+      p_actual_material_2_spent: spendMaterial2,
+      p_actual_material_3_spent: spendMaterial3,
+      p_actual_material_4_spent: spendMaterial4,
+      p_actual_charm_spent: spendCharm,
+      p_reconciliation_reason: reconciliationReason,
+      p_resolution_note: resolutionNote ?? null,
+    },
+  );
+
+  if (rpcErr || !resolvedRow) {
+    const errMsg = rpcErr?.message ?? "";
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể đối soát và đóng hàng đợi: ${errMsg}`,
+    );
+  }
+
+  return mapQueueJobRow(resolvedRow);
+}
+
 /**
  * Maps Supabase raw database snake_case row to camelCase EnhancementQueueJob.
  */
@@ -697,7 +811,7 @@ export function mapQueueJobRow(row: Record<string, unknown>): EnhancementQueueJo
     startedAt: (row.started_at as string | null) ?? null,
     finishedAt: (row.finished_at as string | null) ?? null,
     updatedAt: String(row.updated_at),
-    resolutionKind: (row.resolution_kind as "ABANDON_UNRESOLVED" | null) ?? null,
+    resolutionKind: (row.resolution_kind as "ABANDON_UNRESOLVED" | "RECONCILED_SUCCESS_CLOSE_REMAINDER" | null) ?? null,
     resolvedAt: (row.resolved_at as string | null) ?? null,
     resolvedBy: (row.resolved_by as string | null) ?? null,
     resolutionNote: (row.resolution_note as string | null) ?? null,

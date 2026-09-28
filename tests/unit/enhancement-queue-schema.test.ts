@@ -309,5 +309,30 @@ describe("Enhancement Queue Schema Contract & Invariants (ENHANCE-05A)", () => {
       assert.match(mig015Content, /CHECK\s*\(reconciliation_reason\s+IS\s+NULL\s+OR\s+char_length\(reconciliation_reason\)\s*<=\s*500\)/i);
     });
   });
+
+  describe("Migration 016 Specification & Atomic Reconcile Close Schema Contract", () => {
+    const mig016Path = path.resolve(process.cwd(), "supabase/migrations/016_enhancement_atomic_reconcile_close.sql");
+    const mig016Content = fs.readFileSync(mig016Path, "utf-8");
+
+    it("migration 016 file exists and is forward-only", () => {
+      assert.ok(fs.existsSync(mig016Path));
+      assert.ok(mig016Content.length > 200);
+      assert.doesNotMatch(mig016Content, /DROP\s+TABLE/i);
+      assert.doesNotMatch(mig016Content, /TRUNCATE/i);
+    });
+
+    it("extends resolution_kind check constraint to permit RECONCILED_SUCCESS_CLOSE_REMAINDER", () => {
+      assert.match(mig016Content, /enhancement_queue_jobs_resolution_kind_check/i);
+      assert.match(mig016Content, /RECONCILED_SUCCESS_CLOSE_REMAINDER/i);
+      assert.match(mig016Content, /ABANDON_UNRESOLVED/i);
+    });
+
+    it("defines reconcile_enhancement_manual_review_and_close RPC with row locking", () => {
+      assert.match(mig016Content, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.reconcile_enhancement_manual_review_and_close/i);
+      assert.match(mig016Content, /FOR\s+UPDATE/i);
+      assert.match(mig016Content, /service_role/i);
+    });
+  });
 });
+
 

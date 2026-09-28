@@ -326,6 +326,24 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"];
       };
+      reconcile_enhancement_manual_review_and_close: {
+        Args: {
+          p_job_id: string;
+          p_target_item_id: string;
+          p_attempt_uuid: string;
+          p_proven_target_level: number;
+          p_actual_gold_spent?: number;
+          p_actual_gem_spent?: number;
+          p_actual_material_1_spent?: number;
+          p_actual_material_2_spent?: number;
+          p_actual_material_3_spent?: number;
+          p_actual_material_4_spent?: number;
+          p_actual_charm_spent?: number;
+          p_reconciliation_reason?: string;
+          p_resolution_note?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

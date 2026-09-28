@@ -385,6 +385,14 @@ export function EnhancementQueueProgress({
                   </div>
                 ) : null}
 
+                {/* State reconciliation indicator */}
+                {item.settlementSource === "STATE_RECONCILED" ? (
+                  <div className="mt-1 text-[11px] text-online bg-online/10 border border-online/30 rounded p-1.5 font-medium">
+                    Đối soát trạng thái: <strong>Thành công (STATE_RECONCILED)</strong>
+                    {item.reconciliationReason ? ` — ${item.reconciliationReason}` : ""}
+                  </div>
+                ) : null}
+
                 {/* Error info if present */}
                 {item.errorCode || item.errorMessage ? (
                   <div className="mt-1 text-[11px] text-danger bg-danger/10 border border-danger/20 rounded p-1.5">
@@ -553,6 +561,17 @@ function JobStatusBadge({
         className="rounded border border-warning/60 bg-warning/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-warning"
       >
         CANCELLED (MANUAL REVIEW RESOLVED)
+      </span>
+    );
+  }
+
+  if (status === "CANCELLED" && resolutionKind === "RECONCILED_SUCCESS_CLOSE_REMAINDER") {
+    return (
+      <span
+        title="Đã đối soát thành công mục đang xử lý và đóng hàng đợi"
+        className="rounded border border-online/60 bg-online/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-online"
+      >
+        CANCELLED (RECONCILED & CLOSED)
       </span>
     );
   }
