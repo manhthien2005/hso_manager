@@ -71,6 +71,11 @@ export interface ZeusApi {
   startEnhancementQueue?(params: { accountId: string; items: QueueItemSubmissionPayload[] }): Promise<EnhancementQueueJob>;
   pauseEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
   cancelEnhancementQueue?(jobId: string): Promise<EnhancementQueueJob>;
+  resolveManualReviewQueue?(
+    jobId: string,
+    disposition?: "ABANDON_UNRESOLVED",
+    note?: string | null,
+  ): Promise<EnhancementQueueJob>;
   getActiveEnhancementQueue?(accountId: string): Promise<EnhancementQueueJob | null>;
   getActiveQueueWithItems?(accountId: string): Promise<AuthoritativeQueueWithItems | null>;
   getRecentQueueHistory?(accountId: string, limit?: number): Promise<AuthoritativeQueueWithItems[]>;

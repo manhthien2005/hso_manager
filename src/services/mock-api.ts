@@ -827,6 +827,35 @@ export const mockApi: ZeusApi = {
     return structuredClone(job);
   },
 
+  async resolveManualReviewQueue(jobId, disposition = "ABANDON_UNRESOLVED", note = null) {
+    await delay();
+    if (disposition !== "ABANDON_UNRESOLVED") {
+      throw new ApiError("BAD_REQUEST", `Hành động không hợp lệ: ${disposition}`);
+    }
+    const current = load();
+    const job = current.queueJobs.get(jobId);
+    if (!job) throw new ApiError("NOT_FOUND", "Không tìm thấy hàng đợi");
+    if (job.status === "CANCELLED" && job.resolutionKind === "ABANDON_UNRESOLVED") {
+      return structuredClone(job);
+    }
+    if (job.status !== "MANUAL_REVIEW_REQUIRED") {
+      throw new ApiError("CONFLICT", "Hàng đợi không ở trạng thái MANUAL_REVIEW_REQUIRED");
+    }
+    const items = current.queueItems.get(job.id) ?? [];
+    for (const item of items) {
+      if (item.status === "PENDING") {
+        item.status = "CANCELLED";
+      }
+    }
+    job.status = "CANCELLED";
+    job.resolutionKind = disposition;
+    job.resolvedAt = new Date().toISOString();
+    job.resolvedBy = job.userId;
+    job.resolutionNote = note ?? null;
+    job.finishedAt = new Date().toISOString();
+    return structuredClone(job);
+  },
+
   async getActiveEnhancementQueue(accountId) {
     const current = load();
     const job = Array.from(current.queueJobs.values()).find(

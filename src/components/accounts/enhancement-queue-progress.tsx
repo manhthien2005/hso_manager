@@ -19,8 +19,10 @@ interface EnhancementQueueProgressProps {
   history?: AuthoritativeQueueWithItems[];
   onPauseQueue?: () => void;
   onCancelQueue?: () => void;
+  onResolveQueue?: (disposition?: "ABANDON_UNRESOLVED", note?: string | null) => void;
   isPausing?: boolean;
   isCancelling?: boolean;
+  isResolving?: boolean;
   errorMessage?: string | null;
 }
 
@@ -29,12 +31,15 @@ export function EnhancementQueueProgress({
   history = [],
   onPauseQueue,
   onCancelQueue,
+  onResolveQueue,
   isPausing = false,
   isCancelling = false,
+  isResolving = false,
   errorMessage,
 }: EnhancementQueueProgressProps) {
   const { job, items, derivedSpend } = activeQueue;
   const [showHistory, setShowHistory] = useState(false);
+  const [showResolveConfirm, setShowResolveConfirm] = useState(false);
 
   const itemProgressList = useMemo(() => {
     return determineItemProgressState(items);
@@ -69,7 +74,7 @@ export function EnhancementQueueProgress({
             <span className="font-semibold text-base text-foreground tracking-tight">
               Tiến trình hàng đợi cường hóa
             </span>
-            <JobStatusBadge status={job.status} />
+            <JobStatusBadge status={job.status} resolutionKind={job.resolutionKind} />
           </div>
           <p className="mt-1 text-xs text-muted">
             Mã Job: <span className="font-mono text-foreground font-medium">{job.id.slice(0, 8)}...</span>
@@ -103,7 +108,7 @@ export function EnhancementQueueProgress({
             </Button>
           ) : null}
 
-          {["QUEUED", "RUNNING", "PAUSING", "PAUSED", "MANUAL_REVIEW_REQUIRED"].includes(job.status) ? (
+          {["QUEUED", "RUNNING", "PAUSING", "PAUSED"].includes(job.status) ? (
             <Button
               id="cancel-enhancement-queue-btn"
               variant="danger"
@@ -117,6 +122,19 @@ export function EnhancementQueueProgress({
                 : isCancelling
                   ? "Đang gửi..."
                   : "Hủy hàng đợi"}
+            </Button>
+          ) : null}
+
+          {job.status === "MANUAL_REVIEW_REQUIRED" && onResolveQueue ? (
+            <Button
+              id="resolve-manual-review-btn"
+              variant="danger"
+              size="sm"
+              onClick={() => setShowResolveConfirm(true)}
+              disabled={isResolving}
+              className="text-xs"
+            >
+              {isResolving ? "Đang xử lý..." : "Xử lý / Đóng hàng đợi"}
             </Button>
           ) : null}
         </div>
@@ -145,7 +163,7 @@ export function EnhancementQueueProgress({
       {isManualReview ? (
         <div
           id="manual-review-required-banner"
-          className="rounded-lg border-2 border-danger/80 bg-danger/15 p-4 space-y-2 text-danger"
+          className="rounded-lg border-2 border-danger/80 bg-danger/15 p-4 space-y-3 text-danger"
         >
           <div className="flex items-center gap-2">
             <span className="size-3 rounded-full bg-danger animate-ping shrink-0" />
@@ -157,9 +175,73 @@ export function EnhancementQueueProgress({
             Tiến trình cường hóa tự động đã tạm dừng để bảo vệ tài khoản và trang bị.
             Hệ thống không tự động thử lại (Không có tính năng Retry tự động) để tránh rủi ro mất đồ khi trạng thái chưa rõ ràng.
           </p>
-          <p className="text-[11px] text-muted leading-relaxed">
-            Vui lòng đăng nhập hoặc kiểm tra trực tiếp trong game để xác nhận kết quả lượt cường hóa gần nhất trước khi tiếp tục.
-          </p>
+
+          <div className="rounded border border-danger/30 bg-surface/60 p-2.5 text-xs text-foreground/90 space-y-1">
+            <div className="font-semibold text-danger">Trạng thái kết quả: Chưa xác định (Outcome Unresolved)</div>
+            {job.activeAttemptUuid ? (
+              <div className="font-mono text-[11px] text-muted">
+                Attempt UUID: <span className="text-foreground">{job.activeAttemptUuid}</span>
+              </div>
+            ) : null}
+            <div className="text-[11px] text-muted">
+              Kết quả của lượt thử gần nhất trên server game chưa được chốt. Hàng đợi đang giữ độc quyền tài khoản.
+            </div>
+          </div>
+
+          {onResolveQueue && !showResolveConfirm ? (
+            <div className="pt-1">
+              <Button
+                id="open-resolve-confirm-btn"
+                variant="danger"
+                size="sm"
+                onClick={() => setShowResolveConfirm(true)}
+                disabled={isResolving}
+                className="text-xs font-semibold"
+              >
+                Xử lý / Đóng hàng đợi (Resolve & Release Exclusivity)
+              </Button>
+            </div>
+          ) : null}
+
+          {showResolveConfirm && onResolveQueue ? (
+            <div
+              id="manual-review-resolve-confirmation"
+              className="rounded border border-danger/60 bg-danger/20 p-3 space-y-2 text-xs"
+            >
+              <div className="font-bold text-danger">
+                Xác nhận đóng hàng đợi sau kiểm tra thủ công?
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-foreground/90">
+                <li>Kết quả cường hóa của trang bị đang thử sẽ được <strong>ghi nhận nguyên trạng là Chưa xác định</strong> (không coi là Thành công hay Thất bại).</li>
+                <li>Tất cả các trang bị chưa thực hiện còn lại trong hàng đợi sẽ bị <strong>hủy bỏ vĩnh viễn</strong>.</li>
+                <li>Độc quyền tài khoản sẽ được <strong>giải phóng ngay lập tức</strong> để có thể tạo hàng đợi mới.</li>
+              </ul>
+              <div className="flex items-center gap-2 pt-1.5">
+                <Button
+                  id="confirm-resolve-queue-btn"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    onResolveQueue("ABANDON_UNRESOLVED", "Xác nhận đóng hàng đợi sau kiểm tra thủ công");
+                    setShowResolveConfirm(false);
+                  }}
+                  disabled={isResolving}
+                  className="text-xs font-bold"
+                >
+                  {isResolving ? "Đang xử lý..." : "Xác nhận đóng hàng đợi"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowResolveConfirm(false)}
+                  disabled={isResolving}
+                  className="text-xs"
+                >
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -283,11 +365,23 @@ export function EnhancementQueueProgress({
                   </div>
                 </div>
 
-                {/* Attempt phase for active or settled item */}
+                {/* Attempt phase and attempt uuid for active or settled item */}
                 {item.attemptPhase && item.attemptPhase !== "NONE" ? (
-                  <div className="pt-1 flex items-center gap-1.5">
+                  <div className="pt-1 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] text-muted">Giai đoạn:</span>
                     <AttemptPhaseBadge phase={item.attemptPhase} />
+                    {item.activeAttemptUuid ? (
+                      <span className="text-[10px] font-mono text-muted">
+                        UUID: {item.activeAttemptUuid.slice(0, 8)}...
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Outcome indicator for MANUAL_REVIEW_REQUIRED item */}
+                {item.status === "MANUAL_REVIEW_REQUIRED" ? (
+                  <div className="mt-1 text-[11px] text-danger bg-danger/10 border border-danger/30 rounded p-1.5 font-medium">
+                    Kết quả lượt thử: <strong>Chưa xác định</strong> (Dừng kiểm tra thủ công, không bị coi là thất bại)
                   </div>
                 ) : null}
 
@@ -362,7 +456,7 @@ export function EnhancementQueueProgress({
                         <span className="font-mono text-[11px] font-medium text-foreground">
                           Job {hist.job.id.slice(0, 8)}...
                         </span>
-                        <JobStatusBadge status={hist.job.status} />
+                        <JobStatusBadge status={hist.job.status} resolutionKind={hist.job.resolutionKind} />
                       </div>
                       <span className="text-[11px] text-muted">
                         {hist.job.finishedAt
@@ -445,7 +539,24 @@ function SpendSummaryCard({ spend }: { spend: DerivedQueueSpend }) {
   );
 }
 
-function JobStatusBadge({ status }: { status: EnhancementQueueJob["status"] }) {
+function JobStatusBadge({
+  status,
+  resolutionKind,
+}: {
+  status: EnhancementQueueJob["status"];
+  resolutionKind?: string | null;
+}) {
+  if (status === "CANCELLED" && resolutionKind === "ABANDON_UNRESOLVED") {
+    return (
+      <span
+        title="Đã đóng sau kiểm tra thủ công (Kết quả: Chưa xác định)"
+        className="rounded border border-warning/60 bg-warning/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-warning"
+      >
+        CANCELLED (MANUAL REVIEW RESOLVED)
+      </span>
+    );
+  }
+
   const styles: Record<string, string> = {
     QUEUED: "border-warning/40 bg-warning/10 text-warning",
     RUNNING: "border-accent/40 bg-accent/15 text-accent animate-pulse",

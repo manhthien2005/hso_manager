@@ -68,6 +68,7 @@ export function EnhancementPanel({
   const [isStarting, setIsStarting] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const liveInventory = account.snapshot?.inventory ?? null;
@@ -303,6 +304,37 @@ export function EnhancementPanel({
     }
   }
 
+  async function handleResolveQueue(
+    disposition: "ABANDON_UNRESOLVED" = "ABANDON_UNRESOLVED",
+    note?: string | null,
+  ) {
+    if (!activeQueue) return;
+    setIsResolving(true);
+    setActionError(null);
+
+    try {
+      if (!api.resolveManualReviewQueue) {
+        throw new Error("resolveManualReviewQueue is not implemented");
+      }
+      await api.resolveManualReviewQueue(activeQueue.id, disposition, note);
+
+      // Refetch authoritative queue state
+      if (api.getActiveQueueWithItems) {
+        const updated = await api.getActiveQueueWithItems(account.id);
+        setActiveQueueWithItems(updated);
+        setActiveQueue(updated ? updated.job : null);
+      }
+      if (api.getRecentQueueHistory) {
+        const hist = await api.getRecentQueueHistory(account.id, 5);
+        setQueueHistory(hist);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Xử lý hàng đợi thất bại.");
+    } finally {
+      setIsResolving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 1. Legacy Global Control Settings (Preserved Exactly) */}
@@ -375,8 +407,10 @@ export function EnhancementPanel({
               history={queueHistory}
               onPauseQueue={handlePauseQueue}
               onCancelQueue={handleCancelQueue}
+              onResolveQueue={handleResolveQueue}
               isPausing={isPausing}
               isCancelling={isCancelling}
+              isResolving={isResolving}
               errorMessage={actionError}
             />
           ) : (

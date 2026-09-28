@@ -163,6 +163,10 @@ export interface Database {
           started_at: string | null;
           finished_at: string | null;
           updated_at: string;
+          resolution_kind: string | null;
+          resolved_at: string | null;
+          resolved_by: string | null;
+          resolution_note: string | null;
         };
         Insert: Omit<Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"], "id" | "created_at" | "updated_at"> & {
           id?: string;
@@ -308,6 +312,14 @@ export interface Database {
       publish_enhancement_queue_job: {
         Args: {
           p_job_id: string;
+        };
+        Returns: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"];
+      };
+      resolve_enhancement_queue_manual_review: {
+        Args: {
+          p_job_id: string;
+          p_disposition?: string;
+          p_note?: string | null;
         };
         Returns: Database["public"]["Tables"]["enhancement_queue_jobs"]["Row"];
       };

@@ -59,6 +59,7 @@ import {
   executeStartQueueFlow,
   executePauseQueueFlow,
   executeCancelQueueFlow,
+  executeResolveManualReviewFlow,
   mapQueueJobRow,
   fetchActiveQueueWithItems,
   fetchRecentQueueHistory,
@@ -1155,6 +1156,19 @@ export class SupabaseApi implements ZeusApi {
       throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
     }
     return executeCancelQueueFlow(supabase, jobId, user.id);
+  }
+
+  async resolveManualReviewQueue(
+    jobId: string,
+    disposition: "ABANDON_UNRESOLVED" = "ABANDON_UNRESOLVED",
+    note?: string | null,
+  ): Promise<EnhancementQueueJob> {
+    const { data: sessionData, error: authErr } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (authErr || !user) {
+      throw new ApiError("UNAUTHENTICATED", "Chưa đăng nhập");
+    }
+    return executeResolveManualReviewFlow(supabase, jobId, user.id, disposition, note);
   }
 
   async getActiveEnhancementQueue(accountId: string): Promise<EnhancementQueueJob | null> {

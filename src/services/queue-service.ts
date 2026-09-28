@@ -514,12 +514,18 @@ export async function executeCancelQueueFlow(
     );
   }
 
+  if (job.status === "MANUAL_REVIEW_REQUIRED") {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.MANUAL_REVIEW_RESOLUTION_REQUIRED,
+      "Hàng đợi đang ở trạng thái cần kiểm tra thủ công (MANUAL_REVIEW_REQUIRED). Không thể hủy thông thường, vui lòng sử dụng quy trình xử lý chuyên biệt.",
+    );
+  }
+
   const unresolvedStatuses = [
     "QUEUED",
     "RUNNING",
     "PAUSING",
     "PAUSED",
-    "MANUAL_REVIEW_REQUIRED",
   ];
   if (!unresolvedStatuses.includes(job.status)) {
     throw new QueueError(
@@ -551,6 +557,121 @@ export async function executeCancelQueueFlow(
 }
 
 /**
+ * Executes explicit administrative resolution for MANUAL_REVIEW_REQUIRED queue jobs.
+ *
+ * Requirements (Task ENHANCE-05J):
+ * 1. Requires authenticated user who owns the queue job.
+ * 2. Only supports disposition 'ABANDON_UNRESOLVED'.
+ * 3. Does not require enhancement-queue-v1 runtime capability or active game client.
+ * 4. Checks job is currently MANUAL_REVIEW_REQUIRED (or already resolved with ABANDON_UNRESOLVED for idempotency).
+ * 5. Calls canonical transactional RPC resolve_enhancement_queue_manual_review.
+ * 6. Preserves Candidate A attempt UUID, phase, null authoritative result, null settlement timestamp, and spend.
+ * 7. Cancels unattempted items (Candidate B).
+ * 8. Releases account exclusivity by transitioning job to CANCELLED outside partial index.
+ */
+export async function executeResolveManualReviewFlow(
+  client: SupabaseClientLike,
+  jobId: string,
+  userId: string,
+  disposition: "ABANDON_UNRESOLVED" = "ABANDON_UNRESOLVED",
+  note?: string | null,
+): Promise<EnhancementQueueJob> {
+  if (!userId) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      "Yêu cầu phiên đăng nhập xác thực.",
+    );
+  }
+
+  if (disposition !== "ABANDON_UNRESOLVED") {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.MANUAL_REVIEW_INVALID_DISPOSITION,
+      `Hành động xử lý không hợp lệ: ${disposition}. Chỉ hỗ trợ ABANDON_UNRESOLVED.`,
+    );
+  }
+
+  if (note && note.length > 500) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      "Ghi chú xử lý không được vượt quá 500 ký tự.",
+    );
+  }
+
+  // 1. Fetch job to verify existence and ownership
+  const { data: job, error: fetchErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi kiểm tra hàng đợi.",
+    );
+  }
+
+  if (!job) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      `Không tìm thấy hàng đợi ${jobId}.`,
+    );
+  }
+
+  if (job.user_id !== userId) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      "Không có quyền thao tác trên hàng đợi của người dùng khác.",
+    );
+  }
+
+  // 2. Idempotency check: if already resolved with ABANDON_UNRESOLVED
+  if (job.status === "CANCELLED" && job.resolution_kind === "ABANDON_UNRESOLVED") {
+    return mapQueueJobRow(job);
+  }
+
+  // 3. Status pre-validation
+  if (job.status !== "MANUAL_REVIEW_REQUIRED") {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Hàng đợi đang ở trạng thái ${job.status}, không thể thực hiện xử lý thủ công (chỉ hỗ trợ MANUAL_REVIEW_REQUIRED).`,
+    );
+  }
+
+  // 4. Call canonical transactional RPC
+  const { data: resolvedRow, error: rpcErr } = await client.rpc(
+    "resolve_enhancement_queue_manual_review",
+    {
+      p_job_id: jobId,
+      p_disposition: disposition,
+      p_note: note ?? null,
+    },
+  );
+
+  if (rpcErr || !resolvedRow) {
+    const errMsg = rpcErr?.message ?? "";
+    if (errMsg.includes("MANUAL_REVIEW_STATE_CHANGED")) {
+      throw new QueueError(
+        QUEUE_ERROR_CODES.MANUAL_REVIEW_STATE_CHANGED,
+        `Trạng thái hàng đợi hoặc trang bị đã thay đổi trước khi xử lý: ${errMsg}`,
+      );
+    }
+    if (errMsg.includes("not owned")) {
+      throw new QueueError(
+        QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+        "Không có quyền thao tác trên hàng đợi này.",
+      );
+    }
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể xử lý hàng đợi: ${errMsg}`,
+    );
+  }
+
+  return mapQueueJobRow(resolvedRow);
+}
+
+/**
  * Maps Supabase raw database snake_case row to camelCase EnhancementQueueJob.
  */
 export function mapQueueJobRow(row: Record<string, unknown>): EnhancementQueueJob {
@@ -576,6 +697,10 @@ export function mapQueueJobRow(row: Record<string, unknown>): EnhancementQueueJo
     startedAt: (row.started_at as string | null) ?? null,
     finishedAt: (row.finished_at as string | null) ?? null,
     updatedAt: String(row.updated_at),
+    resolutionKind: (row.resolution_kind as "ABANDON_UNRESOLVED" | null) ?? null,
+    resolvedAt: (row.resolved_at as string | null) ?? null,
+    resolvedBy: (row.resolved_by as string | null) ?? null,
+    resolutionNote: (row.resolution_note as string | null) ?? null,
   };
 }
 

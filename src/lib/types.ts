@@ -447,6 +447,10 @@ export interface EnhancementQueueJob {
   startedAt: string | null;
   finishedAt: string | null;
   updatedAt: string;
+  resolutionKind?: "ABANDON_UNRESOLVED" | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  resolutionNote?: string | null;
 }
 
 export interface EnhancementQueueItem {
