@@ -447,7 +447,7 @@ export interface EnhancementQueueJob {
   startedAt: string | null;
   finishedAt: string | null;
   updatedAt: string;
-  resolutionKind?: "ABANDON_UNRESOLVED" | "RECONCILED_SUCCESS_CLOSE_REMAINDER" | null;
+  resolutionKind?: "ABANDON_UNRESOLVED" | "RECONCILED_SUCCESS_CLOSE_REMAINDER" | "RESULT_CODE_SUCCESS_CLOSE_REMAINDER" | null;
   resolvedAt?: string | null;
   resolvedBy?: string | null;
   resolutionNote?: string | null;

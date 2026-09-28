@@ -785,6 +785,144 @@ export async function executeAtomicReconcileAndCloseFlow(
   return mapQueueJobRow(resolvedRow);
 }
 
+export interface AtomicCapturedResultRecoveryParams {
+  jobId: string;
+  targetItemId: string;
+  attemptUuid: string;
+  provenTargetLevel: number;
+  capturedResultCode?: number;
+  spendGold?: number;
+  spendGem?: number;
+  spendMaterial1?: number;
+  spendMaterial2?: number;
+  spendMaterial3?: number;
+  spendMaterial4?: number;
+  spendCharm?: number;
+  resolutionNote?: string | null;
+}
+
+/**
+ * Executes the atomic captured result success recovery flow (ENHANCE-05R).
+ * Settle proven Candidate A with server captured result code 3 and settlement_source = RESULT_CODE,
+ * cancel remaining unattempted Candidate B, and terminalize job as CANCELLED with
+ * resolution_kind = RESULT_CODE_SUCCESS_CLOSE_REMAINDER.
+ */
+export async function executeAtomicCapturedResultRecoveryFlow(
+  client: SupabaseClientLike,
+  params: AtomicCapturedResultRecoveryParams,
+  context?: QueueServiceContext,
+): Promise<EnhancementQueueJob> {
+  const {
+    jobId,
+    targetItemId,
+    attemptUuid,
+    provenTargetLevel,
+    capturedResultCode = 3,
+    spendGold = 0,
+    spendGem = 0,
+    spendMaterial1 = 0,
+    spendMaterial2 = 0,
+    spendMaterial3 = 0,
+    spendMaterial4 = 0,
+    spendCharm = 0,
+    resolutionNote = null,
+  } = params;
+
+  if (!jobId || !targetItemId || !attemptUuid) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      "Thiếu tham số bắt buộc (jobId, targetItemId, attemptUuid).",
+    );
+  }
+
+  if (capturedResultCode !== 3) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      `Mã kết quả thành công không hợp lệ: ${capturedResultCode} (phải là 3).`,
+    );
+  }
+
+  if (typeof provenTargetLevel !== "number" || provenTargetLevel < 1 || provenTargetLevel > 15) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      `Cấp độ đích xác thực không hợp lệ: ${provenTargetLevel} (phải từ 1 đến 15).`,
+    );
+  }
+
+  if (
+    spendGold < 0 ||
+    spendGem < 0 ||
+    spendMaterial1 < 0 ||
+    spendMaterial2 < 0 ||
+    spendMaterial3 < 0 ||
+    spendMaterial4 < 0 ||
+    spendCharm < 0
+  ) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+      "Chi phí thực tế không được âm.",
+    );
+  }
+
+  // 1. Fetch job to verify existence and ownership
+  const { data: job, error: fetchErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_BACKEND_QUERY_FAILED,
+      "Lỗi truy vấn cơ sở dữ liệu khi kiểm tra hàng đợi.",
+    );
+  }
+
+  if (!job) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      `Không tìm thấy hàng đợi ${jobId}.`,
+    );
+  }
+
+  if (context?.userId && job.user_id !== context.userId) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_NOT_OWNED,
+      "Không có quyền thao tác trên hàng đợi của người dùng khác.",
+    );
+  }
+
+  // 2. Call canonical transactional RPC (service_role only)
+  const { data: resolvedRow, error: rpcErr } = await client.rpc(
+    "recover_enhancement_result_code_success_and_close",
+    {
+      p_job_id: jobId,
+      p_target_item_id: targetItemId,
+      p_attempt_uuid: attemptUuid,
+      p_proven_target_level: provenTargetLevel,
+      p_captured_result_code: capturedResultCode,
+      p_actual_gold_spent: spendGold,
+      p_actual_gem_spent: spendGem,
+      p_actual_material_1_spent: spendMaterial1,
+      p_actual_material_2_spent: spendMaterial2,
+      p_actual_material_3_spent: spendMaterial3,
+      p_actual_material_4_spent: spendMaterial4,
+      p_actual_charm_spent: spendCharm,
+      p_resolution_note: resolutionNote ?? null,
+    },
+  );
+
+  if (rpcErr || !resolvedRow) {
+    const errMsg = rpcErr?.message ?? "";
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể khôi phục kết quả máy chủ và đóng hàng đợi: ${errMsg}`,
+    );
+  }
+
+  return mapQueueJobRow(resolvedRow);
+}
+
 /**
  * Maps Supabase raw database snake_case row to camelCase EnhancementQueueJob.
  */
@@ -811,7 +949,7 @@ export function mapQueueJobRow(row: Record<string, unknown>): EnhancementQueueJo
     startedAt: (row.started_at as string | null) ?? null,
     finishedAt: (row.finished_at as string | null) ?? null,
     updatedAt: String(row.updated_at),
-    resolutionKind: (row.resolution_kind as "ABANDON_UNRESOLVED" | "RECONCILED_SUCCESS_CLOSE_REMAINDER" | null) ?? null,
+    resolutionKind: (row.resolution_kind as "ABANDON_UNRESOLVED" | "RECONCILED_SUCCESS_CLOSE_REMAINDER" | "RESULT_CODE_SUCCESS_CLOSE_REMAINDER" | null) ?? null,
     resolvedAt: (row.resolved_at as string | null) ?? null,
     resolvedBy: (row.resolved_by as string | null) ?? null,
     resolutionNote: (row.resolution_note as string | null) ?? null,

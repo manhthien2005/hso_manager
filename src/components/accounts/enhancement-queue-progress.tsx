@@ -393,6 +393,13 @@ export function EnhancementQueueProgress({
                   </div>
                 ) : null}
 
+                {/* Captured result code indicator */}
+                {item.settlementSource === "RESULT_CODE" ? (
+                  <div className="mt-1 text-[11px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded p-1.5 font-medium">
+                    Kết quả máy chủ ghi nhận: <strong>Thành công (RESULT_CODE = {item.lastResultCode ?? "3"})</strong>
+                  </div>
+                ) : null}
+
                 {/* Error info if present */}
                 {item.errorCode || item.errorMessage ? (
                   <div className="mt-1 text-[11px] text-danger bg-danger/10 border border-danger/20 rounded p-1.5">
@@ -400,8 +407,12 @@ export function EnhancementQueueProgress({
                   </div>
                 ) : null}
 
-                {/* Skipped note */}
-                {isUnexecutedDueToPriorFailure ? (
+                {/* Skipped / Unattempted note */}
+                {item.status === "CANCELLED" && item.attemptCount === 0 ? (
+                  <p className="text-[11px] text-muted italic">
+                    Chưa thực hiện (Đã hủy khi đóng hàng đợi, chưa từng thử)
+                  </p>
+                ) : isUnexecutedDueToPriorFailure ? (
                   <p className="text-[11px] text-muted italic">
                     Chưa thực hiện (Đã dừng do mục trước đó gặp lỗi/dừng lại)
                   </p>
@@ -572,6 +583,17 @@ function JobStatusBadge({
         className="rounded border border-online/60 bg-online/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-online"
       >
         CANCELLED (RECONCILED & CLOSED)
+      </span>
+    );
+  }
+
+  if (status === "CANCELLED" && resolutionKind === "RESULT_CODE_SUCCESS_CLOSE_REMAINDER") {
+    return (
+      <span
+        title="Đã ghi nhận kết quả máy chủ thành công và đóng hàng đợi"
+        className="rounded border border-cyan-500/60 bg-cyan-500/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-cyan-400"
+      >
+        CANCELLED (RESULT CODE RECOVERED & CLOSED)
       </span>
     );
   }

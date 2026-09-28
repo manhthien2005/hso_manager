@@ -333,6 +333,33 @@ describe("Enhancement Queue Schema Contract & Invariants (ENHANCE-05A)", () => {
       assert.match(mig016Content, /service_role/i);
     });
   });
+
+  describe("Migration 017 Specification & Captured Result Recovery Schema Contract", () => {
+    const mig017Path = path.resolve(process.cwd(), "supabase/migrations/017_enhancement_captured_result_recovery.sql");
+    const mig017Content = fs.readFileSync(mig017Path, "utf-8");
+
+    it("migration 017 file exists and is forward-only", () => {
+      assert.ok(fs.existsSync(mig017Path));
+      assert.ok(mig017Content.length > 200);
+      assert.doesNotMatch(mig017Content, /DROP\s+TABLE/i);
+      assert.doesNotMatch(mig017Content, /TRUNCATE/i);
+    });
+
+    it("extends resolution_kind check constraint to permit RESULT_CODE_SUCCESS_CLOSE_REMAINDER", () => {
+      assert.match(mig017Content, /enhancement_queue_jobs_resolution_kind_check/i);
+      assert.match(mig017Content, /RESULT_CODE_SUCCESS_CLOSE_REMAINDER/i);
+      assert.match(mig017Content, /RECONCILED_SUCCESS_CLOSE_REMAINDER/i);
+      assert.match(mig017Content, /ABANDON_UNRESOLVED/i);
+    });
+
+    it("defines recover_enhancement_result_code_success_and_close RPC with row locking and service_role security", () => {
+      assert.match(mig017Content, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.recover_enhancement_result_code_success_and_close/i);
+      assert.match(mig017Content, /FOR\s+UPDATE/i);
+      assert.match(mig017Content, /ORDER\s+BY\s+queue_order\s+ASC/i);
+      assert.match(mig017Content, /REVOKE\s+ALL\s+ON\s+FUNCTION\s+public\.recover_enhancement_result_code_success_and_close/i);
+      assert.match(mig017Content, /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.recover_enhancement_result_code_success_and_close[\s\S]*TO\s+service_role/i);
+    });
+  });
 });
 
 
