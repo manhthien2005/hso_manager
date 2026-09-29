@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Account,
   Device,
   EnhancementCharmMode,
   EnhancementPaymentType,
   EnhancementQueueJob,
+  PlayerSnapshot,
 } from "@/lib/types";
 import type { ConfigDraft, ConfigErrors, ConfigPath, ConfigValue } from "@/lib/config-schema";
 import { CONTROL_SCHEMA } from "@/lib/config-schema";
@@ -14,6 +15,7 @@ import {
   type EnhancementQueueEntry,
   type InventoryItemCatalog,
   addQueueEntry,
+  getInventoryFreshness,
   isInventoryAvailable,
   removeQueueEntry,
   reorderQueueEntry,
@@ -71,8 +73,33 @@ export function EnhancementPanel({
   const [isResolving, setIsResolving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const liveInventory = account.snapshot?.inventory ?? null;
-  const isAvailable = isInventoryAvailable(account.status, account.snapshot);
+  // Freshness and manual snapshot refresh state
+  const [refreshedSnapshot, setRefreshedSnapshot] = useState<PlayerSnapshot | null>(null);
+  const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
+
+  // Retain terminal/active job visibility so FAILED/COMPLETED does not abruptly vanish
+  const [retainedJobId, setRetainedJobIdState] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem(`enh_retained_job_${account.id}`);
+    }
+    return null;
+  });
+
+  const setRetainedJobId = useCallback((id: string | null) => {
+    setRetainedJobIdState(id);
+    if (typeof window !== "undefined") {
+      if (id) {
+        sessionStorage.setItem(`enh_retained_job_${account.id}`, id);
+      } else {
+        sessionStorage.removeItem(`enh_retained_job_${account.id}`);
+      }
+    }
+  }, [account.id]);
+
+  const activeSnapshot = refreshedSnapshot ?? account.snapshot;
+  const liveInventory = activeSnapshot?.inventory ?? null;
+  const isAvailable = isInventoryAvailable(account.status, activeSnapshot);
+  const freshness = getInventoryFreshness(activeSnapshot);
 
   // Derive validated queue reactively without calling setState inside an effect
   const validatedQueue = useMemo(() => {
@@ -91,23 +118,60 @@ export function EnhancementPanel({
 
     async function loadActiveQueue() {
       try {
+        let active: AuthoritativeQueueWithItems | null = null;
         if (api.getActiveQueueWithItems) {
-          const active = await api.getActiveQueueWithItems(account.id);
-          if (!cancelled) {
-            setActiveQueueWithItems(active);
-            setActiveQueue(active ? active.job : null);
-          }
+          active = await api.getActiveQueueWithItems(account.id);
         } else if (api.getActiveEnhancementQueue) {
-          const active = await api.getActiveEnhancementQueue(account.id);
-          if (!cancelled) {
-            setActiveQueue(active);
+          const rawJob = await api.getActiveEnhancementQueue(account.id);
+          if (rawJob) {
+            setActiveQueue(rawJob);
           }
         }
 
+        let historyList: AuthoritativeQueueWithItems[] = [];
         if (api.getRecentQueueHistory) {
-          const hist = await api.getRecentQueueHistory(account.id, 5);
+          historyList = await api.getRecentQueueHistory(account.id, 5);
           if (!cancelled) {
-            setQueueHistory(hist);
+            setQueueHistory(historyList);
+          }
+        }
+
+        if (active) {
+          if (!cancelled) {
+            setRetainedJobId(active.job.id);
+            setActiveQueueWithItems(active);
+            setActiveQueue(active.job);
+          }
+        } else if (retainedJobId && api.getQueueJobWithItems) {
+          // Unresolved query returned null, but we retain visibility on the terminal job
+          const retained = await api.getQueueJobWithItems(retainedJobId);
+          if (!cancelled) {
+            if (retained) {
+              setActiveQueueWithItems(retained);
+              setActiveQueue(retained.job);
+            } else {
+              setActiveQueueWithItems(null);
+              setActiveQueue(null);
+            }
+          }
+        } else if (historyList.length > 0 && !activeQueueWithItems) {
+          // If no active job and no explicit retainedJobId, recover the latest terminal job if recent (< 10 min)
+          const latest = historyList[0];
+          const finishedAt = latest.job.finishedAt ? new Date(latest.job.finishedAt).getTime() : 0;
+          if (Date.now() - finishedAt < 10 * 60 * 1000) {
+            if (!cancelled) {
+              setRetainedJobId(latest.job.id);
+              setActiveQueueWithItems(latest);
+              setActiveQueue(latest.job);
+            }
+          } else if (!cancelled) {
+            setActiveQueueWithItems(null);
+            setActiveQueue(null);
+          }
+        } else {
+          if (!cancelled) {
+            setActiveQueueWithItems(null);
+            setActiveQueue(null);
           }
         }
       } catch (err) {
@@ -145,7 +209,7 @@ export function EnhancementPanel({
       unsubscribeRealtime();
       clearInterval(pollInterval);
     };
-  }, [account.id, activeJobStatus]);
+  }, [account.id, activeJobStatus, retainedJobId, activeQueueWithItems, setRetainedJobId]);
 
   // Selected slots set for bag grid rendering
   const selectedSlots = useMemo(() => {
@@ -240,6 +304,8 @@ export function EnhancementPanel({
         items: payload,
       });
 
+      setRetainedJobId(job.id);
+
       // Refetch full authoritative active queue with items immediately
       if (api.getActiveQueueWithItems) {
         const fullQueue = await api.getActiveQueueWithItems(account.id);
@@ -254,6 +320,28 @@ export function EnhancementPanel({
     } finally {
       setIsStarting(false);
     }
+  }
+
+  async function handleRefreshInventory() {
+    setIsRefreshingInventory(true);
+    try {
+      if (api.getAccount) {
+        const fresh = await api.getAccount(account.id);
+        if (fresh?.snapshot) {
+          setRefreshedSnapshot(fresh.snapshot);
+        }
+      }
+    } catch (err) {
+      console.error("[EnhancementPanel] refresh inventory error:", err);
+    } finally {
+      setIsRefreshingInventory(false);
+    }
+  }
+
+  function handleDismissQueue() {
+    setRetainedJobId(null);
+    setActiveQueueWithItems(null);
+    setActiveQueue(null);
   }
 
   async function handlePauseQueue() {
@@ -383,6 +471,34 @@ export function EnhancementPanel({
                 Chọn trang bị trong túi đồ để đưa vào danh sách dự thảo cường hóa.
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  freshness.isStale
+                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                }`}
+                title={freshness.ageSeconds != null ? `Độ trễ snapshot: ${freshness.ageSeconds}s` : undefined}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    freshness.isStale ? "bg-amber-400" : "bg-emerald-400 animate-pulse"
+                  }`}
+                />
+                {freshness.text}
+              </span>
+              <button
+                type="button"
+                id="refresh-inventory-btn"
+                onClick={handleRefreshInventory}
+                disabled={isRefreshingInventory}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-elevated disabled:opacity-50 transition-colors"
+                title="Làm mới túi đồ từ snapshot mới nhất"
+              >
+                <IconRefresh className={`size-3.5 ${isRefreshingInventory ? "animate-spin text-accent" : ""}`} />
+                <span>Làm mới</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -408,6 +524,7 @@ export function EnhancementPanel({
               onPauseQueue={handlePauseQueue}
               onCancelQueue={handleCancelQueue}
               onResolveQueue={handleResolveQueue}
+              onDismissQueue={handleDismissQueue}
               isPausing={isPausing}
               isCancelling={isCancelling}
               isResolving={isResolving}
@@ -448,6 +565,14 @@ function IconSparkle({ className = "size-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
       <path d="M8 1a.75.75 0 01.7.48l1.37 3.56 3.56 1.37a.75.75 0 010 1.4l-3.56 1.37L8.7 12.8a.75.75 0 01-1.4 0L5.93 9.24 2.37 7.87a.75.75 0 010-1.4l3.56-1.37L7.3 1.48A.75.75 0 018 1z" />
+    </svg>
+  );
+}
+
+function IconRefresh({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 8a5.5 5.5 0 11-1.61-3.89L14 6m0-4v4h-4" />
     </svg>
   );
 }

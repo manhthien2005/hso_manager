@@ -62,6 +62,7 @@ import {
   executeResolveManualReviewFlow,
   mapQueueJobRow,
   fetchActiveQueueWithItems,
+  fetchQueueJobWithItems,
   fetchRecentQueueHistory,
 } from "@/services/queue-service";
 import type { AuthoritativeQueueWithItems } from "@/lib/queue-progress";
@@ -1191,6 +1192,10 @@ export class SupabaseApi implements ZeusApi {
 
   async getActiveQueueWithItems(accountId: string): Promise<AuthoritativeQueueWithItems | null> {
     return fetchActiveQueueWithItems(supabase, accountId);
+  }
+
+  async getQueueJobWithItems(jobId: string): Promise<AuthoritativeQueueWithItems | null> {
+    return fetchQueueJobWithItems(supabase, jobId);
   }
 
   async getRecentQueueHistory(accountId: string, limit = 5): Promise<AuthoritativeQueueWithItems[]> {

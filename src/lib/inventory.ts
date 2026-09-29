@@ -331,3 +331,62 @@ export function validateQueue(
     status: validateSelectedEntry(entry.reference, currentInventory),
   }));
 }
+
+export interface InventoryFreshnessInfo {
+  ageSeconds: number | null;
+  text: string;
+  isStale: boolean;
+}
+
+/**
+ * Calculates freshness of inventory snapshot from snapshot captured_at / updated_at timestamps.
+ */
+export function getInventoryFreshness(
+  snapshot?: PlayerSnapshot | null,
+  updatedAt?: string | null,
+): InventoryFreshnessInfo {
+  const tsStr = (snapshot as Record<string, unknown> | null | undefined)?.captured_at
+    ?? (snapshot as Record<string, unknown> | null | undefined)?.timestamp
+    ?? updatedAt;
+
+  if (!tsStr || typeof tsStr !== "string") {
+    return {
+      ageSeconds: null,
+      text: "Không rõ thời gian cập nhật",
+      isStale: true,
+    };
+  }
+
+  const date = new Date(tsStr);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  if (isNaN(diffMs) || diffMs < 0) {
+    return {
+      ageSeconds: 0,
+      text: "Vừa cập nhật",
+      isStale: false,
+    };
+  }
+
+  const ageSeconds = Math.floor(diffMs / 1000);
+
+  let text: string;
+  if (ageSeconds < 5) {
+    text = "Vừa cập nhật";
+  } else if (ageSeconds < 60) {
+    text = `Cập nhật ${ageSeconds} giây trước`;
+  } else if (ageSeconds < 3600) {
+    const mins = Math.floor(ageSeconds / 60);
+    text = `Cập nhật ${mins} phút trước`;
+  } else {
+    const hours = Math.floor(ageSeconds / 3600);
+    text = `Cập nhật ${hours} giờ trước`;
+  }
+
+  return {
+    ageSeconds,
+    text,
+    isStale: ageSeconds > 30,
+  };
+}
+

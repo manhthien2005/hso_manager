@@ -78,6 +78,7 @@ export interface ZeusApi {
   ): Promise<EnhancementQueueJob>;
   getActiveEnhancementQueue?(accountId: string): Promise<EnhancementQueueJob | null>;
   getActiveQueueWithItems?(accountId: string): Promise<AuthoritativeQueueWithItems | null>;
+  getQueueJobWithItems?(jobId: string): Promise<AuthoritativeQueueWithItems | null>;
   getRecentQueueHistory?(accountId: string, limit?: number): Promise<AuthoritativeQueueWithItems[]>;
   subscribeQueueUpdates?(accountId: string, onUpdate: () => void): () => void;
 }

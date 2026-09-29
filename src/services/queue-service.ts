@@ -237,6 +237,17 @@ export async function executeStartQueueFlow(
     );
   }
 
+  // If items were safely rebound against live inventory, use the rebound slots
+  const effectiveItems = validation.reboundQueue
+    ? items.map((it, idx) => {
+        const rebound = validation.reboundQueue![idx];
+        return {
+          ...it,
+          capturedSlot: rebound?.reference.captured_slot ?? it.capturedSlot,
+        };
+      })
+    : items;
+
   // 7. Check for existing unresolved queue for account
   const { data: existingActive, error: activeErr } = await client
     .from("enhancement_queue_jobs")
@@ -290,7 +301,7 @@ export async function executeStartQueueFlow(
   try {
     // 9. Insert all queue items while job remains DRAFT
     // Web ONLY writes intent/fingerprint fields. Web NEVER writes runtime-owned fields!
-    const itemRows = items.map((item, idx) => ({
+    const itemRows = effectiveItems.map((item, idx) => ({
       job_id: draftJobId,
       account_id: accountId,
       user_id: userId,
@@ -314,14 +325,14 @@ export async function executeStartQueueFlow(
       .insert(itemRows)
       .select("id, queue_order");
 
-    if (insertItemsErr || !insertedItems || insertedItems.length !== items.length) {
+    if (insertItemsErr || !insertedItems || insertedItems.length !== effectiveItems.length) {
       throw new Error(
         `Thất bại khi lưu danh sách trang bị vào DRAFT: ${insertItemsErr?.message ?? "Không đủ số lượng bản ghi"}`,
       );
     }
 
     // 10. Verify inserted item count & order matches intended draft
-    if (insertedItems.length !== items.length) {
+    if (insertedItems.length !== effectiveItems.length) {
       throw new Error("Số lượng trang bị lưu trong DRAFT không khớp với dự thảo.");
     }
 
@@ -1000,6 +1011,56 @@ export async function fetchActiveQueueWithItems(
   const job = mapQueueJobRow(jobRows[0]);
 
   // 2. Query items ordered explicitly by queue_order ascending
+  const { data: itemRows, error: itemErr } = await client
+    .from("enhancement_queue_items")
+    .select("*")
+    .eq("job_id", job.id)
+    .order("queue_order", { ascending: true });
+
+  if (itemErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể tải danh sách trang bị của hàng đợi ${job.id}: ${itemErr.message}`,
+    );
+  }
+
+  const items = orderQueueItems((itemRows ?? []).map(mapQueueItemRow));
+  const derivedSpend = deriveQueueSpend(items);
+
+  return {
+    job,
+    items,
+    derivedSpend,
+  };
+}
+
+/**
+ * Loads exact queue job by jobId with ordered items and derived spend, regardless of status.
+ * Used to retain terminal job visibility (FAILED/COMPLETED) when active query returns null.
+ */
+export async function fetchQueueJobWithItems(
+  client: SupabaseClientLike,
+  jobId: string,
+): Promise<AuthoritativeQueueWithItems | null> {
+  if (!jobId) return null;
+
+  const { data: jobRow, error: jobErr } = await client
+    .from("enhancement_queue_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (jobErr) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_STATE_CONFLICT,
+      `Không thể truy vấn job ${jobId}: ${jobErr.message}`,
+    );
+  }
+
+  if (!jobRow) return null;
+
+  const job = mapQueueJobRow(jobRow);
+
   const { data: itemRows, error: itemErr } = await client
     .from("enhancement_queue_items")
     .select("*")

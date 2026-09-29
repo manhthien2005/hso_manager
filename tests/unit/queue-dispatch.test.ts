@@ -642,7 +642,7 @@ describe("2. Wire Identity & Live Candidate Validation", () => {
     assert.equal(result.code, QUEUE_ERROR_CODES.ITEM_MISSING_OR_CHANGED);
   });
 
-  test("slot movement alone does not rebind identity; empty slot blocked", () => {
+  test("safe pre-creation slot rebinding when item moves to another slot uniquely", () => {
     const inv = createSampleInventory([
       { slot: 4, template_id: 101, category: 1, base_name: "Kiếm Thần", level: 3, tier: 2, icon: 50 },
     ]);
@@ -659,9 +659,30 @@ describe("2. Wire Identity & Live Candidate Validation", () => {
     };
 
     const result = validateWireIdentity(ref, inv);
+    assert.equal(result.valid, true);
+    assert.equal(result.reboundSlot, 4);
+  });
+
+  test("slot movement with duplicate matching items is rejected as AMBIGUOUS_WIRE_TARGET", () => {
+    const inv = createSampleInventory([
+      { slot: 4, template_id: 101, category: 1, base_name: "Kiếm Thần", level: 3, tier: 2, icon: 50 },
+      { slot: 7, template_id: 101, category: 1, base_name: "Kiếm Thần", level: 3, tier: 2, icon: 50 },
+    ]);
+
+    const ref: SelectedItemReference = {
+      captured_slot: 0,
+      template_id: 101,
+      category: 1,
+      base_name: "Kiếm Thần",
+      tier: 2,
+      icon: 50,
+      expected_level: 3,
+      captured_display_name: "Kiếm Thần +3",
+    };
+
+    const result = validateWireIdentity(ref, inv);
     assert.equal(result.valid, false);
-    assert.equal(result.code, QUEUE_ERROR_CODES.ITEM_MISSING_OR_CHANGED);
-    assert.match(result.message!, /Không tự động ánh xạ lại ô khác/);
+    assert.equal(result.code, QUEUE_ERROR_CODES.AMBIGUOUS_WIRE_TARGET);
   });
 
   test("fingerprint or level mismatch blocked with ITEM_MISSING_OR_CHANGED", () => {

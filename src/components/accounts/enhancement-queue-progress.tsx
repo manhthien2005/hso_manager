@@ -11,6 +11,7 @@ import {
   ATTEMPT_PHASE_INFO,
   determineItemProgressState,
   HISTORY_CLASSIFICATION,
+  isTerminalQueueStatus,
 } from "@/lib/queue-progress";
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +21,7 @@ interface EnhancementQueueProgressProps {
   onPauseQueue?: () => void;
   onCancelQueue?: () => void;
   onResolveQueue?: (disposition?: "ABANDON_UNRESOLVED", note?: string | null) => void;
+  onDismissQueue?: () => void;
   isPausing?: boolean;
   isCancelling?: boolean;
   isResolving?: boolean;
@@ -32,6 +34,7 @@ export function EnhancementQueueProgress({
   onPauseQueue,
   onCancelQueue,
   onResolveQueue,
+  onDismissQueue,
   isPausing = false,
   isCancelling = false,
   isResolving = false,
@@ -137,6 +140,18 @@ export function EnhancementQueueProgress({
               {isResolving ? "Đang xử lý..." : "Xử lý / Đóng hàng đợi"}
             </Button>
           ) : null}
+
+          {isTerminalQueueStatus(job.status) && onDismissQueue ? (
+            <Button
+              id="dismiss-terminal-queue-btn"
+              variant="secondary"
+              size="sm"
+              onClick={onDismissQueue}
+              className="text-xs"
+            >
+              Đóng kết quả
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -156,6 +171,34 @@ export function EnhancementQueueProgress({
           <span>
             Đã ghi nhận yêu cầu hủy bỏ. Lượt cường hóa đang thực hiện (nếu có) sẽ hoàn tất trước khi dừng các trang bị tiếp theo.
           </span>
+        </div>
+      ) : null}
+
+      {/* Prominent FAILED Status Banner */}
+      {job.status === "FAILED" ? (
+        <div
+          id="queue-failed-banner"
+          className="rounded-lg border-2 border-danger/80 bg-danger/15 p-4 space-y-2 text-danger"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm tracking-tight uppercase">
+              Hàng đợi thất bại {job.errorCode ? `(${job.errorCode})` : ""}
+            </span>
+          </div>
+          <p className="text-xs leading-relaxed text-foreground/90 font-medium">
+            {job.errorMessage || activeItem?.errorMessage || "Tiến trình cường hóa đã dừng do gặp lỗi hoặc điều kiện không thỏa mãn."}
+          </p>
+          {activeItem && (activeItem.errorCode || activeItem.errorMessage) ? (
+            <div className="rounded border border-danger/30 bg-surface/60 p-2.5 text-xs text-foreground/90 space-y-1">
+              <div>Vật phẩm: <span className="font-semibold text-foreground">{activeItem.baseName}</span> (Ô {activeItem.capturedSlot + 1})</div>
+              {activeItem.errorCode ? (
+                <div>Mã lỗi: <span className="font-mono text-danger font-semibold">{activeItem.errorCode}</span></div>
+              ) : null}
+              {activeItem.errorMessage && activeItem.errorMessage !== job.errorMessage ? (
+                <div>Chi tiết: <span>{activeItem.errorMessage}</span></div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -298,9 +341,12 @@ export function EnhancementQueueProgress({
             </div>
           </div>
 
-          {activeItem.attemptPhase === "EXECUTE_MAY_HAVE_BEEN_SENT" ? (
+          {/* Sensitive post-send ambiguity warning ONLY when actively executing or waiting result */}
+          {activeItem.status === "RUNNING" &&
+          job.status === "RUNNING" &&
+          activeItem.attemptPhase === "WAITING_RESULT" ? (
             <p className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded p-2 font-medium">
-              * Lệnh cường hóa đã được phát đi và có thể đã gửi tới máy chủ game. Trạng thái nhạy cảm, vui lòng không tắt kết nối.
+              * Lệnh cường hóa đã được phát đi và đang chờ kết quả từ máy chủ game. Trạng thái nhạy cảm, vui lòng không tắt kết nối.
             </p>
           ) : null}
         </div>

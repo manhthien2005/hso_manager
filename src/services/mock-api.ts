@@ -884,6 +884,20 @@ export const mockApi: ZeusApi = {
     };
   },
 
+  async getQueueJobWithItems(jobId: string): Promise<AuthoritativeQueueWithItems | null> {
+    await delay();
+    const current = load();
+    const job = current.queueJobs.get(jobId);
+    if (!job) return null;
+    const items = current.queueItems.get(job.id) ?? [];
+    const derivedSpend = deriveQueueSpend(items);
+    return {
+      job: structuredClone(job),
+      items: structuredClone(items),
+      derivedSpend,
+    };
+  },
+
   async getRecentQueueHistory(accountId: string, limit = 5): Promise<AuthoritativeQueueWithItems[]> {
     await delay();
     const current = load();

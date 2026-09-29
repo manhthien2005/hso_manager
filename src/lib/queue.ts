@@ -54,6 +54,7 @@ export interface WireIdentityValidationResult {
   valid: boolean;
   code?: QueueErrorCode;
   message?: string;
+  reboundSlot?: number;
 }
 
 /**
@@ -82,7 +83,7 @@ export function buildLiveInventoryTargetMap(
  * 2. If count > 1 -> AMBIGUOUS_WIRE_TARGET (unsafe duplicate wire identities).
  * 3. If count == 0 -> ITEM_MISSING_OR_CHANGED.
  * 4. Verify item currently at captured_slot matches exact fingerprint and expected level.
- * 5. captured_slot is ONLY a snapshot locator. NEVER silently remap to another slot!
+ * 5. If item moved, support safe pre-creation slot rebinding when exactly 1 matching item is found.
  */
 export function validateWireIdentity(
   reference: SelectedItemReference,
@@ -117,28 +118,39 @@ export function validateWireIdentity(
     };
   }
 
+  const matchesFingerprint = (it: typeof inventory.items[0]) =>
+    it.template_id === reference.template_id &&
+    it.category === reference.category &&
+    it.base_name === reference.base_name &&
+    it.tier === reference.tier &&
+    (reference.icon === undefined || reference.icon === null || it.icon === reference.icon) &&
+    it.level === reference.expected_level;
+
   // Fingerprint verification at captured_slot locator
   const itemAtSlot = inventory.items.find((it) => it.slot === reference.captured_slot);
+  if (itemAtSlot && matchesFingerprint(itemAtSlot)) {
+    return { valid: true, reboundSlot: reference.captured_slot };
+  }
+
+  // Safe pre-creation slot rebinding if item moved to another slot
+  const matchingItems = inventory.items.filter(matchesFingerprint);
+  if (matchingItems.length === 1) {
+    return { valid: true, reboundSlot: matchingItems[0].slot };
+  }
+
+  if (matchingItems.length > 1) {
+    return {
+      valid: false,
+      code: QUEUE_ERROR_CODES.AMBIGUOUS_WIRE_TARGET,
+      message: `Tìm thấy ${matchingItems.length} vật phẩm cùng thông số trong túi đồ. Không thể xác định an toàn ô mục tiêu.`,
+    };
+  }
+
   if (!itemAtSlot) {
     return {
       valid: false,
       code: QUEUE_ERROR_CODES.ITEM_MISSING_OR_CHANGED,
-      message: `Ô ${reference.captured_slot + 1} hiện trống. Không tự động ánh xạ lại ô khác.`,
-    };
-  }
-
-  const matchesFingerprint =
-    itemAtSlot.template_id === reference.template_id &&
-    itemAtSlot.category === reference.category &&
-    itemAtSlot.base_name === reference.base_name &&
-    itemAtSlot.tier === reference.tier &&
-    itemAtSlot.icon === reference.icon;
-
-  if (!matchesFingerprint) {
-    return {
-      valid: false,
-      code: QUEUE_ERROR_CODES.ITEM_MISSING_OR_CHANGED,
-      message: `Vật phẩm tại ô ${reference.captured_slot + 1} không khớp thông số ban đầu.`,
+      message: `Ô ${reference.captured_slot + 1} hiện trống và không tìm thấy vật phẩm tương ứng trong túi đồ.`,
     };
   }
 
@@ -150,17 +162,27 @@ export function validateWireIdentity(
     };
   }
 
-  return { valid: true };
+  return {
+    valid: false,
+    code: QUEUE_ERROR_CODES.ITEM_MISSING_OR_CHANGED,
+    message: `Vật phẩm tại ô ${reference.captured_slot + 1} không khớp thông số ban đầu.`,
+  };
 }
 
 /**
  * Validates an entire enhancement queue draft before creation.
  * Checks emptiness, level bounds, target > initial, unique order/slot, and wire identity.
+ * Supports safe pre-creation slot rebinding against live inventory.
  */
 export function validateQueueDraft(
   queue: EnhancementQueueEntry[],
   inventory?: InventoryCatalogPayload | null,
-): { valid: boolean; code?: QueueErrorCode; message?: string } {
+): {
+  valid: boolean;
+  code?: QueueErrorCode;
+  message?: string;
+  reboundQueue?: EnhancementQueueEntry[];
+} {
   if (!Array.isArray(queue) || queue.length === 0) {
     return {
       valid: false,
@@ -172,6 +194,7 @@ export function validateQueueDraft(
   const seenIds = new Set<string>();
   const seenSlots = new Set<number>();
   const targetMap = inventory ? buildLiveInventoryTargetMap(inventory) : undefined;
+  const processedEntries: EnhancementQueueEntry[] = [];
 
   for (let i = 0; i < queue.length; i++) {
     const entry = queue[i];
@@ -191,15 +214,6 @@ export function validateQueueDraft(
       };
     }
     seenIds.add(entry.id);
-
-    if (seenSlots.has(entry.reference.captured_slot)) {
-      return {
-        valid: false,
-        code: QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
-        message: `Trùng lặp ô ${entry.reference.captured_slot + 1} trong hàng đợi.`,
-      };
-    }
-    seenSlots.add(entry.reference.captured_slot);
 
     // Initial level: 0..14
     const initialLevel = entry.reference.expected_level;
@@ -285,6 +299,8 @@ export function validateQueueDraft(
       };
     }
 
+    let effectiveSlot = entry.reference.captured_slot;
+
     // If live inventory is provided, perform live wire identity check
     if (inventory) {
       const wireCheck = validateWireIdentity(entry.reference, inventory, targetMap);
@@ -295,10 +311,34 @@ export function validateQueueDraft(
           message: wireCheck.message,
         };
       }
+      if (wireCheck.reboundSlot !== undefined) {
+        effectiveSlot = wireCheck.reboundSlot;
+      }
+    }
+
+    if (seenSlots.has(effectiveSlot)) {
+      return {
+        valid: false,
+        code: QUEUE_ERROR_CODES.QUEUE_ITEM_INVALID,
+        message: `Trùng lặp ô ${effectiveSlot + 1} trong hàng đợi.`,
+      };
+    }
+    seenSlots.add(effectiveSlot);
+
+    if (effectiveSlot !== entry.reference.captured_slot) {
+      processedEntries.push({
+        ...entry,
+        reference: {
+          ...entry.reference,
+          captured_slot: effectiveSlot,
+        },
+      });
+    } else {
+      processedEntries.push(entry);
     }
   }
 
-  return { valid: true };
+  return { valid: true, reboundQueue: processedEntries };
 }
 
 /**
