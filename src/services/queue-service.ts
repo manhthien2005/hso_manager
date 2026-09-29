@@ -20,6 +20,7 @@ import {
 } from "../lib/queue";
 import {
   hasEnhancementQueueCapability,
+  hasEnhancementMultilevelCapability,
   isDeviceOnlineAndFresh,
 } from "../lib/capabilities";
 import type {
@@ -185,6 +186,15 @@ export async function executeStartQueueFlow(
     );
   }
 
+  // 4b. Verify enhancement-multilevel-v1 capability if any item targets multi-level
+  const hasMultilevelItem = items.some((it) => it.targetLevel > it.initialLevel + 1);
+  if (hasMultilevelItem && !hasEnhancementMultilevelCapability(deviceRow.agent_version)) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
+      "Runtime thiết bị hiện tại chưa hỗ trợ cường hóa nhiều cấp (thiếu capability token enhancement-multilevel-v1).",
+    );
+  }
+
   // 5. Fetch live inventory snapshot and validate wire identity
   const { data: runtimeRow } = await client
     .from("account_runtime")
@@ -343,6 +353,24 @@ export async function executeStartQueueFlow(
       .eq("id", accountRow.device_id)
       .maybeSingle();
 
+    const lastSeenRecheckMs = recheckDevice?.last_seen
+      ? new Date(recheckDevice.last_seen).getTime()
+      : null;
+
+    const recheckMockDevice = recheckDevice
+      ? {
+          status: recheckDevice.status as DeviceStatus,
+          lastSeen: lastSeenRecheckMs,
+        }
+      : null;
+
+    if (!isDeviceOnlineAndFresh(recheckMockDevice)) {
+      throw new QueueError(
+        QUEUE_ERROR_CODES.QUEUE_RUNTIME_STALE,
+        "Runtime thiết bị không còn online hoặc heartbeat bị trễ trước thời điểm publish.",
+      );
+    }
+
     if (
       !recheckDevice ||
       !hasEnhancementQueueCapability(recheckDevice.agent_version)
@@ -350,6 +378,16 @@ export async function executeStartQueueFlow(
       throw new QueueError(
         QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
         "Capability enhancement-queue-v1 không còn khả dụng trên runtime trước thời điểm publish.",
+      );
+    }
+
+    if (
+      hasMultilevelItem &&
+      !hasEnhancementMultilevelCapability(recheckDevice.agent_version)
+    ) {
+      throw new QueueError(
+        QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
+        "Capability enhancement-multilevel-v1 không còn khả dụng trên runtime trước thời điểm publish.",
       );
     }
 

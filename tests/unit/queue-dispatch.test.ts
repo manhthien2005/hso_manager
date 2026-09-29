@@ -885,7 +885,7 @@ describe("4. Atomic Publish & Partial Creation Safety", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1017,7 +1017,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1056,7 +1056,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1111,7 +1111,7 @@ describe("6. Field Ownership & Non-Write of Runtime Fields", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1321,20 +1321,27 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
           id: "dev-fresh",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
           last_seen: new Date().toISOString(),
         },
         {
           id: "dev-stale",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
           last_seen: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         },
         {
           id: "dev-offline",
           user_id: "user-alice",
           status: "offline",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+          last_seen: new Date().toISOString(),
+        },
+        {
+          id: "dev-single-level-only",
+          user_id: "user-alice",
+          status: "online",
           agent_version: "0.1.0+enhancement-queue-v1",
           last_seen: new Date().toISOString(),
         },
@@ -1525,7 +1532,7 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
   });
 
   describe("Capability Gate & Preflight Safety", () => {
-    test("fresh device with enhancement-queue-v1 passes capability eligibility", async () => {
+    test("fresh device with enhancement-queue-v1 and enhancement-multilevel-v1 passes multi-level queue", async () => {
       const client = createValidSetup();
       const job = await executeStartQueueFlow(
         client as any,
@@ -1533,6 +1540,39 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
         { userId: "user-alice" },
       );
       assert.equal(job.status, "QUEUED");
+    });
+
+    test("device with only base enhancement-queue-v1 permits single-level items but blocks multi-level", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-single-level-only";
+
+      // 1. Single-level item (3 -> 4) succeeds
+      const singleLevelItem: QueueItemSubmissionPayload = {
+        ...sampleItems[0],
+        initialLevel: 3,
+        targetLevel: 4,
+      };
+      const job = await executeStartQueueFlow(
+        client as any,
+        { accountId: "acc-owned", items: [singleLevelItem] },
+        { userId: "user-alice" },
+      );
+      assert.equal(job.status, "QUEUED");
+
+      // 2. Multi-level item (3 -> 5) rejected
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED);
+          return true;
+        },
+      );
     });
 
     test("missing token rejects Start Queue with QUEUE_RUNTIME_UNSUPPORTED", async () => {

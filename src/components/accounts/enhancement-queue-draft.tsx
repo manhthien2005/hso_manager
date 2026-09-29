@@ -16,6 +16,8 @@ interface EnhancementQueueDraftProps {
   isStarting?: boolean;
   canStartQueue?: boolean;
   startDisabledReason?: string;
+  isMultilevelCapable?: boolean;
+  multilevelDisabledReason?: string;
   activeQueue?: EnhancementQueueJob | null;
   onPauseQueue?: () => void;
   onCancelQueue?: () => void;
@@ -36,6 +38,8 @@ export function EnhancementQueueDraft({
   isStarting = false,
   canStartQueue = false,
   startDisabledReason,
+  isMultilevelCapable = false,
+  multilevelDisabledReason,
   activeQueue,
   onPauseQueue,
   onCancelQueue,
@@ -163,6 +167,28 @@ export function EnhancementQueueDraft({
           </div>
         ) : null}
 
+        {/* Multilevel Capability Note when runtime only supports single-level */}
+        {canStartQueue && !isMultilevelCapable && !hasActiveQueue && queue.length > 0 ? (
+          <div
+            id="enhancement-queue-multilevel-note"
+            className="rounded-md border border-border/70 bg-elevated/30 p-2.5 text-xs text-muted flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="size-1.5 rounded-full bg-accent/70 shrink-0" />
+              <span className="text-[11px] text-foreground/80 leading-tight">
+                {multilevelDisabledReason ??
+                  "Runtime hiện tại chỉ hỗ trợ cường hóa từng cấp (+1). Cường hóa nhiều cấp (+2 trở lên) chưa khả dụng."}
+              </span>
+            </div>
+            <span
+              id="enhancement-queue-single-level-badge"
+              className="rounded bg-surface px-1.5 py-0.5 font-mono text-[9px] font-semibold text-muted shrink-0 border border-border"
+            >
+              Chỉ +1
+            </span>
+          </div>
+        ) : null}
+
         {/* Error Message Alert */}
         {errorMessage ? (
           <div
@@ -195,8 +221,9 @@ export function EnhancementQueueDraft({
               const isLast = index === queue.length - 1;
               const isStale = entry.status === "STALE_SELECTION";
               const minTarget = entry.reference.expected_level + 1;
+              const maxTarget = isMultilevelCapable ? 15 : minTarget;
               const targetLevels = Array.from(
-                { length: Math.max(0, 16 - minTarget) },
+                { length: Math.max(0, maxTarget - minTarget + 1) },
                 (_, i) => minTarget + i,
               );
 
@@ -281,6 +308,15 @@ export function EnhancementQueueDraft({
                             </option>
                           ))}
                         </select>
+                        {!isMultilevelCapable ? (
+                          <span
+                            id={`target-lv-single-cap-${entry.id}`}
+                            className="text-[10px] text-muted/70 font-mono ml-0.5"
+                            title="Runtime chỉ hỗ trợ tăng 1 cấp mỗi lần"
+                          >
+                            (Tối đa +1)
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Payment Method */}

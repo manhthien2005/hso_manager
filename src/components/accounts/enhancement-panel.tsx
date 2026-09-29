@@ -23,7 +23,10 @@ import {
   updateQueueEntryCharmMode,
   validateQueue,
 } from "@/lib/inventory";
-import { isEnhancementQueueAvailableOnDevice } from "@/lib/capabilities";
+import {
+  isEnhancementQueueAvailableOnDevice,
+  isEnhancementMultilevelAvailableOnDevice,
+} from "@/lib/capabilities";
 import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
 import { api } from "@/services/api";
 import { type AuthoritativeQueueWithItems } from "@/lib/queue-progress";
@@ -85,14 +88,22 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
   const isAvailable = isInventoryAvailable(account.status, activeSnapshot);
   const freshness = getInventoryFreshness(activeSnapshot);
 
+  // Capability gates: Start Queue requires enhancement-queue-v1; multi-level requires enhancement-multilevel-v1
+  const isQueueCapable = isEnhancementQueueAvailableOnDevice(device);
+  const isMultilevelCapable = isEnhancementMultilevelAvailableOnDevice(device);
+
   // Derive validated queue reactively without calling setState inside an effect
   const validatedQueue = useMemo(() => {
     if (queue.length === 0) return queue;
-    return validateQueue(queue, isAvailable ? liveInventory : null);
-  }, [queue, isAvailable, liveInventory]);
-
-  // Capability gate: Start Queue requires enhancement-queue-v1 token and fresh online device
-  const isQueueCapable = isEnhancementQueueAvailableOnDevice(device);
+    const validated = validateQueue(queue, isAvailable ? liveInventory : null);
+    if (!isMultilevelCapable) {
+      return validated.map((entry) => ({
+        ...entry,
+        target_level: Math.min(entry.target_level, entry.reference.expected_level + 1),
+      }));
+    }
+    return validated;
+  }, [queue, isAvailable, liveInventory, isMultilevelCapable]);
 
   const activeJobStatus = activeQueueWithItems?.job.status;
 
@@ -233,7 +244,10 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
   }
 
   function handleUpdateTargetLevel(id: string, targetLevel: number) {
-    setQueue((current) => updateQueueEntryTargetLevel(current, id, targetLevel));
+    const entry = queue.find((e) => e.id === id);
+    const maxTarget = !isMultilevelCapable && entry ? entry.reference.expected_level + 1 : 15;
+    const clampedTarget = Math.min(targetLevel, maxTarget);
+    setQueue((current) => updateQueueEntryTargetLevel(current, id, clampedTarget));
   }
 
   function handleUpdatePaymentType(id: string, paymentType: EnhancementPaymentType) {
@@ -253,6 +267,16 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
     if (isStarting) return; // Prevent duplicate click
     if (!isQueueCapable) {
       setActionError("Runtime hiện tại chưa hỗ trợ hàng đợi cường hóa (cần token enhancement-queue-v1).");
+      return;
+    }
+
+    const hasMultilevelItem = validatedQueue.some(
+      (entry) => entry.target_level > entry.reference.expected_level + 1,
+    );
+    if (hasMultilevelItem && !isMultilevelCapable) {
+      setActionError(
+        "Runtime hiện tại chưa hỗ trợ cường hóa nhiều cấp (cần token capability enhancement-multilevel-v1).",
+      );
       return;
     }
 
@@ -482,6 +506,12 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
               startDisabledReason={
                 !isQueueCapable
                   ? "Máy chủ chưa kích hoạt capability enhancement-queue-v1 hoặc đang mất kết nối."
+                  : undefined
+              }
+              isMultilevelCapable={isMultilevelCapable}
+              multilevelDisabledReason={
+                !isMultilevelCapable
+                  ? "Runtime thiết bị hiện tại chưa hỗ trợ cường hóa nhiều cấp (+2 trở lên). Chỉ có thể cường hóa từng cấp (+1)."
                   : undefined
               }
               activeQueue={activeQueue}
