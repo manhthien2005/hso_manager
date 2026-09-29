@@ -10,7 +10,6 @@ import type {
   PlayerSnapshot,
 } from "@/lib/types";
 import type { ConfigDraft, ConfigErrors, ConfigPath, ConfigValue } from "@/lib/config-schema";
-import { CONTROL_SCHEMA } from "@/lib/config-schema";
 import {
   type EnhancementQueueEntry,
   type InventoryItemCatalog,
@@ -28,11 +27,9 @@ import { isEnhancementQueueAvailableOnDevice } from "@/lib/capabilities";
 import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
 import { api } from "@/services/api";
 import { type AuthoritativeQueueWithItems } from "@/lib/queue-progress";
-import { InventoryBagGrid } from "./inventory-bag-grid";
+import { EligibleEquipmentView } from "./eligible-equipment-view";
 import { EnhancementQueueDraft } from "./enhancement-queue-draft";
 import { EnhancementQueueProgress } from "./enhancement-queue-progress";
-import { ConfigFieldInput } from "./config-field";
-import { Card } from "@/components/ui/card";
 
 interface EnhancementPanelProps {
   draft: ConfigDraft;
@@ -46,22 +43,8 @@ interface EnhancementPanelProps {
   ctlVersion?: number;
 }
 
-export function EnhancementPanel({
-  draft,
-  errors,
-  disabled,
-  onChange,
-  onBatchChange,
-  account,
-  device,
-  resetKey = 0,
-  ctlVersion = 14,
-}: EnhancementPanelProps) {
-  // Extract legacy enhance fields from schema
-  const schemaSections = CONTROL_SCHEMA[ctlVersion] ?? CONTROL_SCHEMA[14] ?? CONTROL_SCHEMA[13];
-  const enhanceSection = schemaSections?.find((s) => s.id === "enhance");
-  const legacyFields = enhanceSection?.fields ?? [];
-
+export function EnhancementPanel(props: EnhancementPanelProps) {
+  const { account, device } = props;
   // Local-only state for enhancement queue draft
   const [queue, setQueue] = useState<EnhancementQueueEntry[]>([]);
   const [activeQueue, setActiveQueue] = useState<EnhancementQueueJob | null>(null);
@@ -76,6 +59,7 @@ export function EnhancementPanel({
   // Freshness and manual snapshot refresh state
   const [refreshedSnapshot, setRefreshedSnapshot] = useState<PlayerSnapshot | null>(null);
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // Retain terminal/active job visibility so FAILED/COMPLETED does not abruptly vanish
   const [retainedJobId, setRetainedJobIdState] = useState<string | null>(() => {
@@ -211,19 +195,11 @@ export function EnhancementPanel({
     };
   }, [account.id, activeJobStatus, retainedJobId, activeQueueWithItems, setRetainedJobId]);
 
-  // Selected slots set for bag grid rendering
+  // Selected slots set for bag grid / eligible list rendering
   const selectedSlots = useMemo(() => {
     return new Set(
       validatedQueue
         .filter((entry) => entry.status === "VALID")
-        .map((entry) => entry.reference.captured_slot),
-    );
-  }, [validatedQueue]);
-
-  const staleSlots = useMemo(() => {
-    return new Set(
-      validatedQueue
-        .filter((entry) => entry.status === "STALE_SELECTION")
         .map((entry) => entry.reference.captured_slot),
     );
   }, [validatedQueue]);
@@ -233,13 +209,13 @@ export function EnhancementPanel({
     setActionError(null);
 
     setQueue((current) => {
-      const existingIndex = current.findIndex(
+      const alreadyQueued = current.some(
         (entry) => entry.reference.captured_slot === item.slot,
       );
 
-      // If already in queue, toggle remove
-      if (existingIndex !== -1) {
-        return removeQueueEntry(current, current[existingIndex].id);
+      // Duplicate queue add blocked
+      if (alreadyQueued) {
+        return current;
       }
 
       // Add to queue
@@ -274,6 +250,7 @@ export function EnhancementPanel({
   }
 
   async function handleStartQueue() {
+    if (isStarting) return; // Prevent duplicate click
     if (!isQueueCapable) {
       setActionError("Runtime hiện tại chưa hỗ trợ hàng đợi cường hóa (cần token enhancement-queue-v1).");
       return;
@@ -324,15 +301,19 @@ export function EnhancementPanel({
 
   async function handleRefreshInventory() {
     setIsRefreshingInventory(true);
+    setRefreshError(null);
     try {
       if (api.getAccount) {
         const fresh = await api.getAccount(account.id);
         if (fresh?.snapshot) {
           setRefreshedSnapshot(fresh.snapshot);
+        } else {
+          setRefreshError("Không nhận được snapshot mới từ runtime.");
         }
       }
     } catch (err) {
       console.error("[EnhancementPanel] refresh inventory error:", err);
+      setRefreshError(err instanceof Error ? err.message : "Làm mới dữ liệu túi đồ thất bại.");
     } finally {
       setIsRefreshingInventory(false);
     }
@@ -424,103 +405,59 @@ export function EnhancementPanel({
   }
 
   return (
-    <div className="space-y-6">
-      {/* 1. Legacy Global Control Settings (Preserved Exactly) */}
-      <Card className="overflow-hidden border border-border bg-surface shadow-xs">
-        <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
-          <div className="flex items-center gap-2">
-            <IconSparkle className="size-4 text-accent" />
-            <h3 className="text-sm font-semibold tracking-tight text-foreground">
-              Cấu hình cường hóa tự động (Toàn cục)
-            </h3>
-          </div>
-          <p className="mt-0.5 text-xs text-muted">
-            Thiết lập điều kiện dừng và loại bùa sử dụng cho hệ thống tự động.
-          </p>
+    <div className="space-y-4">
+      {/* 1. One Compact Page Header with Readiness Status */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-base font-semibold text-foreground tracking-tight">Cường hóa</h2>
+          <span
+            id="enhancement-runtime-readiness-badge"
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              isQueueCapable
+                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                : "bg-warning/10 text-warning border border-warning/20"
+            }`}
+          >
+            <span
+              className={`size-1.5 rounded-full ${
+                isQueueCapable ? "bg-emerald-400" : "bg-warning"
+              }`}
+            />
+            {isQueueCapable ? "Sẵn sàng" : "Chưa hỗ trợ hàng đợi"}
+          </span>
         </div>
 
-        <div className="divide-y divide-border/40 px-4 sm:px-5">
-          {legacyFields.map((field) => (
-            <div
-              key={`${field.path}-${resetKey}`}
-              className="py-2.5 first:pt-2.5 last:pb-2.5"
-            >
-              <ConfigFieldInput
-                field={field}
-                value={draft[field.path] ?? ""}
-                values={draft}
-                error={errors[field.path]}
-                disabled={disabled}
-                onChange={onChange}
-                onBatchChange={onBatchChange}
-              />
-            </div>
-          ))}
+        <div className="text-xs text-muted">
+          Nhân vật: <span className="font-medium text-foreground">{account.characterName ?? account.label ?? account.id.slice(0, 8)}</span>
+          {" • "}
+          Trạng thái: <span className="text-foreground">{account.status === "running" ? "Hoạt động" : "Tạm dừng"}</span>
         </div>
-      </Card>
+      </div>
 
-      {/* 2. Interactive Bag Inventory Grid */}
-      <Card className="overflow-hidden border border-border bg-surface shadow-xs">
-        <div className="border-b border-border/70 bg-elevated/40 px-4 py-2.5 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                Túi đồ & Chọn trang bị cường hóa
-              </h3>
-              <p className="mt-0.5 text-xs text-muted">
-                Chọn trang bị trong túi đồ để đưa vào danh sách dự thảo cường hóa.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  freshness.isStale
-                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                    : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                }`}
-                title={freshness.ageSeconds != null ? `Độ trễ snapshot: ${freshness.ageSeconds}s` : undefined}
-              >
-                <span
-                  className={`size-1.5 rounded-full ${
-                    freshness.isStale ? "bg-amber-400" : "bg-emerald-400 animate-pulse"
-                  }`}
-                />
-                {freshness.text}
-              </span>
-              <button
-                type="button"
-                id="refresh-inventory-btn"
-                onClick={handleRefreshInventory}
-                disabled={isRefreshingInventory}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-elevated disabled:opacity-50 transition-colors"
-                title="Làm mới túi đồ từ snapshot mới nhất"
-              >
-                <IconRefresh className={`size-3.5 ${isRefreshingInventory ? "animate-spin text-accent" : ""}`} />
-                <span>Làm mới</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-5">
-          <InventoryBagGrid
+      {/* 2. Primary Layout: Two Logical Areas (Eligible Equipment + Queue) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column: Eligible Equipment (Primary View) */}
+        <div className="lg:col-span-7 space-y-4">
+          <EligibleEquipmentView
             inventory={liveInventory}
             isAvailable={isAvailable}
             accountStatus={account.status}
-            selectedSlots={selectedSlots}
-            staleSlots={staleSlots}
-            onSelectItem={handleSelectItem}
+            queuedSlots={selectedSlots}
+            onAddToQueue={handleSelectItem}
+            onRefresh={handleRefreshInventory}
+            isRefreshing={isRefreshingInventory}
+            freshness={freshness}
+            refreshError={refreshError}
           />
         </div>
-      </Card>
 
-      {/* 3. Ordered Enhancement Queue Progress or Draft & Dispatch */}
-      <Card className="overflow-hidden border border-border bg-surface shadow-xs">
-        <div className="p-4 sm:p-5">
+        {/* Right Column: Queue (Progress if active/retained, Draft if idle) */}
+        <div className="lg:col-span-5 space-y-4">
           {activeQueueWithItems ? (
             <EnhancementQueueProgress
               activeQueue={activeQueueWithItems}
               history={queueHistory}
+              snapshot={activeSnapshot}
               onPauseQueue={handlePauseQueue}
               onCancelQueue={handleCancelQueue}
               onResolveQueue={handleResolveQueue}
@@ -556,23 +493,7 @@ export function EnhancementPanel({
             />
           )}
         </div>
-      </Card>
+      </div>
     </div>
-  );
-}
-
-function IconSparkle({ className = "size-4" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M8 1a.75.75 0 01.7.48l1.37 3.56 3.56 1.37a.75.75 0 010 1.4l-3.56 1.37L8.7 12.8a.75.75 0 01-1.4 0L5.93 9.24 2.37 7.87a.75.75 0 010-1.4l3.56-1.37L7.3 1.48A.75.75 0 018 1z" />
-    </svg>
-  );
-}
-
-function IconRefresh({ className = "size-3.5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 8a5.5 5.5 0 11-1.61-3.89L14 6m0-4v4h-4" />
-    </svg>
   );
 }

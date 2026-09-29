@@ -4,20 +4,27 @@ import { useMemo, useState } from "react";
 import type {
   EnhancementQueueItem,
   EnhancementQueueJob,
+  PlayerSnapshot,
 } from "@/lib/types";
 import {
   type AuthoritativeQueueWithItems,
   type DerivedQueueSpend,
   ATTEMPT_PHASE_INFO,
   determineItemProgressState,
-  HISTORY_CLASSIFICATION,
   isTerminalQueueStatus,
 } from "@/lib/queue-progress";
+import {
+  PIPELINE_STAGES,
+  determineCurrentPipelineStage,
+  translateEnhancementError,
+  type PipelineStageKey,
+} from "@/lib/enhancement-status";
 import { Button } from "@/components/ui/button";
 
 interface EnhancementQueueProgressProps {
   activeQueue: AuthoritativeQueueWithItems;
   history?: AuthoritativeQueueWithItems[];
+  snapshot?: PlayerSnapshot | null;
   onPauseQueue?: () => void;
   onCancelQueue?: () => void;
   onResolveQueue?: (disposition?: "ABANDON_UNRESOLVED", note?: string | null) => void;
@@ -31,6 +38,7 @@ interface EnhancementQueueProgressProps {
 export function EnhancementQueueProgress({
   activeQueue,
   history = [],
+  snapshot,
   onPauseQueue,
   onCancelQueue,
   onResolveQueue,
@@ -43,6 +51,7 @@ export function EnhancementQueueProgress({
   const { job, items, derivedSpend } = activeQueue;
   const [showHistory, setShowHistory] = useState(false);
   const [showResolveConfirm, setShowResolveConfirm] = useState(false);
+  const [showErrorTechDetails, setShowErrorTechDetails] = useState(false);
 
   const itemProgressList = useMemo(() => {
     return determineItemProgressState(items);
@@ -68,538 +77,468 @@ export function EnhancementQueueProgress({
     job.status === "MANUAL_REVIEW_REQUIRED" ||
     items.some((i) => i.status === "MANUAL_REVIEW_REQUIRED");
 
+  // Determine current granular human-readable pipeline stage
+  const currentStageKey = useMemo<PipelineStageKey>(() => {
+    return determineCurrentPipelineStage(job.status, activeItem, snapshot);
+  }, [job.status, activeItem, snapshot]);
+
+  const currentStage = PIPELINE_STAGES[currentStageKey];
+
+  // Translated error for FAILED terminal job
+  const translatedError = useMemo(() => {
+    if (job.status !== "FAILED") return null;
+    const effectiveCode = job.errorCode || activeItem?.errorCode;
+    const effectiveMsg = job.errorMessage || activeItem?.errorMessage;
+    return translateEnhancementError(effectiveCode, effectiveMsg, activeItem?.charmMode);
+  }, [job.status, job.errorCode, job.errorMessage, activeItem]);
+
   return (
-    <div id="enhancement-queue-progress-view" className="space-y-5">
-      {/* 1. Header & Overall Queue Status */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="font-semibold text-base text-foreground tracking-tight">
-              Tiến trình hàng đợi cường hóa
-            </span>
+    <div id="enhancement-queue-progress-view" className="rounded-lg border border-border bg-surface shadow-xs overflow-hidden">
+      {/* 1. Compact Header */}
+      <div className="border-b border-border/70 bg-elevated/30 px-3.5 py-2.5 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold tracking-tight text-foreground">
+              Tiến trình cường hóa
+            </h3>
             <JobStatusBadge status={job.status} resolutionKind={job.resolutionKind} />
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            Mã Job: <span className="font-mono text-foreground font-medium">{job.id.slice(0, 8)}...</span>
-            {" • "}
-            Khởi tạo: <span className="text-foreground">{new Date(job.createdAt).toLocaleTimeString()}</span>
-            {job.startedAt ? (
-              <>
-                {" • "}
-                Bắt đầu: <span className="text-foreground">{new Date(job.startedAt).toLocaleTimeString()}</span>
-              </>
-            ) : null}
-          </p>
-        </div>
-
-        {/* Action Controls: Pause & Cancel */}
-        <div className="flex items-center gap-2">
-          {job.status === "QUEUED" || job.status === "RUNNING" ? (
-            <Button
-              id="pause-enhancement-queue-btn"
-              variant="secondary"
-              size="sm"
-              onClick={onPauseQueue}
-              disabled={isPausing || Boolean(job.pauseRequestedAt)}
-              className="text-xs"
+            <span
+              id="queue-completed-counter"
+              className="rounded-full bg-surface px-2 py-0.5 font-mono text-[11px] font-semibold text-muted border border-border"
             >
-              {job.pauseRequestedAt
-                ? "Đang chờ dừng..."
-                : isPausing
-                  ? "Đang gửi..."
-                  : "Tạm dừng"}
-            </Button>
-          ) : null}
-
-          {["QUEUED", "RUNNING", "PAUSING", "PAUSED"].includes(job.status) ? (
-            <Button
-              id="cancel-enhancement-queue-btn"
-              variant="danger"
-              size="sm"
-              onClick={onCancelQueue}
-              disabled={isCancelling || Boolean(job.cancelRequestedAt)}
-              className="text-xs"
-            >
-              {job.cancelRequestedAt
-                ? "Đang chờ hủy..."
-                : isCancelling
-                  ? "Đang gửi..."
-                  : "Hủy hàng đợi"}
-            </Button>
-          ) : null}
-
-          {job.status === "MANUAL_REVIEW_REQUIRED" && onResolveQueue ? (
-            <Button
-              id="resolve-manual-review-btn"
-              variant="danger"
-              size="sm"
-              onClick={() => setShowResolveConfirm(true)}
-              disabled={isResolving}
-              className="text-xs"
-            >
-              {isResolving ? "Đang xử lý..." : "Xử lý / Đóng hàng đợi"}
-            </Button>
-          ) : null}
-
-          {isTerminalQueueStatus(job.status) && onDismissQueue ? (
-            <Button
-              id="dismiss-terminal-queue-btn"
-              variant="secondary"
-              size="sm"
-              onClick={onDismissQueue}
-              className="text-xs"
-            >
-              Đóng kết quả
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* 2. Pending Pause / Cancel Request Notices */}
-      {job.pauseRequestedAt ? (
-        <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning flex items-start gap-2">
-          <span className="font-semibold shrink-0">Lưu ý:</span>
-          <span>
-            Đã ghi nhận yêu cầu tạm dừng. Lượt cường hóa đang thực hiện (nếu có) sẽ hoàn tất và chốt kết quả trước khi dừng hàng đợi.
-          </span>
-        </div>
-      ) : null}
-
-      {job.cancelRequestedAt ? (
-        <div className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger flex items-start gap-2">
-          <span className="font-semibold shrink-0">Lưu ý:</span>
-          <span>
-            Đã ghi nhận yêu cầu hủy bỏ. Lượt cường hóa đang thực hiện (nếu có) sẽ hoàn tất trước khi dừng các trang bị tiếp theo.
-          </span>
-        </div>
-      ) : null}
-
-      {/* Prominent FAILED Status Banner */}
-      {job.status === "FAILED" ? (
-        <div
-          id="queue-failed-banner"
-          className="rounded-lg border-2 border-danger/80 bg-danger/15 p-4 space-y-2 text-danger"
-        >
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-tight uppercase">
-              Hàng đợi thất bại {job.errorCode ? `(${job.errorCode})` : ""}
+              {completedCount}/{items.length} hoàn thành
             </span>
           </div>
-          <p className="text-xs leading-relaxed text-foreground/90 font-medium">
-            {job.errorMessage || activeItem?.errorMessage || "Tiến trình cường hóa đã dừng do gặp lỗi hoặc điều kiện không thỏa mãn."}
-          </p>
-          {activeItem && (activeItem.errorCode || activeItem.errorMessage) ? (
-            <div className="rounded border border-danger/30 bg-surface/60 p-2.5 text-xs text-foreground/90 space-y-1">
-              <div>Vật phẩm: <span className="font-semibold text-foreground">{activeItem.baseName}</span> (Ô {activeItem.capturedSlot + 1})</div>
-              {activeItem.errorCode ? (
-                <div>Mã lỗi: <span className="font-mono text-danger font-semibold">{activeItem.errorCode}</span></div>
-              ) : null}
-              {activeItem.errorMessage && activeItem.errorMessage !== job.errorMessage ? (
-                <div>Chi tiết: <span>{activeItem.errorMessage}</span></div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
-      {/* 3. Prominent MANUAL_REVIEW_REQUIRED Alert Banner */}
-      {isManualReview ? (
-        <div
-          id="manual-review-required-banner"
-          className="rounded-lg border-2 border-danger/80 bg-danger/15 p-4 space-y-3 text-danger"
-        >
-          <div className="flex items-center gap-2">
-            <span className="size-3 rounded-full bg-danger animate-ping shrink-0" />
-            <span className="font-bold text-sm tracking-tight uppercase">
-              Cần kiểm tra thủ công (MANUAL_REVIEW_REQUIRED)
-            </span>
-          </div>
-          <p className="text-xs leading-relaxed text-foreground/90 font-medium">
-            Tiến trình cường hóa tự động đã tạm dừng để bảo vệ tài khoản và trang bị.
-            Hệ thống không tự động thử lại (Không có tính năng Retry tự động) để tránh rủi ro mất đồ khi trạng thái chưa rõ ràng.
-          </p>
-
-          <div className="rounded border border-danger/30 bg-surface/60 p-2.5 text-xs text-foreground/90 space-y-1">
-            <div className="font-semibold text-danger">Trạng thái kết quả: Chưa xác định (Outcome Unresolved)</div>
-            {job.activeAttemptUuid ? (
-              <div className="font-mono text-[11px] text-muted">
-                Attempt UUID: <span className="text-foreground">{job.activeAttemptUuid}</span>
-              </div>
-            ) : null}
-            <div className="text-[11px] text-muted">
-              Kết quả của lượt thử gần nhất trên server game chưa được chốt. Hàng đợi đang giữ độc quyền tài khoản.
-            </div>
-          </div>
-
-          {onResolveQueue && !showResolveConfirm ? (
-            <div className="pt-1">
+          {/* Action buttons: Pause, Cancel, Dismiss */}
+          <div className="flex items-center gap-1.5">
+            {job.status === "QUEUED" || job.status === "RUNNING" ? (
               <Button
-                id="open-resolve-confirm-btn"
+                id="pause-enhancement-queue-btn"
+                variant="secondary"
+                size="sm"
+                onClick={onPauseQueue}
+                disabled={isPausing || Boolean(job.pauseRequestedAt)}
+                className="text-xs h-7 px-2"
+              >
+                {job.pauseRequestedAt ? "Đang dừng..." : isPausing ? "..." : "Tạm dừng"}
+              </Button>
+            ) : null}
+
+            {["QUEUED", "RUNNING", "PAUSING", "PAUSED"].includes(job.status) ? (
+              <Button
+                id="cancel-enhancement-queue-btn"
                 variant="danger"
                 size="sm"
-                onClick={() => setShowResolveConfirm(true)}
-                disabled={isResolving}
-                className="text-xs font-semibold"
+                onClick={onCancelQueue}
+                disabled={isCancelling || Boolean(job.cancelRequestedAt)}
+                className="text-xs h-7 px-2"
               >
-                Xử lý / Đóng hàng đợi (Resolve & Release Exclusivity)
+                {job.cancelRequestedAt ? "Đang hủy..." : isCancelling ? "..." : "Hủy"}
               </Button>
-            </div>
-          ) : null}
+            ) : null}
 
-          {showResolveConfirm && onResolveQueue ? (
-            <div
-              id="manual-review-resolve-confirmation"
-              className="rounded border border-danger/60 bg-danger/20 p-3 space-y-2 text-xs"
-            >
-              <div className="font-bold text-danger">
-                Xác nhận đóng hàng đợi sau kiểm tra thủ công?
-              </div>
-              <ul className="list-disc list-inside space-y-1 text-[11px] text-foreground/90">
-                <li>Kết quả cường hóa của trang bị đang thử sẽ được <strong>ghi nhận nguyên trạng là Chưa xác định</strong> (không coi là Thành công hay Thất bại).</li>
-                <li>Tất cả các trang bị chưa thực hiện còn lại trong hàng đợi sẽ bị <strong>hủy bỏ vĩnh viễn</strong>.</li>
-                <li>Độc quyền tài khoản sẽ được <strong>giải phóng ngay lập tức</strong> để có thể tạo hàng đợi mới.</li>
-              </ul>
-              <div className="flex items-center gap-2 pt-1.5">
-                <Button
-                  id="confirm-resolve-queue-btn"
-                  variant="danger"
-                  size="sm"
-                  onClick={() => {
-                    onResolveQueue("ABANDON_UNRESOLVED", "Xác nhận đóng hàng đợi sau kiểm tra thủ công");
-                    setShowResolveConfirm(false);
-                  }}
-                  disabled={isResolving}
-                  className="text-xs font-bold"
-                >
-                  {isResolving ? "Đang xử lý..." : "Xác nhận đóng hàng đợi"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowResolveConfirm(false)}
-                  disabled={isResolving}
-                  className="text-xs"
-                >
-                  Hủy
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Error Message banner */}
-      {errorMessage ? (
-        <div className="rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {errorMessage}
-        </div>
-      ) : null}
-
-      {/* 4. Overall Progress Bar */}
-      <div className="space-y-1.5 bg-elevated/40 border border-border/60 rounded-lg p-3.5">
-        <div className="flex justify-between text-xs font-medium">
-          <span className="text-muted">Tiến độ hoàn thành:</span>
-          <span className="text-foreground font-mono">
-            {completedCount} / {items.length} trang bị ({progressPercent}%)
-          </span>
-        </div>
-        <div className="h-2 w-full rounded-full bg-surface border border-border/40 overflow-hidden">
-          <div
-            className="h-full bg-accent transition-all duration-300 rounded-full"
-            style={{ width: `${progressPercent}%` }}
-          />
+            {isTerminalQueueStatus(job.status) && onDismissQueue ? (
+              <Button
+                id="dismiss-terminal-queue-btn"
+                variant="secondary"
+                size="sm"
+                onClick={onDismissQueue}
+                className="text-xs h-7 px-2.5 font-medium"
+              >
+                Đóng kết quả / Tạo mới
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* 5. Authoritative Derived Actual Spend Summary */}
-      <SpendSummaryCard spend={derivedSpend} />
+      <div className="p-3 sm:p-4 space-y-3.5">
+        {/* Action Error Alert */}
+        {errorMessage ? (
+          <div
+            id="enhancement-queue-action-error"
+            className="rounded-md border border-danger/40 bg-danger/10 p-2.5 text-xs text-danger"
+          >
+            {errorMessage}
+          </div>
+        ) : null}
 
-      {/* 6. Active Item Focus (if RUNNING) */}
-      {activeItem && job.status === "RUNNING" ? (
-        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3.5 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-accent animate-pulse" />
-              <span className="text-xs font-semibold text-accent uppercase tracking-wider">
-                Đang xử lý mục #{activeItem.queueOrder}: {activeItem.baseName}
-              </span>
-            </div>
-            <span className="font-mono text-xs text-muted">
-              Lượt thử #{activeItem.attemptCount}
+        {/* 2. Progress Pipeline Bar */}
+        <div className="rounded-lg border border-border/70 bg-elevated/40 p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted font-medium">Giai đoạn hiện tại:</span>
+            <span
+              id="pipeline-stage-label"
+              className={`font-semibold ${
+                currentStage.isError
+                  ? "text-danger"
+                  : currentStage.isSuccess
+                    ? "text-online"
+                    : currentStage.isSensitive
+                      ? "text-warning animate-pulse"
+                      : "text-accent"
+              }`}
+            >
+              {currentStage.label}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="text-muted">
-              Cấp độ: <span className="text-foreground font-bold font-mono">+{activeItem.currentLevel}</span>
-              {" -> "}
-              Mục tiêu: <span className="text-accent font-bold font-mono">+{activeItem.targetLevel}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-muted">Giai đoạn:</span>
-              <AttemptPhaseBadge phase={activeItem.attemptPhase} />
+          <p className="text-[11px] text-muted leading-relaxed">
+            {currentStage.description}
+          </p>
+
+          {/* Overall Progress Line */}
+          <div className="pt-1">
+            <div className="h-1.5 w-full rounded-full bg-surface border border-border/40 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  job.status === "FAILED"
+                    ? "bg-danger"
+                    : job.status === "COMPLETED"
+                      ? "bg-online"
+                      : "bg-accent"
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
           </div>
 
-          {/* Sensitive post-send ambiguity warning ONLY when actively executing or waiting result */}
-          {activeItem.status === "RUNNING" &&
-          job.status === "RUNNING" &&
-          activeItem.attemptPhase === "WAITING_RESULT" ? (
-            <p className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded p-2 font-medium">
+          {/* Sensitive post-send ambiguity warning ONLY when actively waiting or sending */}
+          {currentStage.isSensitive && job.status === "RUNNING" ? (
+            <p
+              id="sensitive-post-send-warning"
+              className="mt-2 text-[11px] text-warning bg-warning/10 border border-warning/30 rounded p-2 font-medium"
+            >
               * Lệnh cường hóa đã được phát đi và đang chờ kết quả từ máy chủ game. Trạng thái nhạy cảm, vui lòng không tắt kết nối.
             </p>
           ) : null}
         </div>
-      ) : null}
 
-      {/* 7. Ordered Items Progression List */}
-      <div className="space-y-3">
-        <h4 className="text-xs font-semibold text-foreground tracking-tight uppercase text-muted">
-          Danh sách trang bị ({items.length})
-        </h4>
-
-        <div className="divide-y divide-border/40 border border-border/70 rounded-lg overflow-hidden bg-surface">
-          {itemProgressList.map(({ item, isUnexecutedDueToPriorFailure, displayStatus }) => (
-            <div
-              key={item.id}
-              className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-                item.id === activeItem?.id ? "bg-accent/5" : ""
-              }`}
-            >
-              {/* Left: Identity & Levels */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted">
-                    #{item.queueOrder}
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {item.baseName}
-                  </span>
-                  <span className="text-muted text-[11px]">
-                    (Ô {item.capturedSlot + 1})
-                  </span>
-                  <ItemStatusBadge status={displayStatus} />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 text-muted text-[11px]">
-                  <div>
-                    Ban đầu: <span className="font-mono text-foreground font-medium">+{item.initialLevel}</span>
-                  </div>
-                  <div>
-                    Hiện tại:{" "}
-                    <span
-                      className={`font-mono font-bold ${
-                        item.currentLevel > item.initialLevel
-                          ? "text-online"
-                          : "text-foreground"
-                      }`}
-                    >
-                      +{item.currentLevel}
-                    </span>
-                  </div>
-                  <div>
-                    Mục tiêu: <span className="font-mono text-accent font-medium">+{item.targetLevel}</span>
-                  </div>
-                  <div>
-                    Loại tiền: <span className="text-foreground">{item.paymentType}</span>
-                  </div>
-                  <div>
-                    Bùa: <span className="text-foreground">{item.charmMode}</span>
-                  </div>
-                  <div>
-                    Số lượt: <span className="font-mono text-foreground">{item.attemptCount}</span>
-                  </div>
-                </div>
-
-                {/* Attempt phase and attempt uuid for active or settled item */}
-                {item.attemptPhase && item.attemptPhase !== "NONE" ? (
-                  <div className="pt-1 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] text-muted">Giai đoạn:</span>
-                    <AttemptPhaseBadge phase={item.attemptPhase} />
-                    {item.activeAttemptUuid ? (
-                      <span className="text-[10px] font-mono text-muted">
-                        UUID: {item.activeAttemptUuid.slice(0, 8)}...
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {/* Outcome indicator for MANUAL_REVIEW_REQUIRED item */}
-                {item.status === "MANUAL_REVIEW_REQUIRED" ? (
-                  <div className="mt-1 text-[11px] text-danger bg-danger/10 border border-danger/30 rounded p-1.5 font-medium">
-                    Kết quả lượt thử: <strong>Chưa xác định</strong> (Dừng kiểm tra thủ công, không bị coi là thất bại)
-                  </div>
-                ) : null}
-
-                {/* State reconciliation indicator */}
-                {item.settlementSource === "STATE_RECONCILED" ? (
-                  <div className="mt-1 text-[11px] text-online bg-online/10 border border-online/30 rounded p-1.5 font-medium">
-                    Đối soát trạng thái: <strong>Thành công (STATE_RECONCILED)</strong>
-                    {item.reconciliationReason ? ` — ${item.reconciliationReason}` : ""}
-                  </div>
-                ) : null}
-
-                {/* Captured result code indicator */}
-                {item.settlementSource === "RESULT_CODE" ? (
-                  <div className="mt-1 text-[11px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded p-1.5 font-medium">
-                    Kết quả máy chủ ghi nhận: <strong>Thành công (RESULT_CODE = {item.lastResultCode ?? "3"})</strong>
-                  </div>
-                ) : null}
-
-                {/* Error info if present */}
-                {item.errorCode || item.errorMessage ? (
-                  <div className="mt-1 text-[11px] text-danger bg-danger/10 border border-danger/20 rounded p-1.5">
-                    Lỗi [{item.errorCode ?? "UNKNOWN"}]: {item.errorMessage ?? "Thao tác thất bại"}
-                  </div>
-                ) : null}
-
-                {/* Skipped / Unattempted note */}
-                {item.status === "CANCELLED" && item.attemptCount === 0 ? (
-                  <p className="text-[11px] text-muted italic">
-                    Chưa thực hiện (Đã hủy khi đóng hàng đợi, chưa từng thử)
-                  </p>
-                ) : isUnexecutedDueToPriorFailure ? (
-                  <p className="text-[11px] text-muted italic">
-                    Chưa thực hiện (Đã dừng do mục trước đó gặp lỗi/dừng lại)
-                  </p>
-                ) : null}
-              </div>
-
-              {/* Right: Authoritative Cumulative Actual Spend per Item */}
-              <div className="sm:text-right shrink-0 bg-elevated/30 sm:bg-transparent p-2 sm:p-0 rounded border sm:border-0 border-border/30">
-                <span className="text-[10px] text-muted block mb-0.5">Thực tế đã chi:</span>
-                <div className="font-mono text-[11px] text-foreground space-y-0.5">
-                  {item.actualGoldSpent > 0 ? (
-                    <div>{item.actualGoldSpent.toLocaleString()} Vàng</div>
-                  ) : null}
-                  {item.actualGemSpent > 0 ? (
-                    <div>{item.actualGemSpent.toLocaleString()} Gems</div>
-                  ) : null}
-                  {item.actualMaterial1Spent > 0 ||
-                  item.actualMaterial2Spent > 0 ||
-                  item.actualMaterial3Spent > 0 ||
-                  item.actualMaterial4Spent > 0 ? (
-                    <div className="text-[10px] text-muted">
-                      Vật liệu: M1:{item.actualMaterial1Spent} M2:{item.actualMaterial2Spent} M3:{item.actualMaterial3Spent} M4:{item.actualMaterial4Spent}
-                    </div>
-                  ) : null}
-                  {item.actualCharmSpent > 0 ? (
-                    <div>{item.actualCharmSpent} Bùa</div>
-                  ) : null}
-                  {item.actualGoldSpent === 0 &&
-                  item.actualGemSpent === 0 &&
-                  item.actualMaterial1Spent === 0 &&
-                  item.actualCharmSpent === 0 ? (
-                    <span className="text-muted text-[10px]">Chưa phát sinh</span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 8. Terminal History Section (Compact Accordion) */}
-      {history.length > 0 ? (
-        <div className="pt-2 border-t border-border/50">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowHistory(!showHistory)}
-            className="text-xs text-muted hover:text-foreground"
+        {/* 3. Prominent FAILED Terminal Banner with Exact Retention */}
+        {job.status === "FAILED" && translatedError ? (
+          <div
+            id="queue-failed-banner"
+            className="rounded-lg border-2 border-danger/80 bg-danger/15 p-3.5 space-y-2.5 text-danger"
           >
-            {showHistory ? "▲ Ẩn lịch sử hàng đợi gần đây" : "▼ Xem lịch sử hàng đợi gần đây"} ({history.length})
-          </Button>
-
-          {showHistory ? (
-            <div className="mt-3 space-y-3">
-              <div className="divide-y divide-border/40 border border-border/70 rounded-lg overflow-hidden bg-surface">
-                {history.map((hist) => (
-                  <div key={hist.job.id} className="p-3 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] font-medium text-foreground">
-                          Job {hist.job.id.slice(0, 8)}...
-                        </span>
-                        <JobStatusBadge status={hist.job.status} resolutionKind={hist.job.resolutionKind} />
-                      </div>
-                      <span className="text-[11px] text-muted">
-                        {hist.job.finishedAt
-                          ? new Date(hist.job.finishedAt).toLocaleString()
-                          : new Date(hist.job.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-muted">
-                      Số mục: <span className="text-foreground">{hist.items.length}</span>
-                      {" • "}
-                      Hoàn thành: <span className="text-foreground">{hist.items.filter((i) => i.status === "COMPLETED").length}</span>
-                      {" • "}
-                      Vàng: <span className="font-mono text-foreground">{hist.derivedSpend.actualGoldSpent.toLocaleString()}</span>
-                      {" • "}
-                      Lượt: <span className="font-mono text-foreground">{hist.derivedSpend.totalAttemptCount}</span>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs uppercase tracking-tight">
+                  {translatedError.title}
+                </span>
+                {job.errorCode ? (
+                  <span className="rounded bg-surface px-1.5 py-0.2 font-mono text-[10px] text-danger border border-danger/40">
+                    {job.errorCode}
+                  </span>
+                ) : null}
               </div>
 
-              <p className="text-[10px] text-muted/70 leading-relaxed italic">
-                * Ghi chú hệ thống: Schema migration 013 lưu trữ tổng hợp tài nguyên thực tế theo từng trang bị ({HISTORY_CLASSIFICATION}). Chi tiết nhật ký từng lượt bấm độc lập không được hỗ trợ bởi schema hiện tại.
-              </p>
+              {onDismissQueue ? (
+                <button
+                  type="button"
+                  onClick={onDismissQueue}
+                  className="rounded border border-danger/40 bg-surface px-2 py-0.5 text-[11px] font-semibold text-danger hover:bg-danger/20 transition-colors"
+                >
+                  Đóng / Tạo hàng đợi mới
+                </button>
+              ) : null}
             </div>
-          ) : null}
+
+            <p className="text-xs leading-relaxed text-foreground/90 font-medium">
+              {translatedError.detail}
+            </p>
+
+            <div className="rounded border border-danger/30 bg-surface/70 p-2 text-xs text-foreground/90 space-y-1">
+              <div className="font-semibold text-accent">Hành động khuyến nghị:</div>
+              <div className="text-[11px] text-muted">{translatedError.recommendedAction}</div>
+            </div>
+
+            {/* Expandable Technical Detail */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowErrorTechDetails(!showErrorTechDetails)}
+                className="text-[11px] text-muted underline hover:text-foreground"
+              >
+                {showErrorTechDetails ? "Ẩn chi tiết kỹ thuật" : "Xem chi tiết kỹ thuật"}
+              </button>
+              {showErrorTechDetails ? (
+                <div className="mt-1.5 font-mono text-[10px] text-muted/90 bg-elevated/60 p-2 rounded border border-border/40 space-y-0.5">
+                  <div>Mã lỗi: {job.errorCode ?? "N/A"}</div>
+                  <div>Thông điệp gốc: {job.errorMessage ?? "N/A"}</div>
+                  {activeItem ? (
+                    <>
+                      <div>Vật phẩm: {activeItem.baseName} (Ô {activeItem.capturedSlot + 1})</div>
+                      <div>Lỗi mục: {activeItem.errorCode ?? "N/A"} - {activeItem.errorMessage ?? "N/A"}</div>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {/* 4. Prominent MANUAL_REVIEW_REQUIRED Alert Banner */}
+        {isManualReview ? (
+          <div
+            id="manual-review-required-banner"
+            className="rounded-lg border-2 border-danger/80 bg-danger/15 p-3.5 space-y-2.5 text-danger"
+          >
+            <div className="flex items-center gap-2">
+              <span className="size-2.5 rounded-full bg-danger animate-ping shrink-0" />
+              <span className="font-bold text-xs uppercase tracking-tight">
+                Cần kiểm tra thủ công (MANUAL_REVIEW_REQUIRED)
+              </span>
+            </div>
+
+            <p className="text-xs leading-relaxed text-foreground/90 font-medium">
+              Tiến trình cường hóa tự động đã tạm dừng để bảo vệ tài khoản và trang bị.
+              Hệ thống không tự động thử lại (Không có tính năng Retry tự động) để tránh rủi ro mất đồ khi trạng thái chưa rõ ràng.
+            </p>
+
+            {onResolveQueue && !showResolveConfirm ? (
+              <div className="pt-1">
+                <Button
+                  id="open-resolve-confirm-btn"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowResolveConfirm(true)}
+                  disabled={isResolving}
+                  className="text-xs font-semibold h-7"
+                >
+                  Xử lý / Đóng hàng đợi (Giải phóng độc quyền)
+                </Button>
+              </div>
+            ) : null}
+
+            {showResolveConfirm && onResolveQueue ? (
+              <div
+                id="manual-review-resolve-confirmation"
+                className="rounded border border-danger/60 bg-danger/20 p-2.5 space-y-2 text-xs"
+              >
+                <div className="font-bold text-danger">
+                  Xác nhận đóng hàng đợi sau kiểm tra thủ công?
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 text-[11px] text-foreground/90">
+                  <li>Kết quả cường hóa của trang bị đang thử sẽ được ghi nhận là Chưa xác định.</li>
+                  <li>Tất cả các trang bị chưa thực hiện còn lại sẽ bị hủy bỏ vĩnh viễn.</li>
+                  <li>Độc quyền tài khoản sẽ được giải phóng ngay lập tức.</li>
+                </ul>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    id="confirm-resolve-queue-btn"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      onResolveQueue("ABANDON_UNRESOLVED", "Xác nhận đóng hàng đợi sau kiểm tra thủ công");
+                      setShowResolveConfirm(false);
+                    }}
+                    disabled={isResolving}
+                    className="text-xs font-bold h-7"
+                  >
+                    {isResolving ? "Đang xử lý..." : "Xác nhận đóng"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowResolveConfirm(false)}
+                    disabled={isResolving}
+                    className="text-xs h-7"
+                  >
+                    Hủy
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* 5. Active Item Focus (if RUNNING) */}
+        {activeItem && job.status === "RUNNING" ? (
+          <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-full bg-accent animate-pulse" />
+                <span className="text-xs font-semibold text-accent uppercase tracking-wider">
+                  Mục #{activeItem.queueOrder}: {activeItem.baseName}
+                </span>
+              </div>
+              <span className="font-mono text-[11px] text-muted">
+                Lượt thử #{activeItem.attemptCount}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted">Cấp:</span>
+              <span className="font-mono font-bold text-foreground">+{activeItem.currentLevel}</span>
+              <span className="text-muted">→</span>
+              <span className="font-mono font-bold text-accent">+{activeItem.targetLevel}</span>
+              <span className="text-muted">·</span>
+              <span className="text-[11px] text-muted">Giai đoạn:</span>
+              <AttemptPhaseBadge phase={activeItem.attemptPhase} />
+            </div>
+          </div>
+        ) : null}
+
+        {/* 6. Ordered Items Progression List */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-foreground tracking-tight uppercase text-muted">
+            Danh sách trang bị trong hàng đợi ({items.length})
+          </h4>
+
+          <div className="divide-y divide-border/40 border border-border/70 rounded-lg overflow-hidden bg-surface">
+            {itemProgressList.map(({ item, isUnexecutedDueToPriorFailure, displayStatus }) => (
+              <div
+                key={item.id}
+                className={`p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+                  item.id === activeItem?.id ? "bg-accent/5" : ""
+                }`}
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="rounded bg-elevated px-1.5 py-0.2 font-mono text-[10px] font-semibold text-muted">
+                      #{item.queueOrder}
+                    </span>
+                    <span className="font-medium text-foreground truncate">
+                      {item.baseName}
+                    </span>
+                    <ItemStatusBadge status={displayStatus} />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+                    <span>
+                      Ban đầu: <strong className="text-foreground">+{item.initialLevel}</strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      Hiện tại: <strong className={item.currentLevel > item.initialLevel ? "text-online" : "text-foreground"}>+{item.currentLevel}</strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      Mục tiêu: <strong className="text-accent">+{item.targetLevel}</strong>
+                    </span>
+                    <span>·</span>
+                    <span>{item.paymentType === "GOLD" ? "Vàng" : "Ngọc"}</span>
+                    <span>·</span>
+                    <span>{item.charmMode}</span>
+                  </div>
+
+                  {item.errorCode || item.errorMessage ? (
+                    <div className="text-[11px] text-danger bg-danger/10 border border-danger/20 rounded px-2 py-0.5">
+                      Lỗi: {item.errorCode ?? "UNKNOWN"} - {item.errorMessage}
+                    </div>
+                  ) : null}
+
+                  {isUnexecutedDueToPriorFailure ? (
+                    <p className="text-[10px] text-muted italic">
+                      Chưa thực hiện (Đã dừng do mục trước đó gặp lỗi)
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="sm:text-right shrink-0 font-mono text-[11px] text-muted">
+                  {item.actualGoldSpent > 0 ? <div>{item.actualGoldSpent.toLocaleString()} Vàng</div> : null}
+                  {item.actualGemSpent > 0 ? <div>{item.actualGemSpent.toLocaleString()} Gems</div> : null}
+                  {item.actualCharmSpent > 0 ? <div>{item.actualCharmSpent} Bùa</div> : null}
+                  {item.actualGoldSpent === 0 && item.actualGemSpent === 0 && item.actualCharmSpent === 0 ? (
+                    <span className="text-[10px]">Chưa chi</span>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : null}
+
+        {/* 7. Actual Spend Summary */}
+        <SpendSummaryCard spend={derivedSpend} />
+
+        {/* 8. Terminal History Section */}
+        {history.length > 0 ? (
+          <div className="pt-1 border-t border-border/50">
+            <button
+              type="button"
+              onClick={() => setShowHistory(!showHistory)}
+              className="text-xs text-muted hover:text-foreground transition-colors font-medium"
+            >
+              {showHistory ? "▲ Ẩn lịch sử hàng đợi gần đây" : "▼ Xem lịch sử hàng đợi gần đây"} ({history.length})
+            </button>
+
+            {showHistory ? (
+              <div className="mt-2.5 space-y-2">
+                <div className="divide-y divide-border/40 border border-border/70 rounded-lg overflow-hidden bg-surface">
+                  {history.map((hist) => (
+                    <div key={hist.job.id} className="p-2.5 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] text-foreground">
+                            Job {hist.job.id.slice(0, 8)}...
+                          </span>
+                          <JobStatusBadge status={hist.job.status} resolutionKind={hist.job.resolutionKind} />
+                        </div>
+                        <span className="text-[10px] text-muted">
+                          {hist.job.finishedAt
+                            ? new Date(hist.job.finishedAt).toLocaleTimeString()
+                            : new Date(hist.job.createdAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-muted">
+                        Số mục: <strong className="text-foreground">{hist.items.length}</strong>
+                        {" • "}
+                        Thành công: <strong className="text-foreground">{hist.items.filter((i) => i.status === "COMPLETED").length}</strong>
+                        {" • "}
+                        Vàng: <strong className="font-mono text-foreground">{hist.derivedSpend.actualGoldSpent.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 function SpendSummaryCard({ spend }: { spend: DerivedQueueSpend }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-elevated/20 p-3.5 space-y-2">
+    <div className="rounded-lg border border-border/70 bg-elevated/20 p-2.5 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-foreground uppercase tracking-wider text-muted">
-          Tổng chi phí thực tế đã hạch toán (Durable Settled Spend)
+        <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider text-muted">
+          Chi phí thực tế đã hạch toán
         </span>
-        <span className="font-mono text-xs text-muted">
+        <span className="font-mono text-[11px] text-muted">
           Tổng {spend.totalAttemptCount} lượt cường hóa
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-        <div className="rounded border border-border/40 bg-surface p-2">
-          <span className="text-[10px] text-muted block">Vàng đã tiêu:</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+        <div className="rounded border border-border/40 bg-surface p-1.5">
+          <span className="text-[10px] text-muted block">Vàng:</span>
           <span className="font-mono text-xs font-bold text-foreground">
             {spend.actualGoldSpent.toLocaleString()}
           </span>
         </div>
-
-        <div className="rounded border border-border/40 bg-surface p-2">
-          <span className="text-[10px] text-muted block">Gems đã tiêu:</span>
+        <div className="rounded border border-border/40 bg-surface p-1.5">
+          <span className="text-[10px] text-muted block">Ngọc (Gems):</span>
           <span className="font-mono text-xs font-bold text-foreground">
             {spend.actualGemSpent.toLocaleString()}
           </span>
         </div>
-
-        <div className="rounded border border-border/40 bg-surface p-2">
+        <div className="rounded border border-border/40 bg-surface p-1.5">
           <span className="text-[10px] text-muted block">Vật liệu 1 & 2:</span>
           <span className="font-mono text-xs font-bold text-foreground">
-            M1: {spend.actualMaterial1Spent} / M2: {spend.actualMaterial2Spent}
+            {spend.actualMaterial1Spent} / {spend.actualMaterial2Spent}
           </span>
         </div>
-
-        <div className="rounded border border-border/40 bg-surface p-2">
+        <div className="rounded border border-border/40 bg-surface p-1.5">
           <span className="text-[10px] text-muted block">Bùa đã dùng:</span>
           <span className="font-mono text-xs font-bold text-foreground">
             {spend.actualCharmSpent} bùa
           </span>
         </div>
       </div>
-
-      <p className="text-[10px] text-muted/80 pt-1 leading-relaxed">
-        * Chi phí trên được tổng hợp chính xác từ các lượt cường hóa đã hoàn tất trong cơ sở dữ liệu.
-        Không bao gồm phí di chuyển và không phản ánh chi phí dự toán trước khi thực hiện.
-      </p>
     </div>
   );
 }
@@ -613,33 +552,8 @@ function JobStatusBadge({
 }) {
   if (status === "CANCELLED" && resolutionKind === "ABANDON_UNRESOLVED") {
     return (
-      <span
-        title="Đã đóng sau kiểm tra thủ công (Kết quả: Chưa xác định)"
-        className="rounded border border-warning/60 bg-warning/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-warning"
-      >
-        CANCELLED (MANUAL REVIEW RESOLVED)
-      </span>
-    );
-  }
-
-  if (status === "CANCELLED" && resolutionKind === "RECONCILED_SUCCESS_CLOSE_REMAINDER") {
-    return (
-      <span
-        title="Đã đối soát thành công mục đang xử lý và đóng hàng đợi"
-        className="rounded border border-online/60 bg-online/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-online"
-      >
-        CANCELLED (RECONCILED & CLOSED)
-      </span>
-    );
-  }
-
-  if (status === "CANCELLED" && resolutionKind === "RESULT_CODE_SUCCESS_CLOSE_REMAINDER") {
-    return (
-      <span
-        title="Đã ghi nhận kết quả máy chủ thành công và đóng hàng đợi"
-        className="rounded border border-cyan-500/60 bg-cyan-500/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-cyan-400"
-      >
-        CANCELLED (RESULT CODE RECOVERED & CLOSED)
+      <span className="rounded border border-warning/60 bg-warning/15 px-1.5 py-0.2 font-mono text-[10px] font-semibold text-warning">
+        CANCELLED (RESOLVED)
       </span>
     );
   }
@@ -648,9 +562,9 @@ function JobStatusBadge({
     QUEUED: "border-warning/40 bg-warning/10 text-warning",
     RUNNING: "border-accent/40 bg-accent/15 text-accent animate-pulse",
     PAUSING: "border-warning/40 bg-warning/10 text-warning",
-    PAUSED: "border-warning/40 bg-warning/15 text-warning",
-    COMPLETED: "border-online/40 bg-online/10 text-online",
-    FAILED: "border-danger/40 bg-danger/10 text-danger",
+    PAUSED: "border-warning/40 bg-warning/10 text-warning",
+    COMPLETED: "border-online/40 bg-online/10 text-online font-bold",
+    FAILED: "border-danger/40 bg-danger/10 text-danger font-bold",
     CANCELLED: "border-muted/40 bg-elevated text-muted",
     MANUAL_REVIEW_REQUIRED: "border-danger/60 bg-danger/20 text-danger font-bold",
     DRAFT: "border-border bg-elevated text-muted",
@@ -658,7 +572,7 @@ function JobStatusBadge({
 
   return (
     <span
-      className={`rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${
+      className={`rounded border px-1.5 py-0.2 font-mono text-[10px] font-semibold ${
         styles[status] ?? "border-border bg-elevated text-muted"
       }`}
     >
@@ -684,7 +598,7 @@ function ItemStatusBadge({
 
   return (
     <span
-      className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${
+      className={`rounded border px-1.5 py-0.2 font-mono text-[9px] ${
         styles[status] ?? "border-border bg-elevated text-muted"
       }`}
     >
@@ -696,7 +610,7 @@ function ItemStatusBadge({
 function AttemptPhaseBadge({ phase }: { phase: string }) {
   const info = ATTEMPT_PHASE_INFO[phase as keyof typeof ATTEMPT_PHASE_INFO];
   if (!info) {
-    return <span className="font-mono text-[10px] text-muted">{phase}</span>;
+    return <span className="font-mono text-[9px] text-muted">{phase}</span>;
   }
 
   const colorClass = info.isSensitive
@@ -708,7 +622,7 @@ function AttemptPhaseBadge({ phase }: { phase: string }) {
   return (
     <span
       title={info.description}
-      className={`rounded border px-1.5 py-0.5 text-[10px] inline-block ${colorClass}`}
+      className={`rounded border px-1.5 py-0.2 text-[9px] inline-block ${colorClass}`}
     >
       {info.label}
     </span>
