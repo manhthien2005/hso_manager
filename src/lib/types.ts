@@ -503,6 +503,44 @@ export interface EnhancementQueueItem {
   updatedAt: string;
 }
 
+export interface EnhancementQueueItemAttempt {
+  id: string;
+  jobId: string;
+  itemId: string;
+  accountId: string;
+  userId: string;
+  attemptUuid: string;
+  attemptNumber: number;
+  expectedLevel: number;
+  stepTargetLevel: number;
+  queueItemFinalTargetLevel: number;
+  attemptPhase: EnhancementAttemptPhase;
+  resultCode: string | null;
+  settlementSource: "RESULT_CODE" | "STATE_RECONCILED" | null;
+  paymentType: EnhancementPaymentType;
+  charmMode: EnhancementCharmMode;
+  quotedGold: number;
+  quotedGems: number;
+  recipeMaterials: Record<string, unknown>;
+  actualGoldSpent: number;
+  actualGemSpent: number;
+  actualMaterial1Spent: number;
+  actualMaterial2Spent: number;
+  actualMaterial3Spent: number;
+  actualMaterial4Spent: number;
+  actualCharmSpent: number;
+  attemptStartedAt: string | null;
+  executeMayHaveBeenSentAt: string | null;
+  resultReceivedAt: string | null;
+  attemptSettledAt: string | null;
+  reconciledAt: string | null;
+  reconciliationReason: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EnhancementQueueJobSummary extends EnhancementQueueJob {
   actualGoldSpent: number;
   actualGemSpent: number;

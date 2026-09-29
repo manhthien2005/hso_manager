@@ -369,10 +369,15 @@ export function EnhancementQueueProgress({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted">Cấp:</span>
+              <span className="text-muted">Tiến độ:</span>
               <span className="font-mono font-bold text-foreground">+{activeItem.currentLevel}</span>
-              <span className="text-muted">→</span>
+              <span className="text-muted">/ mục tiêu</span>
               <span className="font-mono font-bold text-accent">+{activeItem.targetLevel}</span>
+              {activeItem.currentLevel < activeItem.targetLevel ? (
+                <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-accent border border-accent/30">
+                  +{activeItem.currentLevel} → +{activeItem.currentLevel + 1}
+                </span>
+              ) : null}
               <span className="text-muted">·</span>
               <span className="text-[11px] text-muted">Giai đoạn:</span>
               <AttemptPhaseBadge phase={activeItem.attemptPhase} />
@@ -407,16 +412,17 @@ export function EnhancementQueueProgress({
 
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     <span>
-                      Ban đầu: <strong className="text-foreground">+{item.initialLevel}</strong>
+                      Tiến độ: <strong className={item.currentLevel > item.initialLevel ? "text-online font-bold" : "text-foreground"}>+{item.currentLevel}</strong>
+                      <span className="text-muted"> / mục tiêu </span>
+                      <strong className="text-accent font-bold">+{item.targetLevel}</strong>
                     </span>
+                    {item.status === "RUNNING" && item.currentLevel < item.targetLevel ? (
+                      <span className="rounded bg-accent/15 px-1.5 py-0.2 font-mono text-[10px] font-semibold text-accent border border-accent/30">
+                        +{item.currentLevel} → +{item.currentLevel + 1}
+                      </span>
+                    ) : null}
                     <span>·</span>
-                    <span>
-                      Hiện tại: <strong className={item.currentLevel > item.initialLevel ? "text-online" : "text-foreground"}>+{item.currentLevel}</strong>
-                    </span>
-                    <span>·</span>
-                    <span>
-                      Mục tiêu: <strong className="text-accent">+{item.targetLevel}</strong>
-                    </span>
+                    <span>Lượt thử: <strong className="font-mono text-foreground font-semibold">{item.attemptCount}</strong></span>
                     <span>·</span>
                     <span>{item.paymentType === "GOLD" ? "Vàng" : "Ngọc"}</span>
                     <span>·</span>

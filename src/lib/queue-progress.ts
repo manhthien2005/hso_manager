@@ -13,6 +13,7 @@
 import type {
   EnhancementAttemptPhase,
   EnhancementQueueItem,
+  EnhancementQueueItemAttempt,
   EnhancementQueueItemStatus,
   EnhancementQueueJob,
   EnhancementPaymentType,
@@ -26,6 +27,14 @@ import type {
  */
 export const FULL_ATTEMPT_HISTORY_SUPPORTED = false;
 export const HISTORY_CLASSIFICATION = "NOT_SUPPORTED_BY_CURRENT_SCHEMA" as const;
+
+/**
+ * Migration 018 append-only attempt ledger classification:
+ * Migration 018 introduces public.enhancement_queue_item_attempts to persist
+ * distinct per-level attempt history, UUIDs, and provenance.
+ */
+export const MIGRATION_018_ATTEMPT_LEDGER_SUPPORTED = true;
+export const MIGRATION_018_HISTORY_CLASSIFICATION = "SUPPORTED_VIA_MIGRATION_018_ATTEMPT_LEDGER" as const;
 
 /**
  * Exact unresolved statuses enforced by migration 013 unique index:
@@ -280,4 +289,71 @@ export interface AuthoritativeQueueWithItems {
   job: EnhancementQueueJob;
   items: EnhancementQueueItem[];
   derivedSpend: DerivedQueueSpend;
+}
+
+/**
+ * Formats overall level progression text, e.g. "+4 / mục tiêu +7".
+ */
+export function formatItemLevelProgress(item: Pick<EnhancementQueueItem, "currentLevel" | "targetLevel">): string {
+  return `+${item.currentLevel} / mục tiêu +${item.targetLevel}`;
+}
+
+/**
+ * Formats active single-level transition text, e.g. "+4 → +5".
+ */
+export function formatActiveStepTransition(item: Pick<EnhancementQueueItem, "currentLevel" | "targetLevel" | "status">): string | null {
+  if (item.status === "RUNNING" && item.currentLevel < item.targetLevel) {
+    return `+${item.currentLevel} → +${item.currentLevel + 1}`;
+  }
+  return null;
+}
+
+/**
+ * Formats durable settled attempt count text, e.g. "4 lượt".
+ */
+export function formatDurableAttemptCount(attemptCount: number): string {
+  return `${attemptCount} lượt`;
+}
+
+/**
+ * Maps raw snake_case database row from enhancement_queue_item_attempts to camelCase EnhancementQueueItemAttempt.
+ */
+export function mapQueueItemAttemptRow(row: Record<string, unknown>): EnhancementQueueItemAttempt {
+  return {
+    id: String(row.id),
+    jobId: String(row.job_id),
+    itemId: String(row.item_id),
+    accountId: String(row.account_id),
+    userId: String(row.user_id),
+    attemptUuid: String(row.attempt_uuid),
+    attemptNumber: typeof row.attempt_number === "number" ? row.attempt_number : 1,
+    expectedLevel: typeof row.expected_level === "number" ? row.expected_level : 0,
+    stepTargetLevel: typeof row.step_target_level === "number" ? row.step_target_level : 1,
+    queueItemFinalTargetLevel: typeof row.queue_item_final_target_level === "number" ? row.queue_item_final_target_level : 1,
+    attemptPhase: (row.attempt_phase as EnhancementAttemptPhase) ?? "NONE",
+    resultCode: row.result_code != null ? String(row.result_code) : null,
+    settlementSource: (row.settlement_source as "RESULT_CODE" | "STATE_RECONCILED" | null) ?? null,
+    paymentType: (row.payment_type as EnhancementPaymentType) ?? "GOLD",
+    charmMode: (row.charm_mode as EnhancementCharmMode) ?? "NONE",
+    quotedGold: Number(row.quoted_gold) || 0,
+    quotedGems: Number(row.quoted_gems) || 0,
+    recipeMaterials: (row.recipe_materials as Record<string, unknown>) ?? {},
+    actualGoldSpent: Number(row.actual_gold_spent) || 0,
+    actualGemSpent: Number(row.actual_gem_spent) || 0,
+    actualMaterial1Spent: Number(row.actual_material_1_spent) || 0,
+    actualMaterial2Spent: Number(row.actual_material_2_spent) || 0,
+    actualMaterial3Spent: Number(row.actual_material_3_spent) || 0,
+    actualMaterial4Spent: Number(row.actual_material_4_spent) || 0,
+    actualCharmSpent: Number(row.actual_charm_spent) || 0,
+    attemptStartedAt: (row.attempt_started_at as string | null) ?? null,
+    executeMayHaveBeenSentAt: (row.execute_may_have_been_sent_at as string | null) ?? null,
+    resultReceivedAt: (row.result_received_at as string | null) ?? null,
+    attemptSettledAt: (row.attempt_settled_at as string | null) ?? null,
+    reconciledAt: (row.reconciled_at as string | null) ?? null,
+    reconciliationReason: (row.reconciliation_reason as string | null) ?? null,
+    errorCode: (row.error_code as string | null) ?? null,
+    errorMessage: (row.error_message as string | null) ?? null,
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+    updatedAt: String(row.updated_at ?? new Date().toISOString()),
+  };
 }
