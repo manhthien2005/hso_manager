@@ -19,7 +19,7 @@ import {
   QueueError,
 } from "../lib/queue";
 import {
-  hasEnhancementQueueCapability,
+  hasEnhancementQueueV2Capability,
   hasEnhancementMultilevelCapability,
   isDeviceOnlineAndFresh,
 } from "../lib/capabilities";
@@ -178,11 +178,11 @@ export async function executeStartQueueFlow(
     );
   }
 
-  // 4. Verify enhancement-queue-v1 capability
-  if (!hasEnhancementQueueCapability(deviceRow.agent_version)) {
+  // 4. Verify enhancement-queue-v2 capability (ENHANCE-06H)
+  if (!hasEnhancementQueueV2Capability(deviceRow.agent_version)) {
     throw new QueueError(
       QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
-      "Runtime thiết bị hiện tại chưa hỗ trợ hàng đợi cường hóa (thiếu capability token enhancement-queue-v1).",
+      "Runtime thiết bị hiện tại chưa hỗ trợ hàng đợi cường hóa v2 (thiếu capability token enhancement-queue-v2).",
     );
   }
 
@@ -373,11 +373,11 @@ export async function executeStartQueueFlow(
 
     if (
       !recheckDevice ||
-      !hasEnhancementQueueCapability(recheckDevice.agent_version)
+      !hasEnhancementQueueV2Capability(recheckDevice.agent_version)
     ) {
       throw new QueueError(
         QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
-        "Capability enhancement-queue-v1 không còn khả dụng trên runtime trước thời điểm publish.",
+        "Capability enhancement-queue-v2 không còn khả dụng trên runtime trước thời điểm publish.",
       );
     }
 

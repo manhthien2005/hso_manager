@@ -94,7 +94,7 @@ function createMockDevice(overrides: Partial<Device> = {}): Device {
     viewer_url: null,
     jar_ctl_version: 14,
     jar_sha256: null,
-    agentVersion: "0.1.0+enhancement-queue-v1",
+    agentVersion: "0.1.0+enhancement-queue-v1.enhancement-queue-v2",
     lastSeen: Date.now(),
     metrics: { cpu: 10, ramUsedMb: 500, ramTotalMb: 2048, uptimeSeconds: 3600 },
     ...overrides,
@@ -885,7 +885,7 @@ describe("4. Atomic Publish & Partial Creation Safety", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1017,7 +1017,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1056,7 +1056,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1111,7 +1111,7 @@ describe("6. Field Ownership & Non-Write of Runtime Fields", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1321,25 +1321,32 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
           id: "dev-fresh",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
           last_seen: new Date().toISOString(),
         },
         {
           id: "dev-stale",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
           last_seen: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         },
         {
           id: "dev-offline",
           user_id: "user-alice",
           status: "offline",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
           last_seen: new Date().toISOString(),
         },
         {
           id: "dev-single-level-only",
+          user_id: "user-alice",
+          status: "online",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2",
+          last_seen: new Date().toISOString(),
+        },
+        {
+          id: "dev-v1-only",
           user_id: "user-alice",
           status: "online",
           agent_version: "0.1.0+enhancement-queue-v1",
@@ -1588,6 +1595,26 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
         },
         (err: any) => {
           assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED);
+          return true;
+        },
+      );
+      assert.equal(client._state.jobs.length, 0);
+    });
+
+    test("legacy agent with only enhancement-queue-v1 is rejected (requires enhancement-queue-v2)", async () => {
+      const client = createValidSetup();
+      client._state.accounts[0].device_id = "dev-v1-only";
+      await assert.rejects(
+        async () => {
+          await executeStartQueueFlow(
+            client as any,
+            { accountId: "acc-owned", items: sampleItems },
+            { userId: "user-alice" },
+          );
+        },
+        (err: any) => {
+          assert.equal(err.code, QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED);
+          assert.ok(err.message.includes("enhancement-queue-v2"));
           return true;
         },
       );

@@ -24,7 +24,7 @@ import {
   validateQueue,
 } from "@/lib/inventory";
 import {
-  isEnhancementQueueAvailableOnDevice,
+  isEnhancementQueueV2AvailableOnDevice,
   isEnhancementMultilevelAvailableOnDevice,
 } from "@/lib/capabilities";
 import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
@@ -86,10 +86,13 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
   const activeSnapshot = refreshedSnapshot ?? account.snapshot;
   const liveInventory = activeSnapshot?.inventory ?? null;
   const isAvailable = isInventoryAvailable(account.status, activeSnapshot);
-  const freshness = getInventoryFreshness(activeSnapshot);
+  const freshness = getInventoryFreshness(
+    activeSnapshot,
+    account.runtime_updated_at ?? account.updated_at,
+  );
 
-  // Capability gates: Start Queue requires enhancement-queue-v1; multi-level requires enhancement-multilevel-v1
-  const isQueueCapable = isEnhancementQueueAvailableOnDevice(device);
+  // Capability gates: Start Queue requires enhancement-queue-v2; multi-level requires enhancement-multilevel-v1
+  const isQueueCapable = isEnhancementQueueV2AvailableOnDevice(device);
   const isMultilevelCapable = isEnhancementMultilevelAvailableOnDevice(device);
 
   // Derive validated queue reactively without calling setState inside an effect
@@ -266,7 +269,7 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
   async function handleStartQueue() {
     if (isStarting) return; // Prevent duplicate click
     if (!isQueueCapable) {
-      setActionError("Runtime hiện tại chưa hỗ trợ hàng đợi cường hóa (cần token enhancement-queue-v1).");
+      setActionError("Runtime hiện tại chưa hỗ trợ hàng đợi cường hóa v2 (cần token enhancement-queue-v2).");
       return;
     }
 
@@ -505,7 +508,7 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
               canStartQueue={isQueueCapable}
               startDisabledReason={
                 !isQueueCapable
-                  ? "Máy chủ chưa kích hoạt capability enhancement-queue-v1 hoặc đang mất kết nối."
+                  ? "Máy chủ chưa kích hoạt capability enhancement-queue-v2 hoặc đang mất kết nối."
                   : undefined
               }
               isMultilevelCapable={isMultilevelCapable}

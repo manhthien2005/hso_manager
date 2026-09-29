@@ -339,17 +339,49 @@ export interface InventoryFreshnessInfo {
 }
 
 /**
- * Calculates freshness of inventory snapshot from snapshot captured_at / updated_at timestamps.
+ * Calculates freshness of inventory snapshot from snapshot.t / captured_at / updated_at timestamps.
  */
 export function getInventoryFreshness(
   snapshot?: PlayerSnapshot | null,
   updatedAt?: string | null,
 ): InventoryFreshnessInfo {
-  const tsStr = (snapshot as Record<string, unknown> | null | undefined)?.captured_at
-    ?? (snapshot as Record<string, unknown> | null | undefined)?.timestamp
-    ?? updatedAt;
+  let targetMs: number | null = null;
 
-  if (!tsStr || typeof tsStr !== "string") {
+  // 1. Authoritative snapshot publication timestamp (Unix epoch ms or sec)
+  if (typeof snapshot?.t === "number" && !isNaN(snapshot.t) && snapshot.t > 0) {
+    targetMs = snapshot.t > 1e11 ? snapshot.t : snapshot.t * 1000;
+  }
+
+  // 2. Fallback to captured_at or timestamp on snapshot (string ISO or numeric epoch)
+  if (targetMs === null && snapshot) {
+    const rawSnap = snapshot as unknown as Record<string, unknown>;
+    const rawTs = rawSnap.captured_at ?? rawSnap.timestamp;
+    if (typeof rawTs === "number" && !isNaN(rawTs) && rawTs > 0) {
+      targetMs = rawTs > 1e11 ? rawTs : rawTs * 1000;
+    } else if (typeof rawTs === "string" && rawTs.trim() !== "") {
+      const parsed = Date.parse(rawTs);
+      if (!isNaN(parsed)) {
+        targetMs = parsed;
+      }
+    }
+  }
+
+  // 3. Fallback to runtime or account updatedAt (string ISO or numeric epoch)
+  if (targetMs === null && updatedAt) {
+    if (typeof updatedAt === "string" && updatedAt.trim() !== "") {
+      const parsed = Date.parse(updatedAt);
+      if (!isNaN(parsed)) {
+        targetMs = parsed;
+      }
+    } else if (typeof (updatedAt as unknown) === "number") {
+      const num = updatedAt as unknown as number;
+      if (!isNaN(num) && num > 0) {
+        targetMs = num > 1e11 ? num : num * 1000;
+      }
+    }
+  }
+
+  if (targetMs === null) {
     return {
       ageSeconds: null,
       text: "Không rõ thời gian cập nhật",
@@ -357,9 +389,8 @@ export function getInventoryFreshness(
     };
   }
 
-  const date = new Date(tsStr);
   const now = Date.now();
-  const diffMs = now - date.getTime();
+  const diffMs = now - targetMs;
   if (isNaN(diffMs) || diffMs < 0) {
     return {
       ageSeconds: 0,

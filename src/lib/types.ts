@@ -103,6 +103,10 @@ export interface Account {
   config_status: string | null;
   /** Latest parsed snapshot from account_runtime.snapshot. */
   snapshot: PlayerSnapshot | null;
+  /** Account row updated_at timestamp. */
+  updated_at?: string | null;
+  /** account_runtime row updated_at timestamp. */
+  runtime_updated_at?: string | null;
 }
 
 export interface AccountControlUpdate {

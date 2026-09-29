@@ -14,6 +14,7 @@ import type { CharacterSlot, Device } from "./types";
 export const CHARACTER_SLOT_CAPABILITY_TOKEN = "character-slot-v1";
 export const VISUAL_QOL_CAPABILITY_TOKEN = "visual-qol-v1";
 export const ENHANCEMENT_QUEUE_CAPABILITY_TOKEN = "enhancement-queue-v1";
+export const ENHANCEMENT_QUEUE_V2_CAPABILITY_TOKEN = "enhancement-queue-v2";
 export const ENHANCEMENT_MULTILEVEL_CAPABILITY_TOKEN = "enhancement-multilevel-v1";
 
 /**
@@ -118,6 +119,14 @@ export function hasEnhancementQueueCapability(agentVersion: string | null | unde
 
 /**
  * Parses an agentVersion string and detects whether it contains the exact
+ * `enhancement-queue-v2` capability token within its SemVer build metadata.
+ */
+export function hasEnhancementQueueV2Capability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, ENHANCEMENT_QUEUE_V2_CAPABILITY_TOKEN);
+}
+
+/**
+ * Parses an agentVersion string and detects whether it contains the exact
  * `enhancement-multilevel-v1` capability token within its SemVer build metadata.
  */
 export function hasEnhancementMultilevelCapability(agentVersion: string | null | undefined): boolean {
@@ -208,6 +217,27 @@ export function isEnhancementQueueAvailableOnDevice(
     return false;
   }
   return hasEnhancementQueueCapability(device!.agentVersion);
+}
+
+/**
+ * Evaluates whether a device is currently capable, online, and fresh enough
+ * to safely create and execute an Enhancement Queue v2 (ENHANCE-06H).
+ *
+ * Fail-closed conditions:
+ * - Device is absent, null, or undefined -> false
+ * - Device status is not "online" (offline or error) -> false
+ * - Device has never reported a heartbeat (lastSeen === null) -> false
+ * - Device heartbeat is older than DEVICE_FRESHNESS_THRESHOLD_MS (5 min) -> false
+ * - Device agentVersion does not advertise enhancement-queue-v2 -> false
+ */
+export function isEnhancementQueueV2AvailableOnDevice(
+  device: Device | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!isDeviceOnlineAndFresh(device, now)) {
+    return false;
+  }
+  return hasEnhancementQueueV2Capability(device!.agentVersion);
 }
 
 /**

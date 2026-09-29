@@ -322,6 +322,8 @@ export function mapAccount(acc: AccountRow, rt?: RuntimeRow | null): Account {
     control_version: acc.control_version,
     config_status: rt?.config_status ?? null,
     snapshot,
+    updated_at: acc.updated_at,
+    runtime_updated_at: rt?.updated_at,
   };
 }
 

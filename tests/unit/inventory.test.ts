@@ -33,6 +33,7 @@ const {
   reorderQueueEntry,
   updateQueueEntryTargetLevel,
   validateQueue,
+  getInventoryFreshness,
 } = await import("../../src/lib/inventory");
 
 describe("Inventory Contract & Parser", () => {
@@ -407,5 +408,56 @@ describe("Queue Draft Local UI Operations", () => {
     const validated = validateQueue(queue, inventory);
     assert.equal(validated[0].status, "VALID");
     assert.equal(validated[1].status, "STALE_SELECTION");
+  });
+});
+
+describe("Inventory Freshness Calculations", () => {
+  test("Numeric snapshot.t in milliseconds parses accurately", () => {
+    const now = Date.now();
+    const snap = { v: 6, t: now - 15_000 } as any; // 15 seconds ago
+    const freshness = getInventoryFreshness(snap);
+    assert.equal(freshness.isStale, false);
+    assert.ok(freshness.ageSeconds !== null && freshness.ageSeconds >= 14 && freshness.ageSeconds <= 16);
+    assert.ok(freshness.text.includes("giây trước"));
+  });
+
+  test("Numeric snapshot.t in seconds parses accurately", () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const snap = { v: 6, t: nowSec - 10 } as any; // 10 seconds ago
+    const freshness = getInventoryFreshness(snap);
+    assert.equal(freshness.isStale, false);
+    assert.ok(freshness.ageSeconds !== null && freshness.ageSeconds >= 9 && freshness.ageSeconds <= 12);
+  });
+
+  test("snapshot.t older than 30s is classified as stale", () => {
+    const now = Date.now();
+    const snap = { v: 6, t: now - 45_000 } as any; // 45 seconds ago
+    const freshness = getInventoryFreshness(snap);
+    assert.equal(freshness.isStale, true);
+    assert.ok(freshness.ageSeconds !== null && freshness.ageSeconds >= 44);
+    assert.ok(freshness.text.includes("45 giây trước"));
+  });
+
+  test("Fallback to snapshot.captured_at ISO string when t is missing", () => {
+    const dateStr = new Date(Date.now() - 20_000).toISOString();
+    const snap = { captured_at: dateStr } as any;
+    const freshness = getInventoryFreshness(snap);
+    assert.equal(freshness.isStale, false);
+    assert.ok(freshness.ageSeconds !== null && freshness.ageSeconds >= 19 && freshness.ageSeconds <= 22);
+  });
+
+  test("Fallback to updatedAt when snapshot has no timestamp", () => {
+    const snap = {} as any;
+    const updatedAt = new Date(Date.now() - 10_000).toISOString();
+    const freshness = getInventoryFreshness(snap, updatedAt);
+    assert.equal(freshness.isStale, false);
+    assert.ok(freshness.ageSeconds !== null && freshness.ageSeconds >= 9 && freshness.ageSeconds <= 12);
+  });
+
+  test("Returns unknown / stale when no timestamp can be resolved", () => {
+    const freshness = getInventoryFreshness(null, null);
+    assert.equal(freshness.ageSeconds, null);
+    assert.equal(freshness.isStale, true);
+    assert.equal(freshness.text, "Không rõ thời gian cập nhật");
   });
 });
