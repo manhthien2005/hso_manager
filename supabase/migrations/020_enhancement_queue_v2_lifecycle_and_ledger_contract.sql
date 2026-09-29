@@ -47,9 +47,9 @@ CREATE POLICY device_enhancement_queue_item_attempts_insert ON public.enhancemen
       SELECT 1
       FROM public.accounts a
       JOIN public.devices d ON d.id = a.device_id
-      JOIN public.enhancement_queue_items i ON i.id = item_id AND i.account_id = a.id
+      JOIN public.enhancement_queue_items i ON i.id = enhancement_queue_item_attempts.item_id AND i.account_id = a.id
       JOIN public.enhancement_queue_jobs j ON j.id = i.job_id AND j.account_id = a.id
-      WHERE a.id = account_id
+      WHERE a.id = enhancement_queue_item_attempts.account_id
         AND d.device_auth_id = auth.uid()
         AND j.status = 'RUNNING'
     )
@@ -65,7 +65,7 @@ CREATE POLICY device_enhancement_queue_item_attempts_update ON public.enhancemen
       SELECT 1
       FROM public.accounts a
       JOIN public.devices d ON d.id = a.device_id
-      WHERE a.id = account_id
+      WHERE a.id = enhancement_queue_item_attempts.account_id
         AND d.device_auth_id = auth.uid()
     )
   )
@@ -74,7 +74,7 @@ CREATE POLICY device_enhancement_queue_item_attempts_update ON public.enhancemen
       SELECT 1
       FROM public.accounts a
       JOIN public.devices d ON d.id = a.device_id
-      WHERE a.id = account_id
+      WHERE a.id = enhancement_queue_item_attempts.account_id
         AND d.device_auth_id = auth.uid()
     )
   );
@@ -92,24 +92,6 @@ DECLARE
   v_expected_attempt_number integer;
   v_old_rank integer;
   v_new_rank integer;
-
-  -- Phase rank helper: strictly monotonic progression
-  -- NONE (0), PREPARING (1), READY_TO_EXECUTE (2), EXECUTE_MAY_HAVE_BEEN_SENT (3),
-  -- WAITING_RESULT (4), WAITING_SETTLEMENT (5), SETTLED (6)
-  FUNCTION get_phase_rank(p_phase text) RETURNS integer AS $rank$
-  BEGIN
-    RETURN CASE p_phase
-      WHEN 'NONE' THEN 0
-      WHEN 'PREPARING' THEN 1
-      WHEN 'READY_TO_EXECUTE' THEN 2
-      WHEN 'EXECUTE_MAY_HAVE_BEEN_SENT' THEN 3
-      WHEN 'WAITING_RESULT' THEN 4
-      WHEN 'WAITING_SETTLEMENT' THEN 5
-      WHEN 'SETTLED' THEN 6
-      ELSE -1
-    END;
-  END;
-  $rank$ LANGUAGE plpgsql;
 
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -263,9 +245,30 @@ BEGIN
       END IF;
     END IF;
 
-    -- Monotonic attempt phase transitions
-    v_old_rank := get_phase_rank(OLD.attempt_phase);
-    v_new_rank := get_phase_rank(NEW.attempt_phase);
+    -- Monotonic attempt phase transitions:
+    -- NONE (0), PREPARING (1), READY_TO_EXECUTE (2), EXECUTE_MAY_HAVE_BEEN_SENT (3),
+    -- WAITING_RESULT (4), WAITING_SETTLEMENT (5), SETTLED (6)
+    v_old_rank := CASE OLD.attempt_phase
+      WHEN 'NONE' THEN 0
+      WHEN 'PREPARING' THEN 1
+      WHEN 'READY_TO_EXECUTE' THEN 2
+      WHEN 'EXECUTE_MAY_HAVE_BEEN_SENT' THEN 3
+      WHEN 'WAITING_RESULT' THEN 4
+      WHEN 'WAITING_SETTLEMENT' THEN 5
+      WHEN 'SETTLED' THEN 6
+      ELSE -1
+    END;
+
+    v_new_rank := CASE NEW.attempt_phase
+      WHEN 'NONE' THEN 0
+      WHEN 'PREPARING' THEN 1
+      WHEN 'READY_TO_EXECUTE' THEN 2
+      WHEN 'EXECUTE_MAY_HAVE_BEEN_SENT' THEN 3
+      WHEN 'WAITING_RESULT' THEN 4
+      WHEN 'WAITING_SETTLEMENT' THEN 5
+      WHEN 'SETTLED' THEN 6
+      ELSE -1
+    END;
 
     IF v_new_rank < v_old_rank THEN
       RAISE EXCEPTION 'Monotonic phase violation: cannot transition attempt % from % to %',
