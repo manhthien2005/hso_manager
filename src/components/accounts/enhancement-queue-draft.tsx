@@ -3,6 +3,7 @@
 import type { EnhancementCharmMode, EnhancementPaymentType, EnhancementQueueJob } from "@/lib/types";
 import type { EnhancementQueueEntry } from "@/lib/inventory";
 import { Button } from "@/components/ui/button";
+import { cleanItemName, getItemLevelColor, getTierInfo } from "@/lib/item-visuals";
 
 interface EnhancementQueueDraftProps {
   queue: EnhancementQueueEntry[];
@@ -241,12 +242,29 @@ export function EnhancementQueueDraft({
                 >
                   {/* Top row: Order, Name, Current Level -> Target Level, Remove */}
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface font-mono text-[10px] font-bold text-muted border border-border">
                         #{index + 1}
                       </span>
                       <span className="font-medium text-xs text-foreground truncate" title={entry.reference.captured_display_name}>
-                        {entry.reference.captured_display_name}
+                        {cleanItemName(entry.reference.captured_display_name)}
+                      </span>
+                      {entry.reference.tier > 0 && getTierInfo(entry.reference.tier) ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.2 text-[9px] font-medium shrink-0 ${getTierInfo(entry.reference.tier)!.colorClass}`}
+                          title={`Phẩm cấp: ${getTierInfo(entry.reference.tier)!.label}`}
+                        >
+                          <span className={`size-1.5 rounded-full ${getTierInfo(entry.reference.tier)!.dotClass}`} />
+                          <span>{getTierInfo(entry.reference.tier)!.label}</span>
+                        </span>
+                      ) : null}
+                      {entry.reference.captured_display_name.includes("[Khoá]") || entry.reference.captured_display_name.includes("[Khóa]") ? (
+                        <span className="text-amber-400 text-[11px] shrink-0" title="Đã khóa">
+                          🔒
+                        </span>
+                      ) : null}
+                      <span className={`shrink-0 rounded px-1.5 py-0.2 font-mono text-[10px] font-bold ${getItemLevelColor(entry.reference.expected_level).badge}`}>
+                        +{entry.reference.expected_level}
                       </span>
                       {isStale ? (
                         <span
@@ -381,10 +399,6 @@ export function EnhancementQueueDraft({
                           title="Số lượt cường hóa thực tế tối đa trước khi dừng an toàn (mặc định 10)"
                         />
                       </div>
-                    </div>
-
-                    <div className="text-[10px] text-muted/60 font-mono">
-                      Ô {entry.reference.captured_slot + 1}
                     </div>
                   </div>
                 </div>

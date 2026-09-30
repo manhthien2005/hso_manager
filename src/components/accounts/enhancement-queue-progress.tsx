@@ -20,6 +20,7 @@ import {
   type PipelineStageKey,
 } from "@/lib/enhancement-status";
 import { Button } from "@/components/ui/button";
+import { cleanItemName, getItemLevelColor } from "@/lib/item-visuals";
 
 interface EnhancementQueueProgressProps {
   activeQueue: AuthoritativeQueueWithItems;
@@ -360,7 +361,7 @@ export function EnhancementQueueProgress({
               <div className="flex items-center gap-2">
                 <span className="size-2 rounded-full bg-accent animate-pulse" />
                 <span className="text-xs font-semibold text-accent uppercase tracking-wider">
-                  Mục #{activeItem.queueOrder}: {activeItem.baseName}
+                  Mục #{activeItem.queueOrder}: {cleanItemName(activeItem.baseName)}
                 </span>
               </div>
               <span className="font-mono text-[11px] text-muted">
@@ -370,7 +371,7 @@ export function EnhancementQueueProgress({
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-muted">Tiến độ:</span>
-              <span className="font-mono font-bold text-foreground">+{activeItem.currentLevel}</span>
+              <span className={`font-mono font-bold ${getItemLevelColor(activeItem.currentLevel).text}`}>+{activeItem.currentLevel}</span>
               <span className="text-muted">/ mục tiêu</span>
               <span className="font-mono font-bold text-accent">+{activeItem.targetLevel}</span>
               {activeItem.currentLevel < activeItem.targetLevel ? (
@@ -405,14 +406,14 @@ export function EnhancementQueueProgress({
                       #{item.queueOrder}
                     </span>
                     <span className="font-medium text-foreground truncate">
-                      {item.baseName}
+                      {cleanItemName(item.baseName)}
                     </span>
                     <ItemStatusBadge status={displayStatus} />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                     <span>
-                      Tiến độ: <strong className={item.currentLevel > item.initialLevel ? "text-online font-bold" : "text-foreground"}>+{item.currentLevel}</strong>
+                      Tiến độ: <strong className={`font-bold ${getItemLevelColor(item.currentLevel).text}`}>+{item.currentLevel}</strong>
                       <span className="text-muted"> / mục tiêu </span>
                       <strong className="text-accent font-bold">+{item.targetLevel}</strong>
                     </span>

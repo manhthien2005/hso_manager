@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { InventoryCatalogPayload, InventoryItemCatalog } from "@/lib/inventory";
 import type { AccountStatus } from "@/lib/types";
+import { cleanItemName, getItemLevelColor, getTierInfo } from "@/lib/item-visuals";
 
 interface InventoryBagGridProps {
   inventory: InventoryCatalogPayload | null;
@@ -148,7 +149,7 @@ export function InventoryBagGrid({
               <div className="flex items-center justify-between gap-0.5 text-[9px] font-mono">
                 <span className="text-muted/70">{slotIndex + 1}</span>
                 {item.level > 0 ? (
-                  <span className="rounded bg-accent/20 px-1 font-semibold text-accent">
+                  <span className={`rounded px-1 font-semibold ${getItemLevelColor(item.level).badge}`}>
                     +{item.level}
                   </span>
                 ) : null}
@@ -157,10 +158,13 @@ export function InventoryBagGrid({
               {/* Center: Item Name / Visual Fallback */}
               <div className="my-auto truncate text-center">
                 <p className="truncate text-[11px] font-medium leading-tight text-foreground group-hover:text-accent">
-                  {item.display_name}
+                  {cleanItemName(item.display_name)}
                 </p>
-                {item.tier > 0 ? (
-                  <span className="text-[9px] text-muted">Tier {item.tier}</span>
+                {item.tier > 0 && getTierInfo(item.tier) ? (
+                  <span className={`inline-flex items-center gap-1 rounded-sm border px-1 py-0.1 text-[8px] font-medium ${getTierInfo(item.tier)!.colorClass}`}>
+                    <span className={`size-1 rounded-full ${getTierInfo(item.tier)!.dotClass}`} />
+                    <span>{getTierInfo(item.tier)!.label}</span>
+                  </span>
                 ) : null}
               </div>
 
@@ -200,20 +204,21 @@ export function InventoryBagGrid({
         <div className="rounded-md border border-border/80 bg-elevated/70 p-2 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">
-              {hoveredItem.display_name}
+              {cleanItemName(hoveredItem.display_name)}
             </span>
             {hoveredItem.level > 0 ? (
-              <span className="rounded bg-accent/15 px-1.5 py-0.2 font-mono text-[10px] font-medium text-accent">
-                Cấp +{hoveredItem.level}
+              <span className={`rounded px-1.5 py-0.2 font-mono text-[10px] font-medium ${getItemLevelColor(hoveredItem.level).badge}`}>
+                +{hoveredItem.level}
               </span>
             ) : null}
-            {hoveredItem.tier > 0 ? (
-              <span className="rounded bg-surface px-1.5 py-0.2 text-[10px] text-muted">
-                Phẩm cấp {hoveredItem.tier}
+            {hoveredItem.tier > 0 && getTierInfo(hoveredItem.tier) ? (
+              <span className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.2 text-[10px] font-medium ${getTierInfo(hoveredItem.tier)!.colorClass}`}>
+                <span className={`size-1.5 rounded-full ${getTierInfo(hoveredItem.tier)!.dotClass}`} />
+                <span>{getTierInfo(hoveredItem.tier)!.label}</span>
               </span>
             ) : null}
             {hoveredItem.bind ? (
-              <span className="text-warning text-[11px]">Đã khóa</span>
+              <span className="text-warning text-[11px]" title="Đã khóa">🔒</span>
             ) : null}
           </div>
           <div className="flex items-center gap-3 text-muted text-[11px]">

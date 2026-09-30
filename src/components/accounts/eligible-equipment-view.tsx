@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { InventoryCatalogPayload, InventoryItemCatalog, InventoryFreshnessInfo } from "@/lib/inventory";
 import type { AccountStatus } from "@/lib/types";
 import { InventoryBagGrid } from "./inventory-bag-grid";
+import { cleanItemName, getItemLevelColor, getTierInfo } from "@/lib/item-visuals";
 
 interface EligibleEquipmentViewProps {
   inventory: InventoryCatalogPayload | null;
@@ -235,35 +236,38 @@ export function EligibleEquipmentView({
                   {/* Top: Name & Current +Level */}
                   <div>
                     <div className="flex items-start justify-between gap-1.5">
-                      <span
-                        className="font-medium text-xs text-foreground truncate"
-                        title={item.display_name}
-                      >
-                        {item.base_name || item.display_name}
-                      </span>
-                      <span className="shrink-0 rounded bg-accent/20 px-1.5 py-0.2 font-mono text-[11px] font-bold text-accent">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span
+                          className="font-medium text-xs text-foreground truncate"
+                          title={item.display_name}
+                        >
+                          {cleanItemName(item.base_name || item.display_name)}
+                        </span>
+                        {item.bind ? (
+                          <span className="shrink-0 text-amber-400 text-[11px]" title="Đã khóa">
+                            🔒
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className={`shrink-0 rounded px-1.5 py-0.2 font-mono text-[11px] font-bold ${getItemLevelColor(item.level).badge}`}>
                         +{item.level}
                       </span>
                     </div>
 
-                    {/* Metadata chips: Tier, Bind, Durability */}
+                    {/* Metadata chips: Tier color tag, Durability */}
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
-                      {item.tier > 0 ? (
-                        <span className="rounded bg-surface px-1 py-0.2 text-[10px]">
-                          Tier {item.tier}
-                        </span>
-                      ) : null}
-                      {item.bind ? (
-                        <span className="text-amber-400" title="Đã khóa">
-                          🔒 Khóa
+                      {item.tier > 0 && getTierInfo(item.tier) ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.2 text-[9px] font-medium ${getTierInfo(item.tier)!.colorClass}`}
+                          title={`Phẩm cấp: ${getTierInfo(item.tier)!.label}`}
+                        >
+                          <span className={`size-1.5 rounded-full ${getTierInfo(item.tier)!.dotClass}`} />
+                          <span>{getTierInfo(item.tier)!.label}</span>
                         </span>
                       ) : null}
                       {item.durability !== null ? (
                         <span className="font-mono">Bền: {item.durability}</span>
                       ) : null}
-                      <span className="font-mono text-muted/60" title={`Vị trí ô túi đồ: ${item.slot + 1}`}>
-                        Ô {item.slot + 1}
-                      </span>
                     </div>
                   </div>
 
@@ -273,18 +277,20 @@ export function EligibleEquipmentView({
                       <button
                         type="button"
                         disabled
-                        className="w-full rounded border border-accent/30 bg-accent/10 py-1 text-center font-mono text-[11px] font-medium text-accent opacity-80 cursor-default"
+                        className="w-full rounded border border-accent/30 bg-accent/10 py-1 text-center font-mono text-sm font-bold text-accent opacity-80 cursor-default"
+                        title="Đã có trong hàng đợi"
                       >
-                        ✓ Đã trong hàng đợi
+                        ✓
                       </button>
                     ) : (
                       <button
                         type="button"
                         id={`add-to-queue-btn-${item.slot}`}
                         onClick={() => onAddToQueue(item)}
-                        className="w-full rounded border border-border bg-surface py-1 text-center text-xs font-semibold text-foreground hover:border-accent hover:bg-accent hover:text-accent-contrast transition-colors"
+                        className="w-full rounded border border-border bg-surface py-1 text-center font-mono text-sm font-bold text-foreground hover:border-accent hover:bg-accent hover:text-accent-contrast transition-colors"
+                        title="Thêm vào hàng đợi"
                       >
-                        + Thêm vào hàng đợi
+                        +
                       </button>
                     )}
                   </div>
