@@ -293,6 +293,19 @@ export function translateEnhancementError(
     };
   }
 
+  if (code === "ATTEMPT_CAP_REACHED") {
+    return {
+      title: "Đạt giới hạn số lượt cường hóa an toàn",
+      detail:
+        errorMessage ||
+        "Đã sử dụng hết số lượt cường hóa tối đa được cấu hình trước khi đạt cấp mục tiêu. Hàng đợi đã dừng an toàn.",
+      isPreFenceMismatch: false,
+      isPostFenceAmbiguity: false,
+      recommendedAction:
+        "Trang bị vẫn an toàn tại cấp độ hiện tại. Bạn có thể tạo hàng đợi mới hoặc nâng giới hạn lượt nếu muốn tiếp tục.",
+    };
+  }
+
   if (code === "ITEM_DESTROYED") {
     return {
       title: "Trang bị bị phá hủy",

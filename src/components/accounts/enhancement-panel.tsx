@@ -19,6 +19,7 @@ import {
   removeQueueEntry,
   reorderQueueEntry,
   updateQueueEntryTargetLevel,
+  updateQueueEntryMaxAttempts,
   updateQueueEntryPaymentType,
   updateQueueEntryCharmMode,
   validateQueue,
@@ -26,6 +27,7 @@ import {
 import {
   isEnhancementQueueV2AvailableOnDevice,
   isEnhancementMultilevelAvailableOnDevice,
+  isEnhancementDegradeRetryAvailableOnDevice,
 } from "@/lib/capabilities";
 import { draftToSubmissionPayload, validateQueueDraft } from "@/lib/queue";
 import { api } from "@/services/api";
@@ -91,8 +93,10 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
     account.runtime_updated_at ?? account.updated_at,
   );
 
-  // Capability gates: Start Queue requires enhancement-queue-v2; multi-level requires enhancement-multilevel-v1
-  const isQueueCapable = isEnhancementQueueV2AvailableOnDevice(device);
+  // Capability gates: Start Queue requires enhancement-queue-v2 and enhancement-degrade-retry-v1; multi-level requires enhancement-multilevel-v1
+  const isQueueCapable =
+    isEnhancementQueueV2AvailableOnDevice(device) &&
+    isEnhancementDegradeRetryAvailableOnDevice(device);
   const isMultilevelCapable = isEnhancementMultilevelAvailableOnDevice(device);
 
   // Derive validated queue reactively without calling setState inside an effect
@@ -251,6 +255,10 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
     const maxTarget = !isMultilevelCapable && entry ? entry.reference.expected_level + 1 : 15;
     const clampedTarget = Math.min(targetLevel, maxTarget);
     setQueue((current) => updateQueueEntryTargetLevel(current, id, clampedTarget));
+  }
+
+  function handleUpdateMaxAttempts(id: string, maxAttempts: number) {
+    setQueue((current) => updateQueueEntryMaxAttempts(current, id, maxAttempts));
   }
 
   function handleUpdatePaymentType(id: string, paymentType: EnhancementPaymentType) {
@@ -500,6 +508,7 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
               onRemove={handleRemove}
               onReorder={handleReorder}
               onUpdateTargetLevel={handleUpdateTargetLevel}
+              onUpdateMaxAttempts={handleUpdateMaxAttempts}
               onUpdatePaymentType={handleUpdatePaymentType}
               onUpdateCharmMode={handleUpdateCharmMode}
               onClearQueue={handleClearQueue}
@@ -508,7 +517,7 @@ export function EnhancementPanel(props: EnhancementPanelProps) {
               canStartQueue={isQueueCapable}
               startDisabledReason={
                 !isQueueCapable
-                  ? "Máy chủ chưa kích hoạt capability enhancement-queue-v2 hoặc đang mất kết nối."
+                  ? "Máy chủ chưa kích hoạt capability enhancement-queue-v2 / enhancement-degrade-retry-v1 hoặc đang mất kết nối."
                   : undefined
               }
               isMultilevelCapable={isMultilevelCapable}

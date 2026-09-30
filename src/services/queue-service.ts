@@ -21,6 +21,7 @@ import {
 import {
   hasEnhancementQueueV2Capability,
   hasEnhancementMultilevelCapability,
+  hasEnhancementDegradeRetryCapability,
   isDeviceOnlineAndFresh,
 } from "../lib/capabilities";
 import type {
@@ -195,6 +196,14 @@ export async function executeStartQueueFlow(
     );
   }
 
+  // 4c. Verify enhancement-degrade-retry-v1 capability (ENHANCE-06H5)
+  if (!hasEnhancementDegradeRetryCapability(deviceRow.agent_version)) {
+    throw new QueueError(
+      QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
+      "Runtime thiết bị hiện tại chưa hỗ trợ hàng đợi tự động thử lại sau hạ cấp (thiếu capability token enhancement-degrade-retry-v1).",
+    );
+  }
+
   // 5. Fetch live inventory snapshot and validate wire identity
   const { data: runtimeRow } = await client
     .from("account_runtime")
@@ -325,6 +334,7 @@ export async function executeStartQueueFlow(
       initial_level: item.initialLevel,
       current_level: item.initialLevel,
       target_level: item.targetLevel,
+      max_attempts: Math.max(1, Math.min(100, Math.floor(item.maxAttempts ?? 10))),
       payment_type: item.paymentType,
       charm_mode: item.charmMode ?? "NONE",
       status: "PENDING",
@@ -388,6 +398,16 @@ export async function executeStartQueueFlow(
       throw new QueueError(
         QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
         "Capability enhancement-multilevel-v1 không còn khả dụng trên runtime trước thời điểm publish.",
+      );
+    }
+
+    if (
+      !recheckDevice ||
+      !hasEnhancementDegradeRetryCapability(recheckDevice.agent_version)
+    ) {
+      throw new QueueError(
+        QUEUE_ERROR_CODES.QUEUE_RUNTIME_UNSUPPORTED,
+        "Capability enhancement-degrade-retry-v1 không còn khả dụng trên runtime trước thời điểm publish.",
       );
     }
 

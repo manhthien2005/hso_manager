@@ -16,6 +16,7 @@ export const VISUAL_QOL_CAPABILITY_TOKEN = "visual-qol-v1";
 export const ENHANCEMENT_QUEUE_CAPABILITY_TOKEN = "enhancement-queue-v1";
 export const ENHANCEMENT_QUEUE_V2_CAPABILITY_TOKEN = "enhancement-queue-v2";
 export const ENHANCEMENT_MULTILEVEL_CAPABILITY_TOKEN = "enhancement-multilevel-v1";
+export const ENHANCEMENT_DEGRADE_RETRY_CAPABILITY_TOKEN = "enhancement-degrade-retry-v1";
 
 /**
  * Device heartbeat freshness threshold: 5 minutes (300,000 ms).
@@ -131,6 +132,14 @@ export function hasEnhancementQueueV2Capability(agentVersion: string | null | un
  */
 export function hasEnhancementMultilevelCapability(agentVersion: string | null | undefined): boolean {
   return hasBuildMetadataToken(agentVersion, ENHANCEMENT_MULTILEVEL_CAPABILITY_TOKEN);
+}
+
+/**
+ * Parses an agentVersion string and detects whether it contains the exact
+ * `enhancement-degrade-retry-v1` capability token within its SemVer build metadata.
+ */
+export function hasEnhancementDegradeRetryCapability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, ENHANCEMENT_DEGRADE_RETRY_CAPABILITY_TOKEN);
 }
 
 /**
@@ -259,6 +268,27 @@ export function isEnhancementMultilevelAvailableOnDevice(
     return false;
   }
   return hasEnhancementMultilevelCapability(device!.agentVersion);
+}
+
+/**
+ * Evaluates whether a device is currently capable, online, and fresh enough
+ * to safely create and execute queues supporting retry through degradation (ENHANCE-06H5).
+ *
+ * Fail-closed conditions:
+ * - Device is absent, null, or undefined -> false
+ * - Device status is not "online" (offline or error) -> false
+ * - Device has never reported a heartbeat (lastSeen === null) -> false
+ * - Device heartbeat is older than DEVICE_FRESHNESS_THRESHOLD_MS (5 min) -> false
+ * - Device agentVersion does not advertise enhancement-degrade-retry-v1 -> false
+ */
+export function isEnhancementDegradeRetryAvailableOnDevice(
+  device: Device | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!isDeviceOnlineAndFresh(device, now)) {
+    return false;
+  }
+  return hasEnhancementDegradeRetryCapability(device!.agentVersion);
 }
 
 /**

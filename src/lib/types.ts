@@ -476,6 +476,7 @@ export interface EnhancementQueueItem {
   charmMode: EnhancementCharmMode;
   status: EnhancementQueueItemStatus;
   attemptCount: number;
+  maxAttempts: number;
 
   // Durable attempt phase tracking
   activeAttemptUuid: string | null;

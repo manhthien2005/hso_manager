@@ -885,7 +885,7 @@ describe("4. Atomic Publish & Partial Creation Safety", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1017,7 +1017,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1056,7 +1056,7 @@ describe("5. Double Submit & Unresolved Exclusivity Contract", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1111,7 +1111,7 @@ describe("6. Field Ownership & Non-Write of Runtime Fields", () => {
       id: "dev-1",
       user_id: "user-1",
       status: "online",
-      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+      agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
       last_seen: new Date().toISOString(),
     };
     const inv = createSampleInventory([
@@ -1321,28 +1321,28 @@ describe("9. Schema Contract Hardening & Error Classification (ENHANCE-05D Corre
           id: "dev-fresh",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
           last_seen: new Date().toISOString(),
         },
         {
           id: "dev-stale",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
           last_seen: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         },
         {
           id: "dev-offline",
           user_id: "user-alice",
           status: "offline",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-multilevel-v1.enhancement-degrade-retry-v1",
           last_seen: new Date().toISOString(),
         },
         {
           id: "dev-single-level-only",
           user_id: "user-alice",
           status: "online",
-          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2",
+          agent_version: "0.1.0+enhancement-queue-v1.enhancement-queue-v2.enhancement-degrade-retry-v1",
           last_seen: new Date().toISOString(),
         },
         {

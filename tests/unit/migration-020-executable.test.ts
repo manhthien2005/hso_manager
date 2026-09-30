@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
     const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort();
     for (const file of files) {
       const version = file.substring(0, 3);
-      if (version === "020") continue;
+      if (Number(version) >= 20) continue;
       const content = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
       const res = runPsql(testDbName, content);
       assert.equal(res.status, 0, `Migration ${file} failed: ${res.stderr}`);

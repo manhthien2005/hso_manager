@@ -238,6 +238,7 @@ describe("Enhancement Queue Schema Contract & Invariants (ENHANCE-05A)", () => {
         initialLevel: 0,
         currentLevel: 0,
         targetLevel: 5,
+        maxAttempts: 10,
         paymentType: "GOLD",
         charmMode: "CO_3_LA",
         status: "PENDING",

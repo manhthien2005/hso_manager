@@ -778,6 +778,7 @@ export const mockApi: ZeusApi = {
       initialLevel: it.initialLevel,
       currentLevel: it.initialLevel,
       targetLevel: it.targetLevel,
+      maxAttempts: it.maxAttempts ?? 10,
       paymentType: it.paymentType,
       charmMode: it.charmMode,
       status: "PENDING",

@@ -211,6 +211,7 @@ export interface Database {
           charm_mode: string; // "NONE" | "CO_3_LA" | "CO_4_LA" | "AUTO_POLICY" | "THREE_LEAF" | "FOUR_LEAF"
           status: string; // "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "MANUAL_REVIEW_REQUIRED"
           attempt_count: number;
+          max_attempts: number;
           active_attempt_uuid: string | null;
           attempt_phase: string; // "NONE" | "PREPARING" | "READY_TO_EXECUTE" | "EXECUTE_MAY_HAVE_BEEN_SENT" | "WAITING_RESULT" | "WAITING_SETTLEMENT" | "SETTLED"
           attempt_expected_level: number | null;
@@ -238,6 +239,7 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["enhancement_queue_items"]["Row"], "id" | "created_at" | "updated_at"> & {
           id?: string;
+          max_attempts?: number;
           created_at?: string;
           updated_at?: string;
         };

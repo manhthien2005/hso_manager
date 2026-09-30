@@ -254,6 +254,7 @@ export function mapQueueItemRow(row: Record<string, unknown>): EnhancementQueueI
     charmMode: (row.charm_mode as EnhancementCharmMode) ?? "NONE",
     status: (row.status as EnhancementQueueItemStatus) ?? "PENDING",
     attemptCount: typeof row.attempt_count === "number" ? row.attempt_count : 0,
+    maxAttempts: typeof row.max_attempts === "number" ? row.max_attempts : 10,
     activeAttemptUuid: (row.active_attempt_uuid as string | null) ?? null,
     attemptPhase: (row.attempt_phase as EnhancementAttemptPhase) ?? "NONE",
     attemptExpectedLevel:
@@ -309,10 +310,48 @@ export function formatActiveStepTransition(item: Pick<EnhancementQueueItem, "cur
 }
 
 /**
- * Formats durable settled attempt count text, e.g. "4 lượt".
+ * Formats durable settled attempt count text, e.g. "Đã dùng 4 / 10 lượt" or "4 lượt".
  */
-export function formatDurableAttemptCount(attemptCount: number): string {
+export function formatDurableAttemptCount(attemptCount: number, maxAttempts?: number): string {
+  if (typeof maxAttempts === "number" && maxAttempts > 0) {
+    return `Đã dùng ${attemptCount} / ${maxAttempts} lượt`;
+  }
   return `${attemptCount} lượt`;
+}
+
+/**
+ * Formats a single attempt ledger row summary for display in attempt history.
+ * Examples:
+ * - "+5 → +6 · Thành công (+6)"
+ * - "+5 → +4 · Thất bại / hạ cấp · tiếp tục tự động"
+ * - "+5 → +5 · Thất bại (bảo vệ) · tiếp tục tự động"
+ * - "+5 → +4 · Đạt giới hạn an toàn (Dừng)"
+ */
+export function formatAttemptLedgerSummary(
+  attempt: Pick<EnhancementQueueItemAttempt, "expectedLevel" | "stepTargetLevel" | "resultCode" | "attemptPhase" | "errorCode">,
+  observedLevelAfter?: number | null,
+  isTerminalForQueue = false,
+): string {
+  const transition = observedLevelAfter != null && observedLevelAfter !== attempt.stepTargetLevel
+    ? `+${attempt.expectedLevel} → +${observedLevelAfter}`
+    : `+${attempt.expectedLevel} → +${attempt.stepTargetLevel}`;
+
+  if (attempt.resultCode === "3") {
+    return `${transition} · Thành công (+${observedLevelAfter ?? attempt.stepTargetLevel})`;
+  }
+
+  if (attempt.resultCode === "4") {
+    const isDegraded = observedLevelAfter != null && observedLevelAfter < attempt.expectedLevel;
+    const failLabel = isDegraded ? "Thất bại / hạ cấp" : "Thất bại (bảo vệ)";
+    const followUp = isTerminalForQueue ? "dừng an toàn" : "tiếp tục tự động";
+    return `${transition} · ${failLabel} · ${followUp}`;
+  }
+
+  if (attempt.errorCode === "ATTEMPT_CAP_REACHED") {
+    return `${transition} · Đạt giới hạn lượt an toàn`;
+  }
+
+  return `${transition} · ${attempt.attemptPhase}`;
 }
 
 /**

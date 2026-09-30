@@ -9,6 +9,7 @@ interface EnhancementQueueDraftProps {
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onUpdateTargetLevel: (id: string, targetLevel: number) => void;
+  onUpdateMaxAttempts?: (id: string, maxAttempts: number) => void;
   onUpdatePaymentType?: (id: string, paymentType: EnhancementPaymentType) => void;
   onUpdateCharmMode?: (id: string, charmMode: EnhancementCharmMode) => void;
   onClearQueue: () => void;
@@ -31,6 +32,7 @@ export function EnhancementQueueDraft({
   onRemove,
   onReorder,
   onUpdateTargetLevel,
+  onUpdateMaxAttempts,
   onUpdatePaymentType,
   onUpdateCharmMode,
   onClearQueue,
@@ -359,6 +361,25 @@ export function EnhancementQueueDraft({
                           <option value="CO_4_LA">Cỏ 4 lá</option>
                           <option value="AUTO_POLICY">Tự động</option>
                         </select>
+                      </div>
+
+                      {/* Max Attempts Cap */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-muted">Giới hạn lượt:</span>
+                        <input
+                          type="number"
+                          id={`max-attempts-${entry.id}`}
+                          min={1}
+                          max={100}
+                          value={entry.max_attempts ?? 10}
+                          disabled={hasActiveQueue}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            onUpdateMaxAttempts?.(entry.id, isNaN(val) ? 10 : Math.max(1, Math.min(100, val)));
+                          }}
+                          className="w-12 rounded border border-border bg-surface px-1 py-0.5 text-xs font-semibold text-foreground focus:border-accent focus:outline-hidden disabled:opacity-50 text-center font-mono"
+                          title="Số lượt cường hóa thực tế tối đa trước khi dừng an toàn (mặc định 10)"
+                        />
                       </div>
                     </div>
 

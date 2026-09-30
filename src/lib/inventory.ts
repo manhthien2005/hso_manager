@@ -37,6 +37,7 @@ export interface EnhancementQueueEntry {
   id: string;
   reference: SelectedItemReference;
   target_level: number;
+  max_attempts?: number;
   payment_type?: EnhancementPaymentType;
   charm_mode?: EnhancementCharmMode;
   status: SelectionStatus;
@@ -222,6 +223,7 @@ export function addQueueEntry(
     id,
     reference: createSelectedItemReference(item),
     target_level: defaultTargetLevel,
+    max_attempts: 10,
     payment_type: "GOLD",
     charm_mode: "NONE",
     status: "VALID",
@@ -315,6 +317,26 @@ export function updateQueueEntryCharmMode(
     return {
       ...entry,
       charm_mode: charmMode,
+    };
+  });
+}
+
+/**
+ * Update maximum attempts cap for a queue entry.
+ * Bounded between 1 and 100, defaults to 10.
+ */
+export function updateQueueEntryMaxAttempts(
+  queue: EnhancementQueueEntry[],
+  id: string,
+  maxAttempts: number,
+): EnhancementQueueEntry[] {
+  const parsed = typeof maxAttempts === "number" && Number.isFinite(maxAttempts) ? Math.floor(maxAttempts) : 10;
+  const bounded = Math.max(1, Math.min(100, parsed));
+  return queue.map((entry) => {
+    if (entry.id !== id) return entry;
+    return {
+      ...entry,
+      max_attempts: bounded,
     };
   });
 }

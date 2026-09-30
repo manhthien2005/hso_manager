@@ -354,6 +354,7 @@ export interface QueueItemSubmissionPayload {
   icon: number | null;
   initialLevel: number;
   targetLevel: number;
+  maxAttempts?: number;
   paymentType: EnhancementPaymentType;
   charmMode: EnhancementCharmMode;
 }
@@ -374,6 +375,7 @@ export function draftToSubmissionPayload(
     icon: entry.reference.icon,
     initialLevel: entry.reference.expected_level,
     targetLevel: entry.target_level,
+    maxAttempts: entry.max_attempts ?? 10,
     paymentType: entry.payment_type ?? "GOLD",
     charmMode: entry.charm_mode ?? "NONE",
   }));

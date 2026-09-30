@@ -364,7 +364,7 @@ export function EnhancementQueueProgress({
                 </span>
               </div>
               <span className="font-mono text-[11px] text-muted">
-                Lượt thử #{activeItem.attemptCount}
+                Đã dùng {activeItem.attemptCount} / {activeItem.maxAttempts ?? 10} lượt
               </span>
             </div>
 
@@ -422,7 +422,7 @@ export function EnhancementQueueProgress({
                       </span>
                     ) : null}
                     <span>·</span>
-                    <span>Lượt thử: <strong className="font-mono text-foreground font-semibold">{item.attemptCount}</strong></span>
+                    <span>Lượt: <strong className="font-mono text-foreground font-semibold">Đã dùng {item.attemptCount} / {item.maxAttempts ?? 10} lượt</strong></span>
                     <span>·</span>
                     <span>{item.paymentType === "GOLD" ? "Vàng" : "Ngọc"}</span>
                     <span>·</span>
