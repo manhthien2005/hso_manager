@@ -244,6 +244,62 @@ describe("3. Authoritative Item & Queue Spend Derivation", () => {
     const spend = deriveQueueSpend(sampleItems);
     assert.equal(spend.actualGoldSpent, 50000);
   });
+
+  it("derives correct aggregate attempt_count and spend for proven production incident shape (success + failure)", () => {
+    // Proven incident: Item started at +4, reached +5 (success, attempt 1), then failed at +6 (failure, attempt 2)
+    // Terminal status is FAILED, attemptCount = 2, actualGoldSpent = 8000, materials = [2,2,0,0], charm = 2
+    const provenIncidentItem: EnhancementQueueItem = {
+      id: "83bb5f7c-7356-462c-b4f3-f8d7555f85ae",
+      jobId: "41153a19-0d53-41f3-8d5d-62f847b2105c",
+      accountId: "acc-1",
+      userId: "user-1",
+      queueOrder: 1,
+      capturedSlot: 0,
+      templateId: 101,
+      category: 3,
+      baseName: "Kiếm báo thù [Khoá]",
+      tier: 1,
+      icon: null,
+      initialLevel: 4,
+      currentLevel: 5,
+      targetLevel: 7,
+      paymentType: "GOLD",
+      charmMode: "CO_4_LA",
+      status: "FAILED",
+      attemptCount: 2,
+      activeAttemptUuid: null,
+      attemptPhase: "SETTLED",
+      attemptExpectedLevel: 5,
+      attemptTargetLevel: 6,
+      attemptStartedAt: "2026-09-30T03:00:00Z",
+      executeMayHaveBeenSentAt: "2026-09-30T03:00:02Z",
+      attemptSettledAt: "2026-09-30T03:00:05Z",
+      lastResultCode: "4",
+      settlementSource: "RESULT_CODE",
+      reconciledAt: null,
+      reconciliationReason: null,
+      actualGoldSpent: 8000,
+      actualGemSpent: 0,
+      actualMaterial1Spent: 2,
+      actualMaterial2Spent: 2,
+      actualMaterial3Spent: 0,
+      actualMaterial4Spent: 0,
+      actualCharmSpent: 2,
+      errorCode: "FAILURE_PROTECTED",
+      errorMessage: "Cường hóa thất bại (Được bảo vệ)",
+      startedAt: "2026-09-30T02:59:00Z",
+      finishedAt: "2026-09-30T03:00:05Z",
+      createdAt: "2026-09-30T02:50:00Z",
+      updatedAt: "2026-09-30T03:00:05Z",
+    };
+
+    const spend = deriveQueueSpend([provenIncidentItem]);
+    assert.equal(spend.totalAttemptCount, 2, "aggregate attempt count must equal 2");
+    assert.equal(spend.actualGoldSpent, 8000, "aggregate gold must equal 8000");
+    assert.equal(spend.actualMaterial1Spent, 2, "material 1 must equal 2");
+    assert.equal(spend.actualMaterial2Spent, 2, "material 2 must equal 2");
+    assert.equal(spend.actualCharmSpent, 2, "charm must equal 2");
+  });
 });
 
 describe("4. Item Progression Order & Stop-on-Failure Visibility", () => {
