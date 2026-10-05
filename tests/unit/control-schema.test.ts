@@ -393,5 +393,79 @@ describe("Control Schema v13 and v14 Dual Architecture", () => {
       const errs = validateDraft(draft, 15);
       assert.ok(errs["dungeon.startMin"] || errs["dungeon.endMin"], "1230/1200 must fail");
     });
+
+    test("default CTL15 dungeon.max=-1 passes", () => {
+      const draft = defaultControlDraft(15);
+      assert.equal(draft["dungeon.max"], -1);
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.max"], undefined);
+    });
+
+    test("dungeon.max=-1 passes", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = -1;
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.max"], undefined);
+    });
+
+    test("dungeon.max=1 passes", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 1;
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.max"], undefined);
+    });
+
+    test("dungeon.max=10 passes", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 10;
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.max"], undefined);
+    });
+
+    test("dungeon.max=0 fails", () => {
+      // Authoritative runtime proof:
+      // Java Zeus.java line 810: if (value[K_DUNGEON_MAX] != -1 && (value[K_DUNGEON_MAX] < 1 || value[K_DUNGEON_MAX] > 10)) return false;
+      // Rust control.rs line 974: if dungeon_max == 0 || !(-1..=DUNGEON_RUNS_MAX).contains(&dungeon_max) return Err(...);
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 0;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.max"], "dungeon.max=0 must fail validation");
+    });
+
+    test("dungeon.max=-2 fails", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = -2;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.max"], "dungeon.max=-2 must fail validation");
+    });
+
+    test("dungeon.max=11 fails", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 11;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.max"], "dungeon.max=11 must fail validation");
+    });
+
+    test("non-integer dungeon.max fails", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 2.5;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.max"], "non-integer dungeon.max must fail validation");
+    });
+
+    test("cross-contract assertion: Java and Rust both define -1 or 1..10 as the v15 dungeon.max domain", () => {
+      // Java: Zeus.acceptControl rejects K_DUNGEON_MAX unless value == -1 or value is within 1..10.
+      // Rust: zeus-core control parser explicitly rejects dungeon_max == 0 and values outside -1..10.
+      const v15DungeonField = CONTROL_SCHEMA[15]
+        .flatMap((s) => s.fields)
+        .find((f) => f.path === "dungeon.max");
+      assert.ok(v15DungeonField, "v15 dungeon.max field must exist");
+      assert.equal(v15DungeonField.type, "number");
+      assert.ok(v15DungeonField.help?.includes("0 is invalid"), "v15 dungeon.max help must document 0 is invalid");
+      if (v15DungeonField.type === "number") {
+        assert.equal(v15DungeonField.min, -1);
+        assert.equal(v15DungeonField.max, 10);
+      }
+    });
   });
 });

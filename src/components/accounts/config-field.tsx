@@ -210,7 +210,6 @@ const FIELD_METADATA: Record<
   },
   "dungeon.max": {
     label: "Số lượt tối đa",
-    help: "-1 = không giới hạn. 0–10 = dừng sau N lượt.",
   },
   "dungeon.schedule": {
     label: "Khung giờ tham gia",

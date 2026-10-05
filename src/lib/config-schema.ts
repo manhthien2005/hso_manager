@@ -2,9 +2,10 @@
  * Schema-driven config form — version-keyed against the jar wire contract.
  *
  * The key set is the authority:
- *   WIRE-CONTRACT.md §4.1 — 35 lines (including `v`).
- *   `accounts.control` stores 34 keys (all except `v`); `v` is in
- *   `accounts.control_version` and `devices.jar_ctl_version`.
+ *   Legacy v13/v14: 35 wire lines (including `v`) / 34 stored keys in `accounts.control`.
+ *   v15 (Bạch Hổ / v4.0.3): 38 wire lines (including `v`) / 37 stored keys in `accounts.control`
+ *     (removes legacy dungeon.schedule; adds dungeon.startMin, dungeon.endMin, ui.effects, ui.hidePlayers).
+ *   `v` is stored separately in `accounts.control_version` and `devices.jar_ctl_version`.
  *
  * Adding a field = add one descriptor here. The config page version-gates
  * itself: if `device.jar_ctl_version` has no entry in CONTROL_SCHEMA it
@@ -30,7 +31,7 @@ export { normalizeDraftForSave, updateLocationWithZoneReset };
 
 export type ConfigValue = string | number | boolean;
 
-// ── Path union — every key in the 34-key control block ──────────────────────
+// ── Path union — every key in the control block (v13/v14 legacy and v15) ────
 
 export type ConfigPath =
   | "atk.mode"
@@ -549,7 +550,7 @@ const DUNGEON_SECTION_V15: ConfigSection = {
       type: "number",
       min: -1,
       max: 10,
-      help: "-1 = unlimited. 0–10 = stop after N runs.",
+      help: "-1 = unlimited; 1–10 = finite run limit; 0 is invalid.",
     },
     {
       path: "dungeon.startMin",
@@ -785,8 +786,22 @@ export function validateDraft(
     errors[key as ConfigPath] = msg;
   }
 
-  // CTL15 schedule validation (Zeus.java line 633, control.rs lines 806-815)
+  // CTL15 semantic validation (Zeus.java line 633 & line 810, control.rs lines 806-815 & 974)
   if (ctlVersion === 15) {
+    // 1. dungeon.max validation: domain is -1 or 1..10; 0 is strictly rejected
+    const maxRaw = draft["dungeon.max"];
+    const maxVal = typeof maxRaw === "number" ? maxRaw : Number(maxRaw);
+    if (!errors["dungeon.max"]) {
+      if (maxVal === 0) {
+        errors["dungeon.max"] =
+          "Số lượt đi phó bản không hợp lệ: -1 (không giới hạn) hoặc 1–10 (giới hạn lượt); giá trị 0 không hợp lệ";
+      } else if (maxVal !== -1 && (maxVal < 1 || maxVal > 10 || !Number.isInteger(maxVal))) {
+        errors["dungeon.max"] =
+          "Số lượt đi phó bản ngoài phạm vi (-1 hoặc 1–10)";
+      }
+    }
+
+    // 2. Schedule validation
     const startRaw = draft["dungeon.startMin"];
     const endRaw = draft["dungeon.endMin"];
     const startMin = typeof startRaw === "number" ? startRaw : Number(startRaw);

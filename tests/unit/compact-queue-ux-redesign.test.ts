@@ -184,7 +184,7 @@ describe("ENHANCE-06C: Compact Queue UX Redesign Verification", () => {
       assert.ok(content.includes("showFullBag"), "Must have collapsible full bag state");
       assert.ok(content.includes("Xem toàn bộ túi đồ"), "Must provide secondary collapsed full bag link");
       assert.ok(content.includes("Làm mới túi đồ"), "Must provide manual refresh action");
-      assert.ok(content.includes("Đã trong hàng đợi"), "Must indicate queued equipment cannot be added twice");
+      assert.ok(content.includes("Đã có trong hàng đợi"), "Must indicate queued equipment cannot be added twice");
     });
   });
 
