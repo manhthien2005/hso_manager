@@ -255,4 +255,143 @@ describe("Control Schema v13 and v14 Dual Architecture", () => {
       assert.deepEqual(rec, roundTripRec);
     });
   });
+
+  describe("CTL15 Exact Schema, Wire Invariants, and Schedule Validation", () => {
+    const AUTHORITATIVE_CTL15_KEYS = [
+      "atk.mode",
+      "atk.map",
+      "atk.zone",
+      "atk.x",
+      "atk.y",
+      "atk.radius",
+      "atk.hpOn",
+      "atk.hpPct",
+      "atk.mpOn",
+      "atk.mpPct",
+      "revive.mode",
+      "atk.buffs",
+      "atk.zoneMode",
+      "atk.zonePick",
+      "item.rank",
+      "item.mphp",
+      "item.gold",
+      "mount.on",
+      "mount.id",
+      "item.medalDialog",
+      "item.dropsOn",
+      "item.drops",
+      "nav.target",
+      "ui.ring",
+      "atk.farmOnArrival",
+      "nav.detectSpots",
+      "revive.delay",
+      "revive.on",
+      "enhance.on",
+      "enhance.maxLv",
+      "enhance.charm",
+      "dungeon.on",
+      "dungeon.max",
+      "dungeon.startMin",
+      "dungeon.endMin",
+      "ui.effects",
+      "ui.hidePlayers",
+    ];
+
+    test("CTL15 default control has exactly 37 stored keys", () => {
+      const draft15 = defaultControlDraft(15);
+      const keys = Object.keys(draft15);
+      assert.equal(keys.length, 37);
+      const record = draftToControlRecord(draft15, 15);
+      assert.equal(Object.keys(record).length, 37);
+    });
+
+    test("CTL15 contains dungeon.startMin and dungeon.endMin and defaults to -1", () => {
+      const draft15 = defaultControlDraft(15);
+      assert.equal(draft15["dungeon.startMin"], -1);
+      assert.equal(draft15["dungeon.endMin"], -1);
+      const record = draftToControlRecord(draft15, 15);
+      assert.equal(record["dungeon.startMin"], -1);
+      assert.equal(record["dungeon.endMin"], -1);
+    });
+
+    test("CTL15 does not contain dungeon.schedule", () => {
+      const draft15 = defaultControlDraft(15);
+      assert.equal("dungeon.schedule" in draft15, false);
+      const record = draftToControlRecord(draft15, 15);
+      assert.equal("dungeon.schedule" in record, false);
+      const schemaKeys = CONTROL_SCHEMA[15].flatMap((s) => s.fields.map((f) => f.path));
+      assert.equal(schemaKeys.includes("dungeon.schedule"), false);
+    });
+
+    test("CTL14 still contains dungeon.schedule and not startMin/endMin", () => {
+      const draft14 = defaultControlDraft(14);
+      assert.equal(draft14["dungeon.schedule"], -1);
+      assert.equal("dungeon.startMin" in draft14, false);
+      assert.equal("dungeon.endMin" in draft14, false);
+      const record = draftToControlRecord(draft14, 14);
+      assert.equal(record["dungeon.schedule"], -1);
+      assert.equal("dungeon.startMin" in record, false);
+      assert.equal("dungeon.endMin" in record, false);
+    });
+
+    test("CTL15 exact key set matches knight_build CTL_KEYS excluding v", () => {
+      const v15Sections = CONTROL_SCHEMA[15];
+      assert.ok(v15Sections, "CONTROL_SCHEMA[15] must exist");
+      const v15Keys = v15Sections.flatMap((s) => s.fields.map((f) => f.path));
+      assert.equal(v15Keys.length, 37);
+      assert.deepEqual([...v15Keys].sort(), [...AUTHORITATIVE_CTL15_KEYS].sort());
+      const recordKeys = Object.keys(draftToControlRecord(defaultControlDraft(15), 15));
+      assert.deepEqual([...recordKeys].sort(), [...AUTHORITATIVE_CTL15_KEYS].sort());
+    });
+
+    test("valid -1/-1 passes", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.startMin"] = -1;
+      draft["dungeon.endMin"] = -1;
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.startMin"], undefined);
+      assert.equal(errs["dungeon.endMin"], undefined);
+    });
+
+    test("valid 1200/1230 passes", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.startMin"] = 1200;
+      draft["dungeon.endMin"] = 1230;
+      const errs = validateDraft(draft, 15);
+      assert.equal(errs["dungeon.startMin"], undefined);
+      assert.equal(errs["dungeon.endMin"], undefined);
+    });
+
+    test("partial sentinel fails", () => {
+      // (-1, 1200)
+      const draft1 = defaultControlDraft(15);
+      draft1["dungeon.startMin"] = -1;
+      draft1["dungeon.endMin"] = 1200;
+      const errs1 = validateDraft(draft1, 15);
+      assert.ok(errs1["dungeon.startMin"] || errs1["dungeon.endMin"], "(-1, 1200) must fail");
+
+      // (1200, -1)
+      const draft2 = defaultControlDraft(15);
+      draft2["dungeon.startMin"] = 1200;
+      draft2["dungeon.endMin"] = -1;
+      const errs2 = validateDraft(draft2, 15);
+      assert.ok(errs2["dungeon.startMin"] || errs2["dungeon.endMin"], "(1200, -1) must fail");
+    });
+
+    test("equal start/end fails", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.startMin"] = 1200;
+      draft["dungeon.endMin"] = 1200;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.startMin"] || errs["dungeon.endMin"], "1200/1200 must fail");
+    });
+
+    test("reverse window fails", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.startMin"] = 1230;
+      draft["dungeon.endMin"] = 1200;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.startMin"] || errs["dungeon.endMin"], "1230/1200 must fail");
+    });
+  });
 });

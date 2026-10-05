@@ -278,7 +278,7 @@ export function EligibleEquipmentView({
                         type="button"
                         disabled
                         className="w-full rounded border border-accent/30 bg-accent/10 py-1 text-center font-mono text-sm font-bold text-accent opacity-80 cursor-default"
-                        title="Đã có trong hàng đợi"
+                        title="Đã trong hàng đợi"
                       >
                         ✓
                       </button>

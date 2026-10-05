@@ -51,6 +51,23 @@ describe("Migration 022: Bạch Hổ Server Support & Runtime Invariants Contrac
     });
   });
 
+  describe("Exact Build-Metadata Capability Evaluator", () => {
+    it("creates public.agent_has_exact_capability function", () => {
+      assert.match(
+        sql022,
+        /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.agent_has_exact_capability\s*\(\s*p_agent_version\s+text,\s*p_token\s+text\s*\)/i,
+      );
+      assert.match(sql022, /IMMUTABLE/i);
+    });
+
+    it("grants execute on agent_has_exact_capability to authenticated, service_role, anon", () => {
+      assert.match(
+        sql022,
+        /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.agent_has_exact_capability\(text,\s*text\)\s+TO\s+authenticated,\s*service_role,\s*anon;/i,
+      );
+    });
+  });
+
   describe("Direct Write Defense Trigger", () => {
     it("creates accounts_before_write trigger function with SECURITY DEFINER and public search_path", () => {
       assert.match(sql022, /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.accounts_before_write\s*\(\s*\)/i);
@@ -63,10 +80,23 @@ describe("Migration 022: Bạch Hổ Server Support & Runtime Invariants Contrac
       assert.match(sql022, /RAISE\s+EXCEPTION\s+'server_index\s+must\s+be\s+between\s+0\s+and\s+8'/i);
     });
 
-    it("enforces Bạch Hổ runtime compatibility on INSERT or transition to server 8", () => {
+    it("enforces immutability of user_id and device_id on UPDATE", () => {
+      assert.match(sql022, /NEW\.user_id\s+IS\s+DISTINCT\s+FROM\s+OLD\.user_id/i);
+      assert.match(sql022, /accounts\.user_id\s+is\s+immutable\s+after\s+insert/i);
+      assert.match(sql022, /NEW\.device_id\s+IS\s+DISTINCT\s+FROM\s+OLD\.device_id/i);
+      assert.match(sql022, /accounts\.device_id\s+is\s+immutable\s+after\s+insert/i);
+    });
+
+    it("enforces device relational ownership (devices.user_id = NEW.user_id) on INSERT", () => {
+      assert.match(sql022, /v_device_user_id\s+IS\s+DISTINCT\s+FROM\s+NEW\.user_id/i);
+      assert.match(sql022, /device\s+%\s+does\s+not\s+belong\s+to\s+user\s+%/i);
+    });
+
+    it("enforces Bạch Hổ runtime compatibility on INSERT or transition to server 8 including managed-identity-restart-v1", () => {
       assert.match(sql022, /NEW\.server_index\s*=\s*8\s*AND\s*\(\s*TG_OP\s*=\s*'INSERT'/i);
       assert.match(sql022, /4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d/);
       assert.match(sql022, /v_device_jar_ctl_version\s*<>\s*15/);
+      assert.match(sql022, /agent_has_exact_capability\(v_device_agent_version,\s*'managed-identity-restart-v1'\)/);
     });
 
     it("creates BEFORE INSERT OR UPDATE trigger trg_accounts_before_write", () => {
@@ -93,6 +123,8 @@ describe("Migration 022: Bạch Hổ Server Support & Runtime Invariants Contrac
     it("checks Bạch Hổ runtime compatibility before slot allocation in create_game_account", () => {
       assert.match(sql022, /IF\s+p_server_index\s*=\s*8\s+THEN/);
       assert.match(sql022, /4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d/);
+      assert.match(sql022, /v_device_jar_ctl_version\s*<>\s*15/);
+      assert.match(sql022, /agent_has_exact_capability\(v_device_agent_version,\s*'managed-identity-restart-v1'\)/);
     });
 
     it("preserves grants for create_game_account", () => {
@@ -121,6 +153,9 @@ describe("Migration 022: Bạch Hổ Server Support & Runtime Invariants Contrac
 
     it("checks Bạch Hổ runtime compatibility when transitioning into server 8 in update_game_account", () => {
       assert.match(sql022, /p_server_index\s*=\s*8\s*AND\s*v_old_server_index\s*<>\s*8/);
+      assert.match(sql022, /4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d/);
+      assert.match(sql022, /v_device_jar_ctl_version\s*<>\s*15/);
+      assert.match(sql022, /agent_has_exact_capability\(v_device_agent_version,\s*'managed-identity-restart-v1'\)/);
     });
 
     it("preserves grants for update_game_account", () => {

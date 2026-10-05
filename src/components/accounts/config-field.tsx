@@ -216,6 +216,14 @@ const FIELD_METADATA: Record<
     label: "Khung giờ tham gia",
     help: "-1 = tắt. 0–47 = khung giờ 30 phút tham gia phó bản.",
   },
+  "dungeon.startMin": {
+    label: "Phút bắt đầu phó bản",
+    help: "-1 = không giới hạn thời gian. 0–1439 = phút bắt đầu trong ngày (UTC+7).",
+  },
+  "dungeon.endMin": {
+    label: "Phút kết thúc phó bản",
+    help: "-1 = không giới hạn thời gian. 0–1439 = phút kết thúc trong ngày (UTC+7).",
+  },
   "atk.map": {
     label: "Map ID",
     help: "0 = chưa đặt vị trí đánh.",

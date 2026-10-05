@@ -17,6 +17,7 @@ export const ENHANCEMENT_QUEUE_CAPABILITY_TOKEN = "enhancement-queue-v1";
 export const ENHANCEMENT_QUEUE_V2_CAPABILITY_TOKEN = "enhancement-queue-v2";
 export const ENHANCEMENT_MULTILEVEL_CAPABILITY_TOKEN = "enhancement-multilevel-v1";
 export const ENHANCEMENT_DEGRADE_RETRY_CAPABILITY_TOKEN = "enhancement-degrade-retry-v1";
+export const MANAGED_IDENTITY_RESTART_CAPABILITY_TOKEN = "managed-identity-restart-v1";
 
 /**
  * Device heartbeat freshness threshold: 5 minutes (300,000 ms).
@@ -140,6 +141,14 @@ export function hasEnhancementMultilevelCapability(agentVersion: string | null |
  */
 export function hasEnhancementDegradeRetryCapability(agentVersion: string | null | undefined): boolean {
   return hasBuildMetadataToken(agentVersion, ENHANCEMENT_DEGRADE_RETRY_CAPABILITY_TOKEN);
+}
+
+/**
+ * Parses an agentVersion string and detects whether it contains the exact
+ * `managed-identity-restart-v1` capability token within its SemVer build metadata.
+ */
+export function hasManagedIdentityRestartCapability(agentVersion: string | null | undefined): boolean {
+  return hasBuildMetadataToken(agentVersion, MANAGED_IDENTITY_RESTART_CAPABILITY_TOKEN);
 }
 
 /**
@@ -358,32 +367,50 @@ export const COMPATIBLE_BACH_HO_JAR_SHAS: ReadonlySet<string> = new Set([
 
 /**
  * Centralized evaluator for Bạch Hổ runtime compatibility.
- * Requires both a proven compatible JAR SHA256 and CTL version 15.
- * Fails closed on null, undefined, unknown, or historical CTL-15 runtimes.
+ * Requires ALL of:
+ * 1. Proven compatible JAR SHA256 ('4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d')
+ * 2. CTL version 15
+ * 3. Exact agent capability token 'managed-identity-restart-v1'
+ * Fails closed on null, undefined, unknown, near-match, or historical CTL-15 runtimes.
  */
 export function isBachHoRuntimeCompatible(
   jarSha256: string | null | undefined,
   ctlVersion: number | null | undefined,
+  agentVersion: string | null | undefined,
 ): boolean {
-  if (typeof jarSha256 !== "string" || typeof ctlVersion !== "number") {
+  if (
+    typeof jarSha256 !== "string" ||
+    typeof ctlVersion !== "number" ||
+    typeof agentVersion !== "string"
+  ) {
     return false;
   }
   const normalizedSha = jarSha256.trim().toLowerCase();
   if (!COMPATIBLE_BACH_HO_JAR_SHAS.has(normalizedSha)) {
     return false;
   }
-  return ctlVersion === BACH_HO_REQUIRED_CTL_VERSION;
+  if (ctlVersion !== BACH_HO_REQUIRED_CTL_VERSION) {
+    return false;
+  }
+  return hasManagedIdentityRestartCapability(agentVersion);
 }
 
 /**
  * Checks whether a device currently reports a runtime proven compatible with Bạch Hổ.
- * Fails closed if device is null, or if device has not reported jar_sha256 or jar_ctl_version.
+ * Fails closed if device is null, or if device has not reported jar_sha256, jar_ctl_version, or agentVersion.
  */
 export function isBachHoSupportedOnDevice(
-  device: Pick<Device, "jar_sha256" | "jar_ctl_version"> | null | undefined,
+  device:
+    | (Pick<Device, "jar_sha256" | "jar_ctl_version"> & {
+        agentVersion?: string | null;
+        agent_version?: string | null;
+      })
+    | null
+    | undefined,
 ): boolean {
   if (!device) {
     return false;
   }
-  return isBachHoRuntimeCompatible(device.jar_sha256, device.jar_ctl_version);
+  const agentVer = device.agentVersion ?? device.agent_version;
+  return isBachHoRuntimeCompatible(device.jar_sha256, device.jar_ctl_version, agentVer);
 }

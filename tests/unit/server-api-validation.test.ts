@@ -73,6 +73,7 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     setMockDevice(devices[0].deviceId, {
       jar_sha256: R2_3_SHA,
       jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
     });
 
     const acc = await mockApi.createAccount({
@@ -91,6 +92,7 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     setMockDevice(devices[0].deviceId, {
       jar_sha256: "b18baf709e7c5ecbc0c8b6b1076b1f20b784a9e3e78bdf1b4a2bfec19280d0d1",
       jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
     });
 
     await assert.rejects(
@@ -98,7 +100,33 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
         await mockApi.createAccount({
           deviceId: devices[0].deviceId,
           label: "Test Bach Ho Incompatible",
-          username: "bachho_user2",
+          username: "bachho_user",
+          password: "password123",
+          serverIndex: BACH_HO_LOGICAL_ID,
+          character_slot: 1,
+        });
+      },
+      (err: any) => {
+        assert.ok(err instanceof ApiError);
+        assert.equal(err.code, "UNSUPPORTED_SERVER");
+        return true;
+      },
+    );
+  });
+
+  it("Bạch Hổ create on device missing agent capability rejected", async () => {
+    setMockDevice(devices[0].deviceId, {
+      jar_sha256: R2_3_SHA,
+      jar_ctl_version: 15,
+      agentVersion: "0.4.2+visual-qol-v1",
+    });
+
+    await assert.rejects(
+      async () => {
+        await mockApi.createAccount({
+          deviceId: devices[0].deviceId,
+          label: "Test Bach Ho Missing Agent Token",
+          username: "bachho_user",
           password: "password123",
           serverIndex: BACH_HO_LOGICAL_ID,
           character_slot: 1,
@@ -116,6 +144,7 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     setMockDevice(devices[0].deviceId, {
       jar_sha256: R2_3_SHA,
       jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
     });
 
     const updated = await mockApi.updateAccount({
@@ -130,6 +159,7 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     setMockDevice(devices[0].deviceId, {
       jar_sha256: "b18baf709e7c5ecbc0c8b6b1076b1f20b784a9e3e78bdf1b4a2bfec19280d0d1",
       jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
     });
 
     await assert.rejects(
@@ -153,6 +183,7 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     setMockDevice(devices[0].deviceId, {
       jar_sha256: R2_3_SHA,
       jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
     });
     await mockApi.updateAccount({
       accountId: "acc_03",

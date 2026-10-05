@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
 import {
+  hasManagedIdentityRestartCapability,
   isBachHoSupportedOnDevice,
   isCharacterSlotAvailableOnDevice,
   isValidCharacterSlot,
@@ -174,18 +175,35 @@ function EditAccountModalContent({
       onClose();
 
       if (isRunning) {
+        const isRestartCapable = hasManagedIdentityRestartCapability(currentDevice?.agentVersion);
         if ((serverChanged || credentialsChanged) && slotChanged) {
-          push(
-            "info",
-            "Đã cập nhật tài khoản",
-            "Đã lưu. Thay đổi máy chủ / thông tin đăng nhập sẽ tự động áp dụng qua khởi động lại runtime. Riêng thay đổi vị trí nhân vật cần khởi động lại thủ công.",
-          );
+          if (isRestartCapable) {
+            push(
+              "info",
+              "Đã cập nhật tài khoản",
+              "Đã lưu. Thay đổi máy chủ / thông tin đăng nhập đang được áp dụng tự động qua khởi động lại runtime có kiểm soát. Riêng thay đổi vị trí nhân vật cần khởi động lại thủ công.",
+            );
+          } else {
+            push(
+              "info",
+              "Đã cập nhật tài khoản",
+              "Đã lưu. Thay đổi máy chủ, thông tin đăng nhập và vị trí nhân vật sẽ có hiệu lực sau khi khởi động lại tài khoản thủ công.",
+            );
+          }
         } else if (serverChanged || credentialsChanged) {
-          push(
-            "success",
-            "Đã cập nhật tài khoản",
-            "Đã lưu. Thay đổi máy chủ hoặc thông tin đăng nhập đang được áp dụng tự động qua khởi động lại runtime có kiểm soát.",
-          );
+          if (isRestartCapable) {
+            push(
+              "success",
+              "Đã cập nhật tài khoản",
+              "Đã lưu. Thay đổi máy chủ hoặc thông tin đăng nhập đang được áp dụng tự động qua khởi động lại runtime có kiểm soát.",
+            );
+          } else {
+            push(
+              "info",
+              "Đã cập nhật tài khoản",
+              "Đã lưu. Thay đổi máy chủ hoặc thông tin đăng nhập sẽ có hiệu lực sau khi khởi động lại tài khoản thủ công.",
+            );
+          }
         } else if (slotChanged) {
           push(
             "info",

@@ -1,6 +1,24 @@
+import { register } from "node:module";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { cleanItemName, getItemLevelColor, getTierInfo } from "../../src/lib/item-visuals";
+
+const hookCode = `
+export async function resolve(specifier, context, nextResolve) {
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err) {
+    if (specifier.startsWith(".") && !specifier.endsWith(".ts")) {
+      try {
+        return await nextResolve(specifier + ".ts", context);
+      } catch (_) {}
+    }
+    throw err;
+  }
+}
+`;
+register("data:text/javascript," + encodeURIComponent(hookCode), import.meta.url);
+
+const { cleanItemName, getItemLevelColor, getTierInfo } = await import("../../src/lib/item-visuals");
 
 describe("item-visuals UI formatting helpers", () => {
   it("cleanItemName removes [Khoá] and [Khóa] cleanly", () => {

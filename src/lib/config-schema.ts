@@ -67,6 +67,8 @@ export type ConfigPath =
   | "dungeon.on"
   | "dungeon.max"
   | "dungeon.schedule"
+  | "dungeon.startMin"
+  | "dungeon.endMin"
   | "ui.effects"
   | "ui.hidePlayers";
 
@@ -531,6 +533,50 @@ const VISUAL_QOL_SECTION: ConfigSection = {
   ],
 };
 
+const DUNGEON_SECTION_V15: ConfigSection = {
+  id: "dungeon",
+  title: "Dungeon",
+  description: "Automatic dungeon entry.",
+  fields: [
+    {
+      path: "dungeon.on",
+      label: "Auto Dungeon",
+      type: "toggle",
+    },
+    {
+      path: "dungeon.max",
+      label: "Max Runs",
+      type: "number",
+      min: -1,
+      max: 10,
+      help: "-1 = unlimited. 0–10 = stop after N runs.",
+    },
+    {
+      path: "dungeon.startMin",
+      label: "Start Minute",
+      type: "number",
+      min: -1,
+      max: 1439,
+      help: "-1 = unscheduled. 0–1439 = daily start minute (UTC+7).",
+    },
+    {
+      path: "dungeon.endMin",
+      label: "End Minute",
+      type: "number",
+      min: -1,
+      max: 1439,
+      help: "-1 = unscheduled. 0–1439 = daily end minute (UTC+7).",
+    },
+  ],
+};
+
+export const CONTROL_SCHEMA_V15: ConfigSection[] = [
+  ...CONTROL_SCHEMA_V13.filter((s) => s.id !== "dungeon" && s.id !== "hidden_internal"),
+  DUNGEON_SECTION_V15,
+  VISUAL_QOL_SECTION,
+  ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
+];
+
 export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
   13: CONTROL_SCHEMA_V13,
   14: [
@@ -538,18 +584,14 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
     VISUAL_QOL_SECTION,
     ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
   ],
-  15: [
-    ...CONTROL_SCHEMA_V13.filter((s) => s.id !== "hidden_internal"),
-    VISUAL_QOL_SECTION,
-    ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
-  ],
+  15: CONTROL_SCHEMA_V15,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Default control draft for a brand-new account (all modules off). */
-export function defaultControlDraft(_version: number = 13): ConfigDraft {
-  return {
+export function defaultControlDraft(version: number = 13): ConfigDraft {
+  const draft: Record<string, ConfigValue> = {
     "atk.mode": 0,
     "atk.map": 0,
     "atk.zone": -1,
@@ -583,10 +625,22 @@ export function defaultControlDraft(_version: number = 13): ConfigDraft {
     "enhance.charm": 0,
     "dungeon.on": 0,
     "dungeon.max": -1,
-    "dungeon.schedule": -1,
-    "ui.effects": 1,
-    "ui.hidePlayers": 0,
   };
+
+  if (version === 15) {
+    draft["dungeon.startMin"] = -1;
+    draft["dungeon.endMin"] = -1;
+    draft["ui.effects"] = 1;
+    draft["ui.hidePlayers"] = 0;
+  } else if (version === 14) {
+    draft["dungeon.schedule"] = -1;
+    draft["ui.effects"] = 1;
+    draft["ui.hidePlayers"] = 0;
+  } else {
+    draft["dungeon.schedule"] = -1;
+  }
+
+  return draft as ConfigDraft;
 }
 
 /** Clamp a number field value to its declared min/max. */
@@ -628,6 +682,8 @@ export const CONFIG_FIELD_LABELS_VI: Partial<Record<ConfigPath, string>> = {
   "dungeon.on": "Tự đi phó bản",
   "dungeon.max": "Số lượt tối đa",
   "dungeon.schedule": "Khung giờ tham gia",
+  "dungeon.startMin": "Giờ bắt đầu phó bản",
+  "dungeon.endMin": "Giờ kết thúc phó bản",
   "atk.map": "Map ID",
   "atk.zone": "Khu vực",
   "atk.x": "Tọa độ X",
@@ -729,6 +785,45 @@ export function validateDraft(
     errors[key as ConfigPath] = msg;
   }
 
+  // CTL15 schedule validation (Zeus.java line 633, control.rs lines 806-815)
+  if (ctlVersion === 15) {
+    const startRaw = draft["dungeon.startMin"];
+    const endRaw = draft["dungeon.endMin"];
+    const startMin = typeof startRaw === "number" ? startRaw : Number(startRaw);
+    const endMin = typeof endRaw === "number" ? endRaw : Number(endRaw);
+
+    const hasStartErr = Boolean(errors["dungeon.startMin"]);
+    const hasEndErr = Boolean(errors["dungeon.endMin"]);
+
+    if (!hasStartErr && !hasEndErr) {
+      const unscheduled = startMin === -1 && endMin === -1;
+      const validScheduled =
+        startMin >= 0 &&
+        startMin <= 1439 &&
+        endMin >= 0 &&
+        endMin <= 1439 &&
+        startMin < endMin;
+
+      if (!unscheduled && !validScheduled) {
+        if (startMin === -1 && endMin !== -1) {
+          errors["dungeon.startMin"] =
+            "Lịch phó bản không hợp lệ: cả hai giá trị phải là -1 hoặc 0-1439 (bắt đầu < kết thúc)";
+        } else if (startMin !== -1 && endMin === -1) {
+          errors["dungeon.endMin"] =
+            "Lịch phó bản không hợp lệ: cả hai giá trị phải là -1 hoặc 0-1439 (bắt đầu < kết thúc)";
+        } else if (startMin === endMin) {
+          errors["dungeon.startMin"] = "Giờ bắt đầu và kết thúc phó bản không được trùng nhau";
+          errors["dungeon.endMin"] = "Giờ bắt đầu và kết thúc phó bản không được trùng nhau";
+        } else if (startMin > endMin) {
+          errors["dungeon.startMin"] = "Giờ bắt đầu phó bản phải nhỏ hơn giờ kết thúc";
+          errors["dungeon.endMin"] = "Giờ kết thúc phó bản phải lớn hơn giờ bắt đầu";
+        } else {
+          errors["dungeon.startMin"] = "Lịch phó bản ngoài phạm vi cho phép (0-1439 hoặc -1)";
+        }
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -738,16 +833,15 @@ export function controlRecordToDraft(
   targetVersion: number = 13,
 ): ConfigDraft {
   const defaults = defaultControlDraft(targetVersion);
-  const draft = { ...defaults };
-  for (const key of Object.keys(defaults) as ConfigPath[]) {
-    if (key in control && control[key] !== undefined && control[key] !== null) {
-      const raw = control[key];
+  const draft = { ...defaults } as Record<string, unknown>;
+  for (const [key, raw] of Object.entries(control)) {
+    if (raw !== undefined && raw !== null) {
       if (typeof raw === "number" || typeof raw === "boolean" || typeof raw === "string") {
-        (draft as Record<string, unknown>)[key] = raw;
+        draft[key] = raw;
       }
     }
   }
-  return draft;
+  return draft as ConfigDraft;
 }
 
 /** Convert a ConfigDraft back to a plain Record for Supabase storage based on target CTL version. */
