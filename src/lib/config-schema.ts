@@ -1008,6 +1008,66 @@ export function draftToControlRecord(
   return record;
 }
 
+/**
+ * Checks whether an account control version is compatible with a device's reported jar CTL version.
+ *
+ * Rules:
+ * - Device version must be known (not null/undefined/<=0).
+ * - Device CTL version must be >= account control version.
+ * - If account is newer than device (e.g. account 15 on device 14/13, or account 14 on device 13),
+ *   returns false to fail closed and block saving.
+ */
+export function isControlVersionCompatibleWithDevice(
+  accountVersion: number | null | undefined,
+  deviceVersion: number | null | undefined,
+): boolean {
+  if (deviceVersion === null || deviceVersion === undefined || deviceVersion <= 0) {
+    return false;
+  }
+  const accVer = resolveAccountControlVersion(accountVersion);
+  return deviceVersion >= accVer;
+}
+
+export interface ControlSavePayload {
+  control: Record<string, unknown>;
+  controlVersion: number;
+}
+
+/**
+ * Builds the authoritative save payload for an account configuration.
+ * Fails closed and throws if the account version is newer than the device jar CTL version,
+ * preventing any incompatible control payload from being generated or submitted to older runtimes.
+ */
+export function buildControlSavePayload(
+  draft: ConfigDraft,
+  accountVersion: number | null | undefined,
+  deviceCtlVersion: number | null | undefined,
+  options?: {
+    isDeviceQoLCapable?: boolean;
+    qolSettingsEdited?: boolean;
+    attackMapIntent?: string | null;
+  },
+): ControlSavePayload {
+  const accountVer = resolveAccountControlVersion(accountVersion);
+  if (!isControlVersionCompatibleWithDevice(accountVer, deviceCtlVersion)) {
+    throw new Error(
+      `Không thể lưu cấu hình: Phiên bản cấu hình tài khoản (v${accountVer}) mới hơn phiên bản CTL của máy chủ (v${deviceCtlVersion ?? "chưa rõ"}). Không cho phép hạ cấp cấu hình.`,
+    );
+  }
+  const targetVersion = determineControlVersionForSave({
+    accountControlVersion: accountVer,
+    deviceJarCtlVersion: deviceCtlVersion,
+    isDeviceQoLCapable: options?.isDeviceQoLCapable,
+    qolSettingsEdited: options?.qolSettingsEdited,
+  });
+  const normalizedDraft = normalizeDraftForSave(draft);
+  const control = draftToControlRecord(normalizedDraft, targetVersion);
+  return {
+    control,
+    controlVersion: targetVersion,
+  };
+}
+
 export interface VersionSelectionInput {
   accountControlVersion?: number | null;
   isDeviceQoLCapable?: boolean;
@@ -1021,8 +1081,8 @@ export interface VersionSelectionInput {
  * Rules:
  * - Device reporting jar_ctl_version=15 => Save produces control_version=15 (promotes v13/v14, preserves v15).
  * - Existing account already at v15 => remains v15 (never silently downgrade).
- * - Device reporting jar_ctl_version=13 => remains 13 (never promote to unsupported version).
  * - Existing v14 account => always remains v14 (never silently downgrade).
+ * - Device reporting jar_ctl_version=13 => remains 13 (never promote to unsupported version).
  * - Existing v13 account + device capable + user edited QoL setting => promote to v14.
  * - Existing v13 account + unrelated save => preserve v13.
  * - Existing v13 account + device not capable => preserve v13.
@@ -1037,11 +1097,11 @@ export function determineControlVersionForSave(input: VersionSelectionInput): nu
   if (accountCtl === 15) {
     return 15;
   }
-  if (deviceCtl === 13) {
-    return 13;
-  }
   if (accountCtl === 14) {
     return 14;
+  }
+  if (deviceCtl === 13) {
+    return 13;
   }
   if (input.isDeviceQoLCapable && input.qolSettingsEdited) {
     return 14;
