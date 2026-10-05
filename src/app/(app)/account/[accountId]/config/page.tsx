@@ -13,10 +13,12 @@ import {
   CONTROL_SCHEMA,
   controlRecordToDraft,
   draftToControlRecord,
-  defaultControlDraft,
   normalizeDraftForSave,
   validateDraft,
   determineControlVersionForSave,
+  resolveAccountControlVersion,
+  resolveEffectiveSchemaVersion,
+  getEffectiveInitialDraft,
   type ConfigDraft,
   type ConfigErrors,
   type ConfigPath,
@@ -131,7 +133,7 @@ function ConfigForm({
 
   const jarCtlVersion = device?.jar_ctl_version ?? null;
   const isQoLCapable = isVisualQoLAvailableOnDevice(device);
-  const accountControlVersion = account.control_version === 14 ? 14 : 13;
+  const accountControlVersion = resolveAccountControlVersion(account.control_version);
   const isExistingV14 = accountControlVersion === 14;
 
   const [qolEdited, setQolEdited] = useState(false);
@@ -140,16 +142,19 @@ function ConfigForm({
     accountControlVersion,
     isDeviceQoLCapable: isQoLCapable,
     qolSettingsEdited: qolEdited,
+    deviceJarCtlVersion: jarCtlVersion,
   });
 
-  const sections = CONTROL_SCHEMA[14];
+  const effectiveSchemaVersion = resolveEffectiveSchemaVersion(
+    targetControlVersion,
+    jarCtlVersion,
+  );
+  const sections = CONTROL_SCHEMA[effectiveSchemaVersion] ?? CONTROL_SCHEMA[13];
   const visibleSections = sections.filter((s) => !s.hidden);
   const versionGated = jarCtlVersion === null || !CONTROL_SCHEMA[jarCtlVersion];
 
   const [draft, setDraft] = useState<ConfigDraft>(() =>
-    account.control
-      ? controlRecordToDraft(account.control, accountControlVersion)
-      : defaultControlDraft(accountControlVersion),
+    getEffectiveInitialDraft(account.control, accountControlVersion, targetControlVersion),
   );
   const draftRef = useRef<ConfigDraft>(draft);
   useEffect(() => {
@@ -177,13 +182,22 @@ function ConfigForm({
   const [errors, setErrors] = useState<ConfigErrors>({});
   const [touched, setTouched] = useState(false);
   const saving = isPending(pendingKey.config(account.id));
-  const persistedDraft = account.control
-    ? controlRecordToDraft(account.control, accountControlVersion)
-    : defaultControlDraft(accountControlVersion);
+  const persistedDraft = getEffectiveInitialDraft(
+    account.control,
+    accountControlVersion,
+    targetControlVersion,
+  );
 
+  const canonicalCurrentDraft = controlRecordToDraft(
+    draftToControlRecord(draft, targetControlVersion),
+    targetControlVersion,
+  );
+  const canonicalPersistedDraft = controlRecordToDraft(
+    draftToControlRecord(persistedDraft, targetControlVersion),
+    targetControlVersion,
+  );
   const rawFieldsDirty =
-    JSON.stringify(controlRecordToDraft(draftToControlRecord(draft, targetControlVersion), targetControlVersion)) !==
-    JSON.stringify(persistedDraft);
+    JSON.stringify(canonicalCurrentDraft) !== JSON.stringify(canonicalPersistedDraft);
   const qolFieldsDirty =
     isQoLCapable &&
     (draft["ui.effects"] !== persistedDraft["ui.effects"] ||
@@ -199,6 +213,8 @@ function ConfigForm({
 
   // version_mismatch banner: the agent refused to write the last config
   const versionMismatch = account.config_status === "version_mismatch";
+  const isVersionPromotion = targetControlVersion > accountControlVersion;
+  const canSave = !offline && !versionGated && (dirty || versionMismatch || isVersionPromotion);
 
   const [resetKey, setResetKey] = useState(0);
 
@@ -270,9 +286,11 @@ function ConfigForm({
   }
 
   function handleReset() {
-    const next = account.control
-      ? controlRecordToDraft(account.control, accountControlVersion)
-      : defaultControlDraft(accountControlVersion);
+    const next = getEffectiveInitialDraft(
+      account.control,
+      accountControlVersion,
+      targetControlVersion,
+    );
     draftRef.current = next;
     setDraft(next);
     setErrors({});
@@ -584,7 +602,7 @@ function ConfigForm({
                 variant="primary"
                 size="sm"
                 busy={saving}
-                disabled={offline || !dirty || versionGated}
+                disabled={saving || !canSave}
                 onClick={handleSave}
                 icon={<IconSave />}
               >
