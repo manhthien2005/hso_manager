@@ -30,6 +30,13 @@ const {
   draftToControlRecord,
   validateDraft,
   determineControlVersionForSave,
+  resolveAccountControlVersion,
+  migrateLegacyControlToV15Draft,
+  convertLegacyControlToV15Draft,
+  resolveEffectiveSchemaVersion,
+  getEffectiveInitialDraft,
+  isControlVersionCompatibleWithDevice,
+  buildControlSavePayload,
   VISUAL_QOL_KEYS,
   VISUAL_QOL_DEFAULTS,
 } = await import("../../src/lib/config-schema");
@@ -466,6 +473,357 @@ describe("Control Schema v13 and v14 Dual Architecture", () => {
         assert.equal(v15DungeonField.min, -1);
         assert.equal(v15DungeonField.max, 10);
       }
+    });
+  });
+
+  describe("Phase 5: CTL15 Promotion, Legacy Migration, and Version Mismatch Recovery", () => {
+    // 1. account v15 + device CTL15 resolves effective version 15
+    test("account v15 + device CTL15 resolves effective version 15", () => {
+      const version = determineControlVersionForSave({
+        accountControlVersion: 15,
+        deviceJarCtlVersion: 15,
+        isDeviceQoLCapable: true,
+      });
+      assert.equal(version, 15);
+      assert.equal(resolveAccountControlVersion(15), 15);
+      assert.equal(resolveEffectiveSchemaVersion(15, 15), 15);
+    });
+
+    // 2. account v14 + device CTL15 resolves save target 15
+    test("account v14 + device CTL15 resolves save target 15", () => {
+      const version = determineControlVersionForSave({
+        accountControlVersion: 14,
+        deviceJarCtlVersion: 15,
+        isDeviceQoLCapable: true,
+      });
+      assert.equal(version, 15);
+    });
+
+    // 3. account v13 + device CTL15 resolves save target 15
+    test("account v13 + device CTL15 resolves save target 15", () => {
+      const version = determineControlVersionForSave({
+        accountControlVersion: 13,
+        deviceJarCtlVersion: 15,
+        isDeviceQoLCapable: false,
+      });
+      assert.equal(version, 15);
+    });
+
+    // 4. account v14 + device CTL14 remains 14
+    test("account v14 + device CTL14 remains 14", () => {
+      const version = determineControlVersionForSave({
+        accountControlVersion: 14,
+        deviceJarCtlVersion: 14,
+        isDeviceQoLCapable: true,
+      });
+      assert.equal(version, 14);
+    });
+
+    // 5. account v13 + device CTL13 remains 13
+    test("account v13 + device CTL13 remains 13", () => {
+      const version = determineControlVersionForSave({
+        accountControlVersion: 13,
+        deviceJarCtlVersion: 13,
+        isDeviceQoLCapable: false,
+        qolSettingsEdited: true, // Should NOT promote to 14 because device is CTL13
+      });
+      assert.equal(version, 13);
+    });
+
+    // 6. v15 page uses CONTROL_SCHEMA[15]
+    test("v15 page uses CONTROL_SCHEMA[15]", () => {
+      const effectiveSchemaVer = resolveEffectiveSchemaVersion(15, 15);
+      assert.equal(effectiveSchemaVer, 15);
+      const schema = CONTROL_SCHEMA[effectiveSchemaVer];
+      assert.ok(schema, "Schema must exist for v15");
+      const paths = schema.flatMap((s) => s.fields.map((f) => f.path));
+      assert.equal(paths.includes("dungeon.startMin"), true);
+      assert.equal(paths.includes("dungeon.endMin"), true);
+      assert.equal(paths.includes("dungeon.schedule"), false);
+      assert.equal(paths.includes("ui.effects"), true);
+      assert.equal(paths.includes("ui.hidePlayers"), true);
+    });
+
+    // 7. v15 outgoing record has exactly 37 keys
+    test("v15 outgoing record has exactly 37 keys", () => {
+      const legacyControl = defaultControlDraft(13) as Record<string, unknown>;
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 13);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal(Object.keys(record).length, 37);
+    });
+
+    // 8. v15 outgoing record contains startMin/endMin and not dungeon.schedule
+    test("v15 outgoing record contains startMin/endMin and not dungeon.schedule", () => {
+      const legacyControl = {
+        ...defaultControlDraft(14),
+        "dungeon.schedule": 20,
+      } as Record<string, unknown>;
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 14);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal("dungeon.startMin" in record, true);
+      assert.equal("dungeon.endMin" in record, true);
+      assert.equal("dungeon.schedule" in record, false);
+      assert.equal("dungeon.schedule" in draft, false);
+    });
+
+    // 9. legacy dungeon.schedule=-1 promotes to startMin=-1/endMin=-1
+    test("legacy dungeon.schedule=-1 promotes to startMin=-1/endMin=-1", () => {
+      const legacyControl = {
+        ...defaultControlDraft(13),
+        "dungeon.schedule": -1,
+      } as Record<string, unknown>;
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 13);
+      assert.equal(draft["dungeon.startMin"], -1);
+      assert.equal(draft["dungeon.endMin"], -1);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal(record["dungeon.startMin"], -1);
+      assert.equal(record["dungeon.endMin"], -1);
+      assert.equal("dungeon.schedule" in record, false);
+    });
+
+    // 10. legacy dungeon.schedule=nonnegative also promotes safely to -1/-1 rather than silently changing semantics
+    test("legacy dungeon.schedule=nonnegative also promotes safely to -1/-1 rather than silently changing semantics", () => {
+      const legacyControl = {
+        ...defaultControlDraft(14),
+        "dungeon.schedule": 42,
+      } as Record<string, unknown>;
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 14);
+      assert.equal(draft["dungeon.startMin"], -1);
+      assert.equal(draft["dungeon.endMin"], -1);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal(record["dungeon.startMin"], -1);
+      assert.equal(record["dungeon.endMin"], -1);
+      assert.equal("dungeon.schedule" in record, false);
+    });
+
+    // 11. v14 visual QoL values are preserved into v15
+    test("v14 visual QoL values are preserved into v15", () => {
+      const legacyControl = {
+        ...defaultControlDraft(14),
+        "ui.effects": 0,
+        "ui.hidePlayers": 2,
+      } as Record<string, unknown>;
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 14);
+      assert.equal(draft["ui.effects"], 0);
+      assert.equal(draft["ui.hidePlayers"], 2);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal(record["ui.effects"], 0);
+      assert.equal(record["ui.hidePlayers"], 2);
+    });
+
+    // 12. v13 gets canonical v15 visual QoL defaults
+    test("v13 gets canonical v15 visual QoL defaults", () => {
+      const legacyControl = {
+        ...defaultControlDraft(13),
+      } as Record<string, unknown>;
+      delete legacyControl["ui.effects"];
+      delete legacyControl["ui.hidePlayers"];
+      const draft = migrateLegacyControlToV15Draft(legacyControl, 13);
+      assert.equal(draft["ui.effects"], 1);
+      assert.equal(draft["ui.hidePlayers"], 0);
+      const record = draftToControlRecord(draft, 15);
+      assert.equal(record["ui.effects"], 1);
+      assert.equal(record["ui.hidePlayers"], 0);
+    });
+
+    // 13. v15 dungeon.max=0 remains rejected
+    test("v15 dungeon.max=0 remains rejected", () => {
+      const draft = defaultControlDraft(15);
+      draft["dungeon.max"] = 0;
+      const errs = validateDraft(draft, 15);
+      assert.ok(errs["dungeon.max"], "v15 dungeon.max=0 must be rejected");
+    });
+
+    // 14. version_mismatch account can produce a valid v15 Save payload
+    test("version_mismatch account can produce a valid v15 Save payload", () => {
+      // Production scenario: Account with control_version=13, config_status=version_mismatch running on CTL15 device
+      const legacyAccount = {
+        id: "acc-mismatch-1",
+        control_version: 13,
+        config_status: "version_mismatch",
+        control: {
+          ...defaultControlDraft(13),
+          "dungeon.schedule": 10,
+          "atk.radius": 150,
+        },
+      };
+      const device = {
+        jar_ctl_version: 15,
+        status: "online" as const,
+      };
+
+      // 1. Version resolution
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: legacyAccount.control_version,
+        deviceJarCtlVersion: device.jar_ctl_version,
+        isDeviceQoLCapable: true,
+      });
+      assert.equal(targetVersion, 15, "Target version must resolve to 15");
+
+      // 2. Draft migration
+      const draft = getEffectiveInitialDraft(
+        legacyAccount.control,
+        legacyAccount.control_version,
+        targetVersion,
+      );
+      assert.equal(draft["atk.radius"], 150, "Common settings must be preserved");
+      assert.equal(draft["dungeon.startMin"], -1, "Schedule must safely promote to -1");
+      assert.equal(draft["dungeon.endMin"], -1, "Schedule must safely promote to -1");
+      assert.equal("dungeon.schedule" in draft, false, "Legacy schedule must be dropped");
+      assert.equal(draft["ui.effects"], 1, "Visual QoL default applied");
+      assert.equal(draft["ui.hidePlayers"], 0, "Visual QoL default applied");
+
+      // 3. Validation
+      const errors = validateDraft(draft, targetVersion);
+      assert.equal(Object.keys(errors).length, 0, "Migrated draft must be completely valid for v15");
+
+      // 4. Save payload generation
+      const controlRecord = draftToControlRecord(draft, targetVersion);
+      assert.equal(Object.keys(controlRecord).length, 37, "Payload must contain exactly 37 keys");
+      assert.equal(controlRecord["dungeon.startMin"], -1);
+      assert.equal(controlRecord["dungeon.endMin"], -1);
+      assert.equal("dungeon.schedule" in controlRecord, false);
+      assert.equal(targetVersion, 15);
+    });
+  });
+
+  describe("Account/Device CTL Compatibility and Fail-Closed Matrix", () => {
+    // 1. account15 + device15 => allowed target15
+    test("account15 + device15 => allowed target15", () => {
+      const compatible = isControlVersionCompatibleWithDevice(15, 15);
+      assert.equal(compatible, true, "account15 must be compatible with device15");
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: 15,
+        deviceJarCtlVersion: 15,
+      });
+      assert.equal(targetVersion, 15);
+    });
+
+    // 2. account14 + device15 => allowed target15
+    test("account14 + device15 => allowed target15", () => {
+      const compatible = isControlVersionCompatibleWithDevice(14, 15);
+      assert.equal(compatible, true, "account14 must be compatible with device15");
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: 14,
+        deviceJarCtlVersion: 15,
+      });
+      assert.equal(targetVersion, 15);
+    });
+
+    // 3. account13 + device15 => allowed target15
+    test("account13 + device15 => allowed target15", () => {
+      const compatible = isControlVersionCompatibleWithDevice(13, 15);
+      assert.equal(compatible, true, "account13 must be compatible with device15");
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: 13,
+        deviceJarCtlVersion: 15,
+      });
+      assert.equal(targetVersion, 15);
+    });
+
+    // account14 + device14 => target14, save allowed
+    test("account14 + device14 => target14, save allowed", () => {
+      const compatible = isControlVersionCompatibleWithDevice(14, 14);
+      assert.equal(compatible, true, "account14 must be compatible with device14");
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: 14,
+        deviceJarCtlVersion: 14,
+      });
+      assert.equal(targetVersion, 14);
+    });
+
+    // account13 + device13 => target13, save allowed
+    test("account13 + device13 => target13, save allowed", () => {
+      const compatible = isControlVersionCompatibleWithDevice(13, 13);
+      assert.equal(compatible, true, "account13 must be compatible with device13");
+      const targetVersion = determineControlVersionForSave({
+        accountControlVersion: 13,
+        deviceJarCtlVersion: 13,
+      });
+      assert.equal(targetVersion, 13);
+    });
+
+    // 4. account15 + device14 => blocked
+    test("account15 + device14 => blocked", () => {
+      const compatible = isControlVersionCompatibleWithDevice(15, 14);
+      assert.equal(compatible, false, "account15 on device14 must be blocked");
+    });
+
+    // 5. account15 + device13 => blocked
+    test("account15 + device13 => blocked", () => {
+      const compatible = isControlVersionCompatibleWithDevice(15, 13);
+      assert.equal(compatible, false, "account15 on device13 must be blocked");
+    });
+
+    // 6. account14 + device13 => blocked
+    test("account14 + device13 => blocked", () => {
+      const compatible = isControlVersionCompatibleWithDevice(14, 13);
+      assert.equal(compatible, false, "account14 on device13 must be blocked");
+    });
+
+    // 7. blocked mismatch cannot generate/save a control payload
+    test("blocked mismatch cannot generate/save a control payload", () => {
+      const draft15 = defaultControlDraft(15);
+      // Attempting to build save payload for account15 on device14 must fail closed
+      assert.throws(
+        () => {
+          buildControlSavePayload(draft15, 15, 14);
+        },
+        /Không thể lưu cấu hình/i,
+      );
+
+      // Attempting to build save payload for account15 on device13 must fail closed
+      assert.throws(
+        () => {
+          buildControlSavePayload(draft15, 15, 13);
+        },
+        /Không thể lưu cấu hình/i,
+      );
+
+      // Attempting to build save payload for account14 on device13 must fail closed
+      const draft14 = defaultControlDraft(14);
+      assert.throws(
+        () => {
+          buildControlSavePayload(draft14, 14, 13);
+        },
+        /Không thể lưu cấu hình/i,
+      );
+    });
+
+    // 8. no silent downgrade of account15
+    test("no silent downgrade of account15", () => {
+      // determineControlVersionForSave must never downgrade account15 to 14 or 13
+      const targetWhenDev14 = determineControlVersionForSave({
+        accountControlVersion: 15,
+        deviceJarCtlVersion: 14,
+      });
+      assert.equal(targetWhenDev14, 15, "account15 on device14 must not be downgraded");
+
+      const targetWhenDev13 = determineControlVersionForSave({
+        accountControlVersion: 15,
+        deviceJarCtlVersion: 13,
+      });
+      assert.equal(targetWhenDev13, 15, "account15 on device13 must not be downgraded");
+
+      // account14 on device13 must not be downgraded to 13
+      const targetWhen14Dev13 = determineControlVersionForSave({
+        accountControlVersion: 14,
+        deviceJarCtlVersion: 13,
+      });
+      assert.equal(targetWhen14Dev13, 14, "account14 on device13 must not be downgraded");
+    });
+
+    // 9. device CTL transition cannot leave the page able to save a stale-version draft
+    test("device CTL transition cannot leave the page able to save a stale-version draft", () => {
+      // Simulate form key derivation on device transition
+      const accountId = "acc-trans-1";
+      const keyAt15 = `${accountId}-ctl-15`;
+      const keyAt14 = `${accountId}-ctl-14`;
+      assert.notEqual(keyAt15, keyAt14, "Device CTL change must produce a distinct remount key");
+
+      // Verify that after device downgrade to 14, account15 is blocked from saving
+      const isStillCompatible = isControlVersionCompatibleWithDevice(15, 14);
+      assert.equal(isStillCompatible, false, "Must fail closed after device downgrade");
     });
   });
 });

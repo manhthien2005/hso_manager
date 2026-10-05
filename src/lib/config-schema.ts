@@ -842,11 +842,144 @@ export function validateDraft(
   return errors;
 }
 
+export function resolveAccountControlVersion(rawVersion?: number | null): number {
+  if (rawVersion === 15) return 15;
+  if (rawVersion === 14) return 14;
+  return 13;
+}
+
+/**
+ * Explicit helper for converting persisted v13/v14 control into a v15 editing draft.
+ *
+ * Rules:
+ * - Preserves every common control field whose semantics are unchanged (keys 1..33).
+ * - Drops legacy dungeon.schedule from the outgoing v15 record.
+ * - Adds dungeon.startMin and dungeon.endMin.
+ * - Does not silently reinterpret legacy dungeon.schedule as a daily window.
+ * - When promoting a legacy account, uses safe unscheduled state (-1, -1) unless persisted control
+ *   already contains valid v15 values.
+ * - Preserves ui.effects/ui.hidePlayers from v14 when present.
+ * - For v13 records where those fields do not exist, uses canonical v15 defaults (effects: 1, hidePlayers: 0).
+ * - After migration, draftToControlRecord(draft, 15) contains exactly the authoritative 37 stored keys.
+ */
+export function migrateLegacyControlToV15Draft(
+  control: Record<string, unknown>,
+  sourceVersion?: number | null,
+): ConfigDraft {
+  void sourceVersion;
+  const defaults = defaultControlDraft(15);
+  const draft = { ...defaults };
+
+  const sections = CONTROL_SCHEMA[15];
+  const v15AllowedKeys = new Set(sections.flatMap((s) => s.fields.map((f) => f.path)));
+
+  for (const [key, raw] of Object.entries(control)) {
+    if (key === "dungeon.schedule") {
+      continue;
+    }
+    if (key === "dungeon.startMin" || key === "dungeon.endMin") {
+      continue;
+    }
+    if (key === "ui.effects" || key === "ui.hidePlayers") {
+      continue;
+    }
+    if (v15AllowedKeys.has(key as ConfigPath) && raw !== undefined && raw !== null) {
+      if (typeof raw === "number" || typeof raw === "boolean" || typeof raw === "string") {
+        draft[key as ConfigPath] = raw;
+      }
+    }
+  }
+
+  // Preserve ui.effects/ui.hidePlayers from v14 when present and valid; otherwise canonical defaults
+  if (control["ui.effects"] !== undefined && control["ui.effects"] !== null) {
+    const eff = Number(control["ui.effects"]);
+    if (eff === 0 || eff === 1) {
+      draft["ui.effects"] = eff;
+    }
+  }
+  if (control["ui.hidePlayers"] !== undefined && control["ui.hidePlayers"] !== null) {
+    const hp = Number(control["ui.hidePlayers"]);
+    if (hp === 0 || hp === 1 || hp === 2) {
+      draft["ui.hidePlayers"] = hp;
+    }
+  }
+
+  // Handle dungeon.startMin & dungeon.endMin:
+  // Legacy dungeon.schedule is never translated into a window.
+  // Only preserve if control already contains valid v15 values.
+  const startRaw = control["dungeon.startMin"];
+  const endRaw = control["dungeon.endMin"];
+  if (startRaw !== undefined && startRaw !== null && endRaw !== undefined && endRaw !== null) {
+    const start = Number(startRaw);
+    const end = Number(endRaw);
+    const unscheduled = start === -1 && end === -1;
+    const validScheduled =
+      Number.isInteger(start) &&
+      Number.isInteger(end) &&
+      start >= 0 &&
+      start <= 1439 &&
+      end >= 0 &&
+      end <= 1439 &&
+      start < end;
+    if (unscheduled || validScheduled) {
+      draft["dungeon.startMin"] = start;
+      draft["dungeon.endMin"] = end;
+    } else {
+      draft["dungeon.startMin"] = -1;
+      draft["dungeon.endMin"] = -1;
+    }
+  } else {
+    draft["dungeon.startMin"] = -1;
+    draft["dungeon.endMin"] = -1;
+  }
+
+  return draft;
+}
+
+export const convertLegacyControlToV15Draft = migrateLegacyControlToV15Draft;
+
+/**
+ * Resolves the schema version to render in the UI based on target control version and device jar CTL version.
+ */
+export function resolveEffectiveSchemaVersion(
+  targetControlVersion: number,
+  jarCtlVersion?: number | null,
+): number {
+  if (targetControlVersion === 15 || jarCtlVersion === 15) {
+    return 15;
+  }
+  if (jarCtlVersion === 13) {
+    return 13;
+  }
+  return 14;
+}
+
+/**
+ * Helper to obtain the canonical initial/persisted editing draft based on account control and target version.
+ */
+export function getEffectiveInitialDraft(
+  control: Record<string, unknown> | null | undefined,
+  accountVersion: number,
+  targetVersion: number,
+): ConfigDraft {
+  if (targetVersion === 15) {
+    return control
+      ? migrateLegacyControlToV15Draft(control, accountVersion)
+      : defaultControlDraft(15);
+  }
+  return control
+    ? controlRecordToDraft(control, accountVersion)
+    : defaultControlDraft(accountVersion);
+}
+
 /** Convert a raw control record from Supabase/mock to a ConfigDraft. */
 export function controlRecordToDraft(
   control: Record<string, unknown>,
   targetVersion: number = 13,
 ): ConfigDraft {
+  if (targetVersion === 15) {
+    return migrateLegacyControlToV15Draft(control, 15);
+  }
   const defaults = defaultControlDraft(targetVersion);
   const draft = { ...defaults } as Record<string, unknown>;
   for (const [key, raw] of Object.entries(control)) {
@@ -875,28 +1008,100 @@ export function draftToControlRecord(
   return record;
 }
 
-export interface VersionSelectionInput {
-  accountControlVersion?: number | null;
-  isDeviceQoLCapable: boolean;
-  qolSettingsEdited?: boolean;
+/**
+ * Checks whether an account control version is compatible with a device's reported jar CTL version.
+ *
+ * Rules:
+ * - Device version must be known (not null/undefined/<=0).
+ * - Device CTL version must be >= account control version.
+ * - If account is newer than device (e.g. account 15 on device 14/13, or account 14 on device 13),
+ *   returns false to fail closed and block saving.
+ */
+export function isControlVersionCompatibleWithDevice(
+  accountVersion: number | null | undefined,
+  deviceVersion: number | null | undefined,
+): boolean {
+  if (deviceVersion === null || deviceVersion === undefined || deviceVersion <= 0) {
+    return false;
+  }
+  const accVer = resolveAccountControlVersion(accountVersion);
+  return deviceVersion >= accVer;
+}
+
+export interface ControlSavePayload {
+  control: Record<string, unknown>;
+  controlVersion: number;
 }
 
 /**
- * Determines whether to save an account configuration as Control v13 or Control v14.
+ * Builds the authoritative save payload for an account configuration.
+ * Fails closed and throws if the account version is newer than the device jar CTL version,
+ * preventing any incompatible control payload from being generated or submitted to older runtimes.
+ */
+export function buildControlSavePayload(
+  draft: ConfigDraft,
+  accountVersion: number | null | undefined,
+  deviceCtlVersion: number | null | undefined,
+  options?: {
+    isDeviceQoLCapable?: boolean;
+    qolSettingsEdited?: boolean;
+    attackMapIntent?: string | null;
+  },
+): ControlSavePayload {
+  const accountVer = resolveAccountControlVersion(accountVersion);
+  if (!isControlVersionCompatibleWithDevice(accountVer, deviceCtlVersion)) {
+    throw new Error(
+      `Không thể lưu cấu hình: Phiên bản cấu hình tài khoản (v${accountVer}) mới hơn phiên bản CTL của máy chủ (v${deviceCtlVersion ?? "chưa rõ"}). Không cho phép hạ cấp cấu hình.`,
+    );
+  }
+  const targetVersion = determineControlVersionForSave({
+    accountControlVersion: accountVer,
+    deviceJarCtlVersion: deviceCtlVersion,
+    isDeviceQoLCapable: options?.isDeviceQoLCapable,
+    qolSettingsEdited: options?.qolSettingsEdited,
+  });
+  const normalizedDraft = normalizeDraftForSave(draft);
+  const control = draftToControlRecord(normalizedDraft, targetVersion);
+  return {
+    control,
+    controlVersion: targetVersion,
+  };
+}
+
+export interface VersionSelectionInput {
+  accountControlVersion?: number | null;
+  isDeviceQoLCapable?: boolean;
+  qolSettingsEdited?: boolean;
+  deviceJarCtlVersion?: number | null;
+}
+
+/**
+ * Determines whether to save an account configuration as Control v13, v14, or v15.
  *
  * Rules:
+ * - Device reporting jar_ctl_version=15 => Save produces control_version=15 (promotes v13/v14, preserves v15).
+ * - Existing account already at v15 => remains v15 (never silently downgrade).
  * - Existing v14 account => always remains v14 (never silently downgrade).
+ * - Device reporting jar_ctl_version=13 => remains 13 (never promote to unsupported version).
  * - Existing v13 account + device capable + user edited QoL setting => promote to v14.
  * - Existing v13 account + unrelated save => preserve v13.
  * - Existing v13 account + device not capable => preserve v13.
  */
 export function determineControlVersionForSave(input: VersionSelectionInput): number {
-  if (input.accountControlVersion === 15) {
+  const deviceCtl = input.deviceJarCtlVersion ?? null;
+  const accountCtl = resolveAccountControlVersion(input.accountControlVersion);
+
+  if (deviceCtl === 15) {
     return 15;
   }
-  const currentVersion = input.accountControlVersion === 14 ? 14 : 13;
-  if (currentVersion === 14) {
+  if (accountCtl === 15) {
+    return 15;
+  }
+  if (accountCtl === 14) {
     return 14;
+  }
+  if (deviceCtl === 13) {
+    return 13;
   }
   if (input.isDeviceQoLCapable && input.qolSettingsEdited) {
     return 14;

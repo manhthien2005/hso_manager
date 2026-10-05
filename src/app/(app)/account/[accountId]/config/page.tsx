@@ -13,10 +13,14 @@ import {
   CONTROL_SCHEMA,
   controlRecordToDraft,
   draftToControlRecord,
-  defaultControlDraft,
   normalizeDraftForSave,
   validateDraft,
   determineControlVersionForSave,
+  resolveAccountControlVersion,
+  resolveEffectiveSchemaVersion,
+  getEffectiveInitialDraft,
+  isControlVersionCompatibleWithDevice,
+  buildControlSavePayload,
   type ConfigDraft,
   type ConfigErrors,
   type ConfigPath,
@@ -60,11 +64,13 @@ export default function AccountConfigPage({
     );
   }
 
+  const device = getDevice(account.deviceId);
+
   return (
     <ConfigForm
-      key={account.id}
+      key={`${account.id}-ctl-${device?.jar_ctl_version ?? "null"}`}
       account={account}
-      device={getDevice(account.deviceId)}
+      device={device}
     />
   );
 }
@@ -131,7 +137,7 @@ function ConfigForm({
 
   const jarCtlVersion = device?.jar_ctl_version ?? null;
   const isQoLCapable = isVisualQoLAvailableOnDevice(device);
-  const accountControlVersion = account.control_version === 14 ? 14 : 13;
+  const accountControlVersion = resolveAccountControlVersion(account.control_version);
   const isExistingV14 = accountControlVersion === 14;
 
   const [qolEdited, setQolEdited] = useState(false);
@@ -140,16 +146,19 @@ function ConfigForm({
     accountControlVersion,
     isDeviceQoLCapable: isQoLCapable,
     qolSettingsEdited: qolEdited,
+    deviceJarCtlVersion: jarCtlVersion,
   });
 
-  const sections = CONTROL_SCHEMA[14];
+  const effectiveSchemaVersion = resolveEffectiveSchemaVersion(
+    targetControlVersion,
+    jarCtlVersion,
+  );
+  const sections = CONTROL_SCHEMA[effectiveSchemaVersion] ?? CONTROL_SCHEMA[13];
   const visibleSections = sections.filter((s) => !s.hidden);
   const versionGated = jarCtlVersion === null || !CONTROL_SCHEMA[jarCtlVersion];
 
   const [draft, setDraft] = useState<ConfigDraft>(() =>
-    account.control
-      ? controlRecordToDraft(account.control, accountControlVersion)
-      : defaultControlDraft(accountControlVersion),
+    getEffectiveInitialDraft(account.control, accountControlVersion, targetControlVersion),
   );
   const draftRef = useRef<ConfigDraft>(draft);
   useEffect(() => {
@@ -177,13 +186,22 @@ function ConfigForm({
   const [errors, setErrors] = useState<ConfigErrors>({});
   const [touched, setTouched] = useState(false);
   const saving = isPending(pendingKey.config(account.id));
-  const persistedDraft = account.control
-    ? controlRecordToDraft(account.control, accountControlVersion)
-    : defaultControlDraft(accountControlVersion);
+  const persistedDraft = getEffectiveInitialDraft(
+    account.control,
+    accountControlVersion,
+    targetControlVersion,
+  );
 
+  const canonicalCurrentDraft = controlRecordToDraft(
+    draftToControlRecord(draft, targetControlVersion),
+    targetControlVersion,
+  );
+  const canonicalPersistedDraft = controlRecordToDraft(
+    draftToControlRecord(persistedDraft, targetControlVersion),
+    targetControlVersion,
+  );
   const rawFieldsDirty =
-    JSON.stringify(controlRecordToDraft(draftToControlRecord(draft, targetControlVersion), targetControlVersion)) !==
-    JSON.stringify(persistedDraft);
+    JSON.stringify(canonicalCurrentDraft) !== JSON.stringify(canonicalPersistedDraft);
   const qolFieldsDirty =
     isQoLCapable &&
     (draft["ui.effects"] !== persistedDraft["ui.effects"] ||
@@ -199,6 +217,9 @@ function ConfigForm({
 
   // version_mismatch banner: the agent refused to write the last config
   const versionMismatch = account.config_status === "version_mismatch";
+  const isDeviceCtlCompatible = isControlVersionCompatibleWithDevice(accountControlVersion, jarCtlVersion);
+  const isVersionPromotion = targetControlVersion > accountControlVersion;
+  const canSave = !offline && !versionGated && isDeviceCtlCompatible && (dirty || versionMismatch || isVersionPromotion);
 
   const [resetKey, setResetKey] = useState(0);
 
@@ -238,6 +259,14 @@ function ConfigForm({
 
   async function handleSave() {
     if (jarCtlVersion === null || !CONTROL_SCHEMA[jarCtlVersion]) return;
+    if (!isControlVersionCompatibleWithDevice(accountControlVersion, jarCtlVersion)) {
+      push(
+        "error",
+        "Không thể lưu cấu hình",
+        `Phiên bản cấu hình tài khoản (v${accountControlVersion}) mới hơn phiên bản jar của máy chủ (v${jarCtlVersion}). Không thể áp dụng hoặc hạ cấp cấu hình.`,
+      );
+      return;
+    }
     const currentDraft = draftRef.current;
     const nextErrors = validateDraft(currentDraft, targetControlVersion, attackMapIntentRef.current);
     setErrors(nextErrors);
@@ -247,12 +276,21 @@ function ConfigForm({
       return;
     }
     try {
-      const normalizedDraft = normalizeDraftForSave(currentDraft);
-      const control = draftToControlRecord(normalizedDraft, targetControlVersion);
+      const { control, controlVersion } = buildControlSavePayload(
+        currentDraft,
+        accountControlVersion,
+        jarCtlVersion,
+        {
+          isDeviceQoLCapable: isQoLCapable,
+          qolSettingsEdited: qolEdited,
+          attackMapIntent: attackMapIntentRef.current,
+        },
+      );
       await saveConfig(account.id, {
         control,
-        controlVersion: targetControlVersion,
+        controlVersion,
       });
+      const normalizedDraft = normalizeDraftForSave(currentDraft);
       draftRef.current = normalizedDraft;
       setDraft(normalizedDraft);
       setTouched(false);
@@ -262,7 +300,7 @@ function ConfigForm({
       push(
         "success",
         "Đã lưu cấu hình",
-        `Đã lưu cấu hình Control v${targetControlVersion} vào hệ thống điều khiển cho ${device?.name ?? "máy chủ"}`,
+        `Đã lưu cấu hình Control v${controlVersion} vào hệ thống điều khiển cho ${device?.name ?? "máy chủ"}`,
       );
     } catch (error) {
       push("error", "Lưu cấu hình thất bại", describeError(error));
@@ -270,9 +308,11 @@ function ConfigForm({
   }
 
   function handleReset() {
-    const next = account.control
-      ? controlRecordToDraft(account.control, accountControlVersion)
-      : defaultControlDraft(accountControlVersion);
+    const next = getEffectiveInitialDraft(
+      account.control,
+      accountControlVersion,
+      targetControlVersion,
+    );
     draftRef.current = next;
     setDraft(next);
     setErrors({});
@@ -321,6 +361,30 @@ function ConfigForm({
               </p>
               <p className="text-xs text-muted leading-relaxed">
                 Tài khoản vẫn tiếp tục hoạt động an toàn với cấu hình hợp lệ trước đó.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* account/device CTL version incompatibility: account has newer CTL than device jar */}
+      {!isDeviceCtlCompatible && !versionGated ? (
+        <div
+          id="config-ctl-incompatible-banner"
+          className="mb-5 rounded-md border border-danger/40 bg-danger/10 p-4 shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            <IconWarning className="size-4 shrink-0 mt-0.5 text-danger" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-danger">
+                Máy chủ không tương thích phiên bản cấu hình — Chặn lưu cấu hình
+              </h3>
+              <p className="text-xs text-foreground/90 leading-relaxed">
+                Tài khoản đang lưu cấu hình Control v{accountControlVersion}, nhưng máy chủ hiện tại chỉ hỗ trợ Control v{jarCtlVersion ?? "?"}.
+                Hệ thống không cho phép hạ cấp tự động hoặc gửi cấu hình không tương thích đến máy chủ cũ hơn.
+              </p>
+              <p className="text-xs text-muted leading-relaxed">
+                Vui lòng cập nhật runtime máy chủ lên phiên bản hỗ trợ Control v{accountControlVersion} để tiếp tục lưu cấu hình.
               </p>
             </div>
           </div>
@@ -584,7 +648,7 @@ function ConfigForm({
                 variant="primary"
                 size="sm"
                 busy={saving}
-                disabled={offline || !dirty || versionGated}
+                disabled={saving || !canSave}
                 onClick={handleSave}
                 icon={<IconSave />}
               >
