@@ -363,12 +363,13 @@ export const BACH_HO_REQUIRED_CTL_VERSION = 15;
  */
 export const COMPATIBLE_BACH_HO_JAR_SHAS: ReadonlySet<string> = new Set([
   "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d",
+  "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a",
 ]);
 
 /**
  * Centralized evaluator for Bạch Hổ runtime compatibility.
  * Requires ALL of:
- * 1. Proven compatible JAR SHA256 ('4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d')
+ * 1. Proven compatible JAR SHA256 (in COMPATIBLE_BACH_HO_JAR_SHAS)
  * 2. CTL version 15
  * 3. Exact agent capability token 'managed-identity-restart-v1'
  * Fails closed on null, undefined, unknown, near-match, or historical CTL-15 runtimes.
