@@ -6,12 +6,13 @@ import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
 import { ACCOUNT_STATUS_LABELS } from "@/components/ui/status";
 import {
+  isBachHoSupportedOnDevice,
   isCharacterSlotAvailableOnDevice,
   isValidCharacterSlot,
   validateCharacterSlotSelection,
 } from "@/lib/capabilities";
 import { CONTROL_SCHEMA } from "@/lib/config-schema";
-import { SERVER_OPTIONS } from "@/lib/game-servers";
+import { BACH_HO_LOGICAL_ID, SERVER_OPTIONS, isValidServerIndex } from "@/lib/game-servers";
 import type { Account, CharacterSlot, Device } from "@/lib/types";
 import { describeError, isApiError } from "@/services/api";
 import { useToast } from "@/store/toast-store";
@@ -35,6 +36,7 @@ export function CreateAccountForm({
 
   const activeDevice = devices.find((d) => d.deviceId === device.deviceId) ?? device;
   const isSlotCapable = isCharacterSlotAvailableOnDevice(activeDevice);
+  const isBachHoCapable = isBachHoSupportedOnDevice(activeDevice);
 
   const [label, setLabel] = useState("");
   const [username, setUsername] = useState("");
@@ -91,15 +93,18 @@ export function CreateAccountForm({
     if (password.length === 0) {
       newErrors.password = "Mật khẩu không được để trống";
     }
+    const currentDevice = devices.find((d) => d.deviceId === device.deviceId) ?? activeDevice;
+
     if (
       typeof serverIndex !== "number" ||
       !Number.isInteger(serverIndex) ||
-      !SERVER_OPTIONS.some((server) => server.value === serverIndex)
+      !isValidServerIndex(serverIndex)
     ) {
       newErrors.serverIndex = "Vui lòng chọn một máy chủ game hợp lệ";
+    } else if (serverIndex === BACH_HO_LOGICAL_ID && !isBachHoSupportedOnDevice(currentDevice)) {
+      newErrors.serverIndex = "Máy chủ Bạch Hổ yêu cầu thiết bị chạy runtime tương thích (v4.0.3 CTL 15).";
     }
 
-    const currentDevice = devices.find((d) => d.deviceId === device.deviceId) ?? activeDevice;
     const currentCapable = isCharacterSlotAvailableOnDevice(currentDevice);
     const slotError = validateCharacterSlotSelection(characterSlot, currentCapable);
     if (slotError) {
@@ -198,6 +203,20 @@ export function CreateAccountForm({
     }
   };
 
+  const serverSelectOptions = SERVER_OPTIONS.map((server) => {
+    if (server.value === BACH_HO_LOGICAL_ID) {
+      return {
+        value: server.value,
+        label: isBachHoCapable ? server.label : `${server.label} — Cần runtime tương thích`,
+        disabled: !isBachHoCapable,
+      };
+    }
+    return {
+      value: server.value,
+      label: server.label,
+    };
+  });
+
   return (
     <Card className="p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -231,7 +250,7 @@ export function CreateAccountForm({
           <SelectField
             id="create-account-server"
             label="Máy chủ game"
-            options={[...SERVER_OPTIONS]}
+            options={serverSelectOptions}
             value={serverIndex}
             onChange={(e) => {
               setServerIndex(Number(e.target.value));

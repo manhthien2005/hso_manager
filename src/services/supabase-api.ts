@@ -28,7 +28,8 @@ import {
   draftToControlRecord,
   validateDraft,
 } from "@/lib/config-schema";
-import { isValidCharacterSlot } from "@/lib/capabilities";
+import { isValidCharacterSlot, isBachHoSupportedOnDevice } from "@/lib/capabilities";
+import { BACH_HO_LOGICAL_ID, isValidServerIndex } from "@/lib/game-servers";
 import { parseInventoryPayload } from "@/lib/inventory";
 import type { QueueItemSubmissionPayload } from "@/lib/queue";
 import type {
@@ -455,12 +456,11 @@ export class SupabaseApi implements ZeusApi {
     if (
       typeof input.serverIndex !== "number" ||
       !Number.isInteger(input.serverIndex) ||
-      input.serverIndex < 0 ||
-      input.serverIndex > 7
+      !isValidServerIndex(input.serverIndex)
     ) {
       throw new ApiError(
         "INVALID_ACCOUNT_INPUT",
-        "Server index must be an integer between 0 and 7",
+        "Server index must be a valid server",
       );
     }
 
@@ -477,6 +477,13 @@ export class SupabaseApi implements ZeusApi {
     const device = await this.getDevice(input.deviceId);
     if (!device) {
       throw new ApiError("NOT_FOUND", `Device ${input.deviceId} not found`);
+    }
+
+    if (input.serverIndex === BACH_HO_LOGICAL_ID && !isBachHoSupportedOnDevice(device)) {
+      throw new ApiError(
+        "UNSUPPORTED_SERVER",
+        `Device ${input.deviceId} does not support Bạch Hổ server (requires compatible v4.0.3 runtime).`,
+      );
     }
 
     const ctlVersion = device.jar_ctl_version;
@@ -568,13 +575,30 @@ export class SupabaseApi implements ZeusApi {
     if (
       typeof input.serverIndex !== "number" ||
       !Number.isInteger(input.serverIndex) ||
-      input.serverIndex < 0 ||
-      input.serverIndex > 7
+      !isValidServerIndex(input.serverIndex)
     ) {
       throw new ApiError(
         "INVALID_ACCOUNT_INPUT",
-        "Server index must be an integer between 0 and 7",
+        "Server index must be a valid server",
       );
+    }
+
+    // Resolve current account to check transitions and device
+    const currentAccount = await this.getAccount(input.accountId);
+    if (!currentAccount) {
+      throw new ApiError("NOT_FOUND", `Account ${input.accountId} not found`);
+    }
+
+    // Transitioning into server 8 requires compatible runtime on the owning device.
+    // Preserving an already-persisted server 8 account during unrelated edits is permitted.
+    if (input.serverIndex === BACH_HO_LOGICAL_ID && currentAccount.serverId !== BACH_HO_LOGICAL_ID) {
+      const device = await this.getDevice(currentAccount.deviceId);
+      if (!isBachHoSupportedOnDevice(device)) {
+        throw new ApiError(
+          "UNSUPPORTED_SERVER",
+          `Device ${currentAccount.deviceId} does not support Bạch Hổ server (requires compatible v4.0.3 runtime).`,
+        );
+      }
     }
 
     let usernameArg: string | null = null;
@@ -589,11 +613,8 @@ export class SupabaseApi implements ZeusApi {
         throw new ApiError("INVALID_ACCOUNT_INPUT", "Password must not be empty");
       }
 
-      // 1. Resolve current account to obtain target deviceId
-      const account = await this.getAccount(input.accountId);
-      if (!account) {
-        throw new ApiError("NOT_FOUND", `Account ${input.accountId} not found`);
-      }
+      // 1. Target deviceId from resolved account
+      const account = currentAccount;
 
       // 2. Fetch canonical device sealing pubkey RPC
       const { data: pubkey, error: pubkeyError } = await supabase.rpc(

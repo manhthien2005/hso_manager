@@ -37,10 +37,14 @@ register("data:text/javascript," + encodeURIComponent(hookCode), import.meta.url
 async function verifyCatalog(): Promise<void> {
   const {
     GENERATED_GAME_MAPS,
-    GENERATED_GAME_SERVERS,
     GENERATED_CATALOG_METADATA,
     GENERATED_GAME_MAP_BY_ID,
   } = await import("../src/lib/game-catalog.generated.ts");
+
+  const {
+    STABLE_SERVER_CATALOG,
+    GENERATED_SERVER_CATALOG_METADATA,
+  } = await import("../src/lib/server-catalog.generated.ts");
 
   const {
     GAME_MAP_DISPLAY_OVERRIDES,
@@ -84,8 +88,8 @@ async function verifyCatalog(): Promise<void> {
     console.error(`[FAIL] Generated travel-eligible map count is ${genTravelMaps.length}, expected 76`);
     errors++;
   }
-  if (GENERATED_GAME_SERVERS.length !== 8) {
-    console.error(`[FAIL] Generated server count is ${GENERATED_GAME_SERVERS.length}, expected 8`);
+  if (STABLE_SERVER_CATALOG.length !== 9) {
+    console.error(`[FAIL] Generated stable server count is ${STABLE_SERVER_CATALOG.length}, expected 9`);
     errors++;
   }
 
@@ -254,8 +258,8 @@ async function verifyCatalog(): Promise<void> {
 
   // ── 6. SERVER FACADE VERIFICATION ─────────────────────────────────────────────
   console.log("\n6. Verifying Server Facade (SERVER_OPTIONS)...");
-  if (SERVER_OPTIONS.length !== 8) {
-    console.error(`[FAIL] SERVER_OPTIONS length is ${SERVER_OPTIONS.length}, expected 8`);
+  if (SERVER_OPTIONS.length !== 9) {
+    console.error(`[FAIL] SERVER_OPTIONS length is ${SERVER_OPTIONS.length}, expected 9`);
     errors++;
   }
   if (DEFAULT_GAME_SERVER_PORT !== 19129) {
@@ -263,16 +267,16 @@ async function verifyCatalog(): Promise<void> {
     errors++;
   }
 
-  for (let i = 0; i < 8; i++) {
-    const gen = GENERATED_GAME_SERVERS[i];
+  for (let i = 0; i < 9; i++) {
+    const gen = STABLE_SERVER_CATALOG[i];
     const web = SERVER_OPTIONS[i];
     if (!gen || !web) {
       console.error(`[FAIL] Missing server at index ${i}`);
       errors++;
       continue;
     }
-    if (web.value !== gen.index) {
-      console.error(`[FAIL] Server index mismatch: web=${web.value}, gen=${gen.index}`);
+    if (web.value !== gen.logicalId) {
+      console.error(`[FAIL] Server index mismatch: web=${web.value}, gen=${gen.logicalId}`);
       errors++;
     }
     if (web.label !== gen.name) {
@@ -283,33 +287,37 @@ async function verifyCatalog(): Promise<void> {
       console.error(`[FAIL] Server host mismatch at index ${i}: web="${web.host}", gen="${gen.host}"`);
       errors++;
     }
-    if (web.port !== DEFAULT_GAME_SERVER_PORT) {
-      console.error(`[FAIL] Server port mismatch at index ${i}: web=${web.port}, expected=${DEFAULT_GAME_SERVER_PORT}`);
+    if (web.port !== gen.port) {
+      console.error(`[FAIL] Server port mismatch at index ${i}: web=${web.port}, expected=${gen.port}`);
       errors++;
     }
-    if (SERVER_NAME_BY_INDEX[gen.index] !== gen.name) {
-      console.error(`[FAIL] SERVER_NAME_BY_INDEX mismatch for index ${gen.index}`);
+    if (SERVER_NAME_BY_INDEX[gen.logicalId] !== gen.name) {
+      console.error(`[FAIL] SERVER_NAME_BY_INDEX mismatch for index ${gen.logicalId}`);
       errors++;
     }
-    if (getServerOption(gen.index) !== web) {
-      console.error(`[FAIL] getServerOption(${gen.index}) failed`);
+    if (getServerOption(gen.logicalId) !== web) {
+      console.error(`[FAIL] getServerOption(${gen.logicalId}) failed`);
       errors++;
     }
-    if (getServerName(gen.index) !== gen.name) {
-      console.error(`[FAIL] getServerName(${gen.index}) failed`);
+    if (getServerName(gen.logicalId) !== gen.name) {
+      console.error(`[FAIL] getServerName(${gen.logicalId}) failed`);
       errors++;
     }
-    if (formatServerDisplay(gen.index) !== gen.name) {
-      console.error(`[FAIL] formatServerDisplay(${gen.index}) failed`);
+    if (formatServerDisplay(gen.logicalId) !== gen.name) {
+      console.error(`[FAIL] formatServerDisplay(${gen.logicalId}) failed`);
       errors++;
     }
+  }
+  if (formatServerDisplay(8) !== "Bạch Hổ New") {
+    console.error(`[FAIL] formatServerDisplay(8) !== "Bạch Hổ New", got "${formatServerDisplay(8)}"`);
+    errors++;
   }
   if (formatServerDisplay(null) !== "—") {
     console.error("[FAIL] formatServerDisplay(null) !== \"—\"");
     errors++;
   }
   if (errors === 0) {
-    console.log("   [PASS] 8/8 server records match generated identity and connection port policy 19129.");
+    console.log("   [PASS] 9/9 server records match generated stable identity and connection port policy 19129.");
   }
 
   // ── 7. ATTACK MAP-0 CONTRACT REGRESSION CHECK ─────────────────────────────────

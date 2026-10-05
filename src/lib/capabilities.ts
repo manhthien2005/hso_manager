@@ -343,3 +343,47 @@ export function validateCharacterSlotSelection(
   return `Máy chủ hiện tại chưa hỗ trợ ${CHARACTER_SLOT_LABELS[slot]}. Vui lòng chọn Slot 1 hoặc cập nhật runtime mới.`;
 }
 
+/**
+ * Exact CTL version required for Bạch Hổ server capability.
+ */
+export const BACH_HO_REQUIRED_CTL_VERSION = 15;
+
+/**
+ * Set of proven compatible JAR SHA256 hashes for Bạch Hổ server (v4.0.3).
+ * Designed so future compatible artifact SHAs can be added deliberately.
+ */
+export const COMPATIBLE_BACH_HO_JAR_SHAS: ReadonlySet<string> = new Set([
+  "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d",
+]);
+
+/**
+ * Centralized evaluator for Bạch Hổ runtime compatibility.
+ * Requires both a proven compatible JAR SHA256 and CTL version 15.
+ * Fails closed on null, undefined, unknown, or historical CTL-15 runtimes.
+ */
+export function isBachHoRuntimeCompatible(
+  jarSha256: string | null | undefined,
+  ctlVersion: number | null | undefined,
+): boolean {
+  if (typeof jarSha256 !== "string" || typeof ctlVersion !== "number") {
+    return false;
+  }
+  const normalizedSha = jarSha256.trim().toLowerCase();
+  if (!COMPATIBLE_BACH_HO_JAR_SHAS.has(normalizedSha)) {
+    return false;
+  }
+  return ctlVersion === BACH_HO_REQUIRED_CTL_VERSION;
+}
+
+/**
+ * Checks whether a device currently reports a runtime proven compatible with Bạch Hổ.
+ * Fails closed if device is null, or if device has not reported jar_sha256 or jar_ctl_version.
+ */
+export function isBachHoSupportedOnDevice(
+  device: Pick<Device, "jar_sha256" | "jar_ctl_version"> | null | undefined,
+): boolean {
+  if (!device) {
+    return false;
+  }
+  return isBachHoRuntimeCompatible(device.jar_sha256, device.jar_ctl_version);
+}

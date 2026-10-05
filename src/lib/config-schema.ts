@@ -538,12 +538,17 @@ export const CONTROL_SCHEMA: Record<number, ConfigSection[]> = {
     VISUAL_QOL_SECTION,
     ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
   ],
+  15: [
+    ...CONTROL_SCHEMA_V13.filter((s) => s.id !== "hidden_internal"),
+    VISUAL_QOL_SECTION,
+    ...CONTROL_SCHEMA_V13.filter((s) => s.id === "hidden_internal"),
+  ],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Default control draft for a brand-new account (all modules off). */
-export function defaultControlDraft(version: number = 13): ConfigDraft {
+export function defaultControlDraft(_version: number = 13): ConfigDraft {
   return {
     "atk.mode": 0,
     "atk.map": 0,
@@ -777,6 +782,9 @@ export interface VersionSelectionInput {
  * - Existing v13 account + device not capable => preserve v13.
  */
 export function determineControlVersionForSave(input: VersionSelectionInput): number {
+  if (input.accountControlVersion === 15) {
+    return 15;
+  }
   const currentVersion = input.accountControlVersion === 14 ? 14 : 13;
   if (currentVersion === 14) {
     return 14;

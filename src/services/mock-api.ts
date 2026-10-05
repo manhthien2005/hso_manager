@@ -32,7 +32,8 @@ import type {
   EnhancementQueueItem,
   ViewerSession,
 } from "@/lib/types";
-import { hasEnhancementQueueCapability } from "@/lib/capabilities";
+import { hasEnhancementQueueCapability, isBachHoSupportedOnDevice } from "@/lib/capabilities";
+import { BACH_HO_LOGICAL_ID, isValidServerIndex } from "@/lib/game-servers";
 import { clampNumber } from "@/lib/format";
 import {
   type AuthoritativeQueueWithItems,
@@ -137,6 +138,15 @@ function setDevice(deviceId: string, patch: Partial<Device>): Device {
   );
   emit({ device: next });
   return next;
+}
+
+export function setMockDevice(deviceId: string, patch: Partial<Device>): Device {
+  return setDevice(deviceId, patch);
+}
+
+export function resetMockState(): void {
+  stopTick();
+  state = null;
 }
 
 function requireOnline(device: Device): void {
@@ -449,16 +459,23 @@ export const mockApi: ZeusApi = {
     if (
       typeof input.serverIndex !== "number" ||
       !Number.isInteger(input.serverIndex) ||
-      input.serverIndex < 0 ||
-      input.serverIndex > 7
+      !isValidServerIndex(input.serverIndex)
     ) {
       throw new ApiError(
         "INVALID_ACCOUNT_INPUT",
-        "Server index must be an integer between 0 and 7",
+        "Server index must be a valid server",
       );
     }
 
     const device = findDevice(input.deviceId);
+
+    if (input.serverIndex === BACH_HO_LOGICAL_ID && !isBachHoSupportedOnDevice(device)) {
+      throw new ApiError(
+        "UNSUPPORTED_SERVER",
+        `Device ${input.deviceId} does not support Bạch Hổ server (requires compatible v4.0.3 runtime).`,
+      );
+    }
+
     const ctlVersion = device.jar_ctl_version;
     if (ctlVersion === null || ctlVersion <= 0 || !CONTROL_SCHEMA[ctlVersion]) {
       throw new ApiError(
@@ -509,16 +526,25 @@ export const mockApi: ZeusApi = {
     if (
       typeof input.serverIndex !== "number" ||
       !Number.isInteger(input.serverIndex) ||
-      input.serverIndex < 0 ||
-      input.serverIndex > 7
+      !isValidServerIndex(input.serverIndex)
     ) {
       throw new ApiError(
         "INVALID_ACCOUNT_INPUT",
-        "Server index must be an integer between 0 and 7",
+        "Server index must be a valid server",
       );
     }
 
     const current = findAccount(input.accountId);
+
+    if (input.serverIndex === BACH_HO_LOGICAL_ID && current.serverId !== BACH_HO_LOGICAL_ID) {
+      const device = findDevice(current.deviceId);
+      if (!isBachHoSupportedOnDevice(device)) {
+        throw new ApiError(
+          "UNSUPPORTED_SERVER",
+          `Device ${current.deviceId} does not support Bạch Hổ server (requires compatible v4.0.3 runtime).`,
+        );
+      }
+    }
 
     const patch: Partial<Account> = {
       label: input.label.trim(),

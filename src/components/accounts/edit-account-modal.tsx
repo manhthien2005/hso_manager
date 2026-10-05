@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextField } from "@/components/ui/field";
 import {
+  isBachHoSupportedOnDevice,
   isCharacterSlotAvailableOnDevice,
   isValidCharacterSlot,
   validateCharacterSlotSelection,
 } from "@/lib/capabilities";
-import { SERVER_OPTIONS } from "@/lib/game-servers";
+import { BACH_HO_LOGICAL_ID, SERVER_OPTIONS, isValidServerIndex } from "@/lib/game-servers";
 import type { Account, CharacterSlot, UpdateAccountInput } from "@/lib/types";
 import { describeError } from "@/services/api";
 import { pendingKey, useZeusStore } from "@/store/zeus-store";
@@ -49,8 +50,10 @@ function EditAccountModalContent({
 
   const device = getDevice(account.deviceId) ?? devices.find((d) => d.deviceId === account.deviceId);
   const isSlotCapable = isCharacterSlotAvailableOnDevice(device);
+  const isBachHoCapable = isBachHoSupportedOnDevice(device);
 
   const initialServer = account.serverId ?? account.config?.serverId ?? 0;
+  const isStoredServerBachHo = initialServer === BACH_HO_LOGICAL_ID;
   const currentUsername = account.config.accountName;
   const initialSlot = (account.character_slot ?? 1) as CharacterSlot;
 
@@ -110,15 +113,22 @@ function EditAccountModalContent({
       newErrors.password = "Bắt buộc nhập mật khẩu khi thay đổi tên đăng nhập.";
     }
 
+    const currentDevice = getDevice(account.deviceId) ?? devices.find((d) => d.deviceId === account.deviceId);
+
     if (
       typeof serverIndex !== "number" ||
       !Number.isInteger(serverIndex) ||
-      !SERVER_OPTIONS.some((server) => server.value === serverIndex)
+      !isValidServerIndex(serverIndex)
     ) {
       newErrors.serverIndex = "Vui lòng chọn một máy chủ game hợp lệ";
+    } else if (
+      serverIndex === BACH_HO_LOGICAL_ID &&
+      !isStoredServerBachHo &&
+      !isBachHoSupportedOnDevice(currentDevice)
+    ) {
+      newErrors.serverIndex = "Máy chủ Bạch Hổ yêu cầu thiết bị chạy runtime tương thích (v4.0.3 CTL 15).";
     }
 
-    const currentDevice = getDevice(account.deviceId) ?? devices.find((d) => d.deviceId === account.deviceId);
     const currentCapable = isCharacterSlotAvailableOnDevice(currentDevice);
     const slotError = validateCharacterSlotSelection(characterSlot, currentCapable, initialSlot);
     if (slotError) {
@@ -163,12 +173,32 @@ function EditAccountModalContent({
       setPassword("");
       onClose();
 
-      if (isRunning && (serverChanged || credentialsChanged || slotChanged)) {
-        push(
-          "info",
-          "Đã cập nhật tài khoản",
-          "Đã lưu. Khởi động lại tài khoản để áp dụng thay đổi máy chủ, thông tin đăng nhập hoặc vị trí nhân vật.",
-        );
+      if (isRunning) {
+        if ((serverChanged || credentialsChanged) && slotChanged) {
+          push(
+            "info",
+            "Đã cập nhật tài khoản",
+            "Đã lưu. Thay đổi máy chủ / thông tin đăng nhập sẽ tự động áp dụng qua khởi động lại runtime. Riêng thay đổi vị trí nhân vật cần khởi động lại thủ công.",
+          );
+        } else if (serverChanged || credentialsChanged) {
+          push(
+            "success",
+            "Đã cập nhật tài khoản",
+            "Đã lưu. Thay đổi máy chủ hoặc thông tin đăng nhập đang được áp dụng tự động qua khởi động lại runtime có kiểm soát.",
+          );
+        } else if (slotChanged) {
+          push(
+            "info",
+            "Đã cập nhật tài khoản",
+            "Đã lưu. Thay đổi vị trí nhân vật sẽ có hiệu lực sau khi khởi động lại tài khoản.",
+          );
+        } else {
+          push(
+            "success",
+            "Đã cập nhật tài khoản",
+            `Tài khoản ${updated.label} đã được cập nhật thành công.`,
+          );
+        }
       } else {
         push(
           "success",
@@ -202,6 +232,24 @@ function EditAccountModalContent({
       disabled: !isSlotCapable && initialSlot !== 3,
     },
   ];
+
+  const serverSelectOptions = SERVER_OPTIONS.map((server) => {
+    if (server.value === BACH_HO_LOGICAL_ID) {
+      const isAvailable = isBachHoCapable || isStoredServerBachHo;
+      return {
+        value: server.value,
+        label:
+          isAvailable
+            ? server.label + (isStoredServerBachHo && !isBachHoCapable ? " (Hiện tại — Chưa xác minh runtime)" : "")
+            : `${server.label} — Cần runtime tương thích`,
+        disabled: !isAvailable,
+      };
+    }
+    return {
+      value: server.value,
+      label: server.label,
+    };
+  });
 
   return (
     <div
@@ -239,7 +287,7 @@ function EditAccountModalContent({
             role="alert"
             className="mb-4 rounded-md border border-accent/30 bg-accent/10 p-3 text-xs text-foreground/90"
           >
-            Tài khoản này hiện đang hoạt động. Thay đổi máy chủ, thông tin đăng nhập hoặc vị trí nhân vật sẽ có hiệu lực sau khi khởi động lại tài khoản.
+            Tài khoản này hiện đang hoạt động. Thay đổi máy chủ hoặc thông tin đăng nhập sẽ tự động áp dụng qua khởi động lại runtime có kiểm soát. Riêng thay đổi vị trí nhân vật (slot) chỉ có hiệu lực sau khi khởi động lại thủ công.
           </div>
         ) : null}
 
@@ -261,7 +309,7 @@ function EditAccountModalContent({
             <SelectField
               id="edit-account-server"
               label="Máy chủ game"
-              options={[...SERVER_OPTIONS]}
+              options={serverSelectOptions}
               value={serverIndex}
               onChange={(e) => {
                 setServerIndex(Number(e.target.value));
