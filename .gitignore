@@ -63,6 +63,7 @@ desktop.ini
 *.bak
 *.swp
 *~
+supabase/.temp/
 
 # Agent Skills & Local Tooling
 .agents/

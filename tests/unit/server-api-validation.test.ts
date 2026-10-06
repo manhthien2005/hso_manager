@@ -46,7 +46,8 @@ const { BACH_HO_LOGICAL_ID } = await import("../../src/lib/game-servers");
 
 const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
 const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-const FORGE_FIX_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
+const FORGE_FIX_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
+const FAILED_FORGE_CANDIDATE_278F_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
 
 describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
   let devices: any[];
@@ -138,6 +139,32 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
         await mockApi.createAccount({
           deviceId: devices[0].deviceId,
           label: "Test Bach Ho Incompatible",
+          username: "bachho_user",
+          password: "password123",
+          serverIndex: BACH_HO_LOGICAL_ID,
+          character_slot: 1,
+        });
+      },
+      (err: any) => {
+        assert.ok(err instanceof ApiError);
+        assert.equal(err.code, "UNSUPPORTED_SERVER");
+        return true;
+      },
+    );
+  });
+
+  it("Bạch Hổ create on rolled-back forge candidate 278f device rejected", async () => {
+    setMockDevice(devices[0].deviceId, {
+      jar_sha256: FAILED_FORGE_CANDIDATE_278F_SHA,
+      jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
+    });
+
+    await assert.rejects(
+      async () => {
+        await mockApi.createAccount({
+          deviceId: devices[0].deviceId,
+          label: "Test Bach Ho Candidate 278f Rejected",
           username: "bachho_user",
           password: "password123",
           serverIndex: BACH_HO_LOGICAL_ID,
