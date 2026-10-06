@@ -9,7 +9,7 @@
 --   2. Retains audited v4.0.3 movement-fixed JAR:
 --      '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a'
 --   3. Adds audited v4.0.3 forge-fixed JAR:
---      'd369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a'
+--      '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
 --
 -- Safety & Invariant Guarantees:
 --   - Does NOT modify migration 022 or 023.
@@ -89,7 +89,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            'd369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a'
+            '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15
@@ -204,7 +204,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            'd369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a'
+            '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
           )
        OR v_device_jar_ctl_version <> 15
        OR NOT public.agent_has_exact_capability(v_device_agent_version, 'managed-identity-restart-v1') THEN
@@ -358,7 +358,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            'd369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a'
+            '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15

@@ -24,7 +24,7 @@ describe("Migration 024: Bạch Hổ Forge Fix Contract Invariants", () => {
 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
+  const FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
 
   it("migration 022 and 023 exist and are untouched", () => {
     assert.ok(fs.existsSync(file022), "022 must exist");
@@ -57,6 +57,8 @@ describe("Migration 024: Bạch Hổ Forge Fix Contract Invariants", () => {
     assert.match(sql024, new RegExp(BASE_SHA));
     assert.match(sql024, new RegExp(MOV_SHA));
     assert.match(sql024, new RegExp(FORGE_SHA));
+    assert.doesNotMatch(sql024, /0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216/i, "Obsolete candidate 0bdda must not be present");
+    assert.doesNotMatch(sql024, /d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a/i, "Obsolete candidate d369 must not be present");
 
     // Verify SHA count matches expectation across the 3 functions
     const baseMatches = sql024.match(new RegExp(BASE_SHA, "g"));

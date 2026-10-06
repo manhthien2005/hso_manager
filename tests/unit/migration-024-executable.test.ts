@@ -10,7 +10,7 @@
  * 5. Existing server 8 rows and legacy 0..7 rows survive migration 024 unchanged.
  * 6. Base SHA 4009f070... + CTL 15 + capability => Bach Ho compatible.
  * 7. Movement-fix SHA 51cb7d4e... + CTL 15 + capability => Bach Ho compatible.
- * 8. Forge-fix SHA d369b2ed... + CTL 15 + capability => Bach Ho compatible.
+ * 8. Forge-fix SHA 278f3754... + CTL 15 + capability => Bach Ho compatible.
  * 9. Arbitrary SHA => rejected.
  * 10. Forge-fix SHA + CTL 14 => rejected.
  * 11. Forge-fix SHA without exact managed-identity-restart-v1 => rejected.
@@ -45,7 +45,9 @@ describe("Migration 024: Real PostgreSQL Executable Migration & Compatibility Ex
 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
+  const FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
+  const OBSOLETE_0BDDA_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
+  const OBSOLETE_D369_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
   const ARBITRARY_SHA = "9999999999999999999999999999999999999999999999999999999999999999";
 
   const userA = "11111111-1111-1111-1111-111111111111";
@@ -58,6 +60,8 @@ describe("Migration 024: Real PostgreSQL Executable Migration & Compatibility Ex
   const devForgeNoTok = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
   const devArbitrary  = "ffffffff-ffff-ffff-ffff-ffffffffffff";
   const devForeignB   = "12121212-1212-1212-1212-121212121212";
+  const devObsolete0bdda = "33333333-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+  const devObsoleteD369  = "44444444-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
   const accLegacy = "55555555-5555-5555-5555-555555555555";
   const accServer8Pre024A = "66666666-6666-6666-6666-666666666666";
@@ -172,7 +176,9 @@ INSERT INTO public.devices (id, user_id, device_auth_id, name, status, agent_ver
   ('${devForgeCtl14}',  '${userA}', gen_random_uuid(), 'dev-forge-ctl14', 'online', '0.1.0+managed-identity-restart-v1', 14, '${FORGE_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=', 'base64'), 20),
   ('${devForgeNoTok}',  '${userA}', gen_random_uuid(), 'dev-forge-notok', 'online', '0.1.0+visual-qol-v1', 15, '${FORGE_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU=', 'base64'), 20),
   ('${devArbitrary}',   '${userA}', gen_random_uuid(), 'dev-arbitrary',   'online', '0.1.0+managed-identity-restart-v1', 15, '${ARBITRARY_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY=', 'base64'), 20),
-  ('${devForeignB}',    '${userB}', gen_random_uuid(), 'dev-foreign',     'online', '0.1.0+managed-identity-restart-v1', 15, '${FORGE_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAc=', 'base64'), 20);
+  ('${devForeignB}',    '${userB}', gen_random_uuid(), 'dev-foreign',     'online', '0.1.0+managed-identity-restart-v1', 15, '${FORGE_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAc=', 'base64'), 20),
+  ('${devObsolete0bdda}', '${userA}', gen_random_uuid(), 'dev-obsolete-0bdda', 'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_0BDDA_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAg=', 'base64'), 20),
+  ('${devObsoleteD369}',  '${userA}', gen_random_uuid(), 'dev-obsolete-d369',  'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_D369_SHA}',  decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAk=', 'base64'), 20);
 
 -- Seed accounts: legacy 0..7 and existing server 8 under migration 023
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index) VALUES
@@ -233,7 +239,7 @@ VALUES ('${devMovCompat}', '${userA}', 'Mov SHA Server 8 Post-024', 11, 'movsha8
     assert.equal(res.status, 0, `Mov SHA insert failed: ${res.stderr}`);
   });
 
-  it("8. Forge-fix SHA d369b2ed... is accepted for server 8 insert and transition", () => {
+  it("8. Forge-fix SHA 278f3754... is accepted for server 8 insert and transition", () => {
     const insertSql = `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${accNewForgeFix}', '${devForgeCompat}', '${userA}', 'Forge SHA Server 8 Post-024', 12, 'forgesha8', 8);
@@ -254,6 +260,22 @@ VALUES ('${devArbitrary}', '${userA}', 'Arbitrary SHA Server 8', 13, 'arbsha8', 
     const res = runPsql(testDbName, insertSql);
     assert.notEqual(res.status, 0);
     assert.match(res.stderr, /is not compatible with Bach Ho server/);
+  });
+
+  it("9b. Obsolete candidate SHAs 0bdda and d369 => rejected for Bach Ho", () => {
+    const res0bdda = runPsql(testDbName, `
+INSERT INTO public.accounts (device_id, user_id, label, slot_index, username, server_index)
+VALUES ('${devObsolete0bdda}', '${userA}', 'Obsolete 0bdda', 16, 'obs0bdda', 8);
+`);
+    assert.notEqual(res0bdda.status, 0);
+    assert.match(res0bdda.stderr, /is not compatible with Bach Ho server/);
+
+    const resD369 = runPsql(testDbName, `
+INSERT INTO public.accounts (device_id, user_id, label, slot_index, username, server_index)
+VALUES ('${devObsoleteD369}', '${userA}', 'Obsolete d369', 17, 'obsd369', 8);
+`);
+    assert.notEqual(resD369.status, 0);
+    assert.match(resD369.stderr, /is not compatible with Bach Ho server/);
   });
 
   it("10. Forge-fix SHA + CTL 14 => rejected for Bach Ho", () => {

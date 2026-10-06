@@ -46,7 +46,7 @@ const { BACH_HO_LOGICAL_ID } = await import("../../src/lib/game-servers");
 
 const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
 const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-const FORGE_FIX_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
+const FORGE_FIX_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
 
 describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
   let devices: any[];
