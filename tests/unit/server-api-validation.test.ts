@@ -46,6 +46,7 @@ const { BACH_HO_LOGICAL_ID } = await import("../../src/lib/game-servers");
 
 const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
 const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
+const FORGE_FIX_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
 
 describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
   let devices: any[];
@@ -99,6 +100,24 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
       deviceId: devices[0].deviceId,
       label: "Test Bach Ho Movement Fix Capable",
       username: "bachho_user_mov",
+      password: "password123",
+      serverIndex: BACH_HO_LOGICAL_ID,
+      character_slot: 1,
+    });
+    assert.equal(acc.serverId, 8);
+  });
+
+  it("Bạch Hổ create on forge-fix capable device accepted", async () => {
+    setMockDevice(devices[0].deviceId, {
+      jar_sha256: FORGE_FIX_SHA,
+      jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
+    });
+
+    const acc = await mockApi.createAccount({
+      deviceId: devices[0].deviceId,
+      label: "Test Bach Ho Forge Fix Capable",
+      username: "bachho_user_forge",
       password: "password123",
       serverIndex: BACH_HO_LOGICAL_ID,
       character_slot: 1,
@@ -184,6 +203,21 @@ describe("Web API Server & Bạch Hổ Capability Validation Tests", () => {
     const updated = await mockApi.updateAccount({
       accountId: "acc_01",
       label: "Account 01 - Switched to 8 via movement fix",
+      serverIndex: 8,
+    });
+    assert.equal(updated.serverId, 8);
+  });
+
+  it("legacy -> Bạch Hổ update on forge-fix capable device accepted", async () => {
+    setMockDevice(devices[0].deviceId, {
+      jar_sha256: FORGE_FIX_SHA,
+      jar_ctl_version: 15,
+      agentVersion: "0.4.2+managed-identity-restart-v1",
+    });
+
+    const updated = await mockApi.updateAccount({
+      accountId: "acc_01",
+      label: "Account 01 - Switched to 8 via forge fix",
       serverIndex: 8,
     });
     assert.equal(updated.serverId, 8);

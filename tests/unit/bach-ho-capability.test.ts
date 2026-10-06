@@ -44,6 +44,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
 
   const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
+  const FORGE_FIX_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
   const HISTORICAL_B18_SHA = "b18baf709e7c5ecbc0c8b6b1076b1f20b784a9e3e78bdf1b4a2bfec19280d0d1";
   const R1_BD15_SHA = "bd15eea25df4b2aa929ecdf2fcf795ccebeae876f296c0502dc85ec280f33333";
 
@@ -55,7 +56,8 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(BACH_HO_REQUIRED_CTL_VERSION, 15);
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(R2_3_SHA));
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(MOVEMENT_FIX_SHA));
-    assert.equal(COMPATIBLE_BACH_HO_JAR_SHAS.size, 2);
+    assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(FORGE_FIX_SHA));
+    assert.equal(COMPATIBLE_BACH_HO_JAR_SHAS.size, 3);
     assert.equal(MANAGED_IDENTITY_RESTART_CAPABILITY_TOKEN, "managed-identity-restart-v1");
   });
 
@@ -70,7 +72,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(hasManagedIdentityRestartCapability(""), false);
   });
 
-  it("correct JAR + CTL15 + token -> compatible (both R2.3 and movement-fix JAR)", () => {
+  it("correct JAR + CTL15 + token -> compatible (R2.3, movement-fix, and forge-fix JARs)", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, VALID_AGENT_VERSION), true);
     // Case insensitivity of JAR SHA
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
@@ -78,16 +80,22 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     // Movement-fix SHA
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA, 15, VALID_AGENT_VERSION), true);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
+
+    // Forge-fix SHA
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, VALID_AGENT_VERSION), true);
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
   });
 
   it("correct JAR + CTL15 + no token -> incompatible", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
   });
 
   it("correct JAR + CTL15 + near-match token -> incompatible", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
   });
 
   it("substring, prefix, or suffix tampering on valid SHA -> incompatible", () => {
@@ -95,6 +103,9 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA.slice(0, 32), 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA + "a", 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible("a" + MOVEMENT_FIX_SHA, 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA.slice(0, 32), 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA + "a", 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible("a" + FORGE_FIX_SHA, 15, VALID_AGENT_VERSION), false);
   });
 
   it("old JAR + token -> incompatible", () => {
@@ -138,6 +149,14 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
       agentVersion: VALID_AGENT_VERSION,
     };
     assert.equal(isBachHoSupportedOnDevice(capableMovementFixDevice), true);
+
+    // Capable device with forge-fix JAR
+    const capableForgeFixDevice = {
+      jar_sha256: FORGE_FIX_SHA,
+      jar_ctl_version: 15,
+      agentVersion: VALID_AGENT_VERSION,
+    };
+    assert.equal(isBachHoSupportedOnDevice(capableForgeFixDevice), true);
 
     // Support camelCase or snake_case agent_version
     const snakeCaseDevice = {
