@@ -1,6 +1,6 @@
 /**
  * Migration 025: Executable Real-PostgreSQL Migration Proof & Blacksmith Intro Dialog Fix Tests
- * Task: KNIGHT_V403_R4_9_BLACKSMITH_INTRO_DIALOG_LIVE_FORENSIC_AND_FIX
+ * Task: KNIGHT_V403_R4_9_1_HARDEN_BLACKSMITH_DIALOG_OWNERSHIP_BEFORE_RELEASE
  *
  * Proves that:
  * 1. Clean database starts and Supabase baseline environment bootstraps.
@@ -10,15 +10,15 @@
  * 5. Pre-existing server 8 rows (including 278f...) and legacy 0..7 rows survive migration 025 unchanged.
  * 6. Base SHA 4009f070... + CTL 15 + capability => Bach Ho compatible.
  * 7. Movement-fix SHA 51cb7d4e... + CTL 15 + capability => Bach Ho compatible.
- * 8. Blacksmith intro dialog fix SHA 47e4d766... + CTL 15 + capability => Bach Ho compatible.
- * 9. Rolled-back candidate SHA 278f3754... => REJECTED for new inserts and transitions to server 8.
+ * 8. Hardened blacksmith intro dialog fix SHA 24e9a820... + CTL 15 + capability => Bach Ho compatible.
+ * 9. Rolled-back candidate SHA 278f3754... and failed candidate SHA 47e4d766... => REJECTED for new inserts and transitions to server 8.
  * 10. Arbitrary SHA and obsolete candidates (0bdda, d369) => REJECTED.
  * 11. Dialog-fix SHA + CTL 14 => rejected.
  * 12. Dialog-fix SHA without exact managed-identity-restart-v1 => rejected.
  * 13. Immutability of user_id / device_id and foreign device ownership checks preserved.
  * 14. Transition server 8 -> legacy and metadata-only edit on pre-existing row preserved.
- * 15. RPC create_game_account accepts 47e4d766..., 4009..., 51cb... and rejects 278f... and arbitrary.
- * 16. RPC update_game_account accepts 47e4d766..., 4009..., 51cb... and rejects 278f... and arbitrary.
+ * 15. RPC create_game_account accepts 24e9a820..., 4009..., 51cb... and rejects 278f..., 47e4... and arbitrary.
+ * 16. RPC update_game_account accepts 24e9a820..., 4009..., 51cb... and rejects 278f..., 47e4... and arbitrary.
  */
 
 import { describe, it } from "node:test";
@@ -46,8 +46,9 @@ describe("Migration 025: Real PostgreSQL Executable Migration & Blacksmith Intro
 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const DIALOG_FIX_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
+  const DIALOG_FIX_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
   const ROLLED_BACK_FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
+  const FAILED_47E4_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
   const OBSOLETE_0BDDA_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
   const OBSOLETE_D369_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
   const ARBITRARY_SHA = "9999999999999999999999999999999999999999999999999999999999999999";
@@ -59,6 +60,7 @@ describe("Migration 025: Real PostgreSQL Executable Migration & Blacksmith Intro
   const devMovCompat      = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
   const devDialogCompat   = "cccccccc-cccc-cccc-cccc-cccccccccccc";
   const devRolledBack278f = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+  const devFailed47e4     = "12121212-aaaa-bbbb-cccc-dddddddddddd";
   const devDialogCtl14    = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
   const devDialogNoTok    = "ffffffff-ffff-ffff-ffff-ffffffffffff";
   const devArbitrary      = "11111111-aaaa-bbbb-cccc-dddddddddddd";
@@ -178,6 +180,7 @@ INSERT INTO public.devices (id, user_id, device_auth_id, name, status, agent_ver
   ('${devMovCompat}',      '${userA}', gen_random_uuid(), 'dev-mov-compat',     'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${MOV_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=', 'base64'), 20),
   ('${devDialogCompat}',   '${userA}', gen_random_uuid(), 'dev-dialog-compat',  'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${DIALOG_FIX_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM=', 'base64'), 20),
   ('${devRolledBack278f}', '${userA}', gen_random_uuid(), 'dev-rolledback-278f','online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${ROLLED_BACK_FORGE_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=', 'base64'), 20),
+  ('${devFailed47e4}',     '${userA}', gen_random_uuid(), 'dev-failed-47e4',    'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${FAILED_47E4_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGM=', 'base64'), 20),
   ('${devDialogCtl14}',    '${userA}', gen_random_uuid(), 'dev-dialog-ctl14',   'online', '0.1.0+managed-identity-restart-v1', 14, '${DIALOG_FIX_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU=', 'base64'), 20),
   ('${devDialogNoTok}',    '${userA}', gen_random_uuid(), 'dev-dialog-notok',   'online', '0.1.0+visual-qol-v1', 15, '${DIALOG_FIX_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY=', 'base64'), 20),
   ('${devArbitrary}',      '${userA}', gen_random_uuid(), 'dev-arbitrary',      'online', '0.1.0+managed-identity-restart-v1', 15, '${ARBITRARY_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAc=', 'base64'), 20),
@@ -249,7 +252,7 @@ VALUES ('${devMovCompat}', '${userA}', 'Mov SHA Server 8 Post-025', 11, 'movsha8
     assert.equal(res.status, 0, `Mov SHA insert failed: ${res.stderr}`);
   });
 
-  it("8. Blacksmith intro dialog fix SHA 47e4d766... is accepted for server 8 insert and transition", () => {
+  it("8. Hardened blacksmith intro dialog fix SHA 24e9a820... is accepted for server 8 insert and transition", () => {
     const insertSql = `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${accNewDialogFix}', '${devDialogCompat}', '${userA}', 'Dialog SHA Server 8 Post-025', 12, 'dialogsha8', 8);
@@ -262,14 +265,22 @@ VALUES ('${accNewDialogFix}', '${devDialogCompat}', '${userA}', 'Dialog SHA Serv
     assert.match(checkRes.stdout, /1/);
   });
 
-  it("9. Rolled-back candidate SHA 278f3754... is REJECTED for server 8 insert and transition", () => {
-    const insertSql = `
+  it("9. Rolled-back candidate SHA 278f3754... and candidate 47e4d766... are REJECTED for server 8 insert and transition", () => {
+    const insertSql278 = `
 INSERT INTO public.accounts (device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${devRolledBack278f}', '${userA}', 'Rolled Back Candidate 278f', 13, 'cand278f', 8);
 `;
-    const res = runPsql(testDbName, insertSql);
-    assert.notEqual(res.status, 0, "Insert on candidate 278f must fail under migration 025");
-    assert.match(res.stderr, /is not compatible with Bach Ho server/);
+    const res278 = runPsql(testDbName, insertSql278);
+    assert.notEqual(res278.status, 0, "Insert on candidate 278f must fail under migration 025");
+    assert.match(res278.stderr, /is not compatible with Bach Ho server/);
+
+    const insertSql47e4 = `
+INSERT INTO public.accounts (device_id, user_id, label, slot_index, username, server_index)
+VALUES ('${devFailed47e4}', '${userA}', 'Failed Candidate 47e4', 13, 'cand47e4', 8);
+`;
+    const res47e4 = runPsql(testDbName, insertSql47e4);
+    assert.notEqual(res47e4.status, 0, "Insert on candidate 47e4 must fail under migration 025");
+    assert.match(res47e4.stderr, /is not compatible with Bach Ho server/);
   });
 
   it("10. Arbitrary SHA and obsolete candidate SHAs => rejected for Bach Ho", () => {
@@ -435,6 +446,27 @@ SELECT public.create_game_account(
     assert.notEqual(resCand278.status, 0);
     assert.match(resCand278.stderr, /not compatible with Bach Ho server/);
 
+    // D2) Failed candidate 47e4 rejected
+    const sqlCand47e4 = `
+SET ROLE authenticated;
+SET request.jwt.claim.sub = '${userA}';
+SET request.jwt.claim.role = 'authenticated';
+
+SELECT public.create_game_account(
+  '${devFailed47e4}'::uuid,
+  'RPC 47e4 Incompatible',
+  'rpc_47e4_incompat',
+  '${validSealedJson}'::jsonb,
+  8::smallint,
+  15,
+  '{}'::jsonb,
+  1::smallint
+);
+`;
+    const resCand47e4 = runPsql(testDbName, sqlCand47e4);
+    assert.notEqual(resCand47e4.status, 0);
+    assert.match(resCand47e4.stderr, /not compatible with Bach Ho server/);
+
     // E) Arbitrary SHA rejected
     const sqlIncompat = `
 SET ROLE authenticated;
@@ -457,14 +489,15 @@ SELECT public.create_game_account(
     assert.match(resIncompat.stderr, /not compatible with Bach Ho server/);
   });
 
-  it("16. RPC update_game_account accepts transition to server 8 for all 3 approved SHAs and rejects 278f", () => {
-    // Seed legacy accounts on three devices
+  it("16. RPC update_game_account accepts transition to server 8 for all 3 approved SHAs and rejects 278f and 47e4", () => {
+    // Seed legacy accounts on devices
     const seedSql = `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index) VALUES
   ('22222222-2222-2222-2222-222222222222', '${devBaseCompat}',     '${userA}', 'Legacy on Base Dev',   21, 'leg_base',   0),
   ('33333333-3333-3333-3333-333333333333', '${devMovCompat}',      '${userA}', 'Legacy on Mov Dev',    22, 'leg_mov',    0),
   ('44444444-4444-4444-4444-444444444444', '${devDialogCompat}',   '${userA}', 'Legacy on Dialog Dev', 23, 'leg_dialog', 0),
-  ('55555555-4444-4444-4444-444444444444', '${devRolledBack278f}', '${userA}', 'Legacy on 278 Dev',    24, 'leg_278',    0);
+  ('55555555-4444-4444-4444-444444444444', '${devRolledBack278f}', '${userA}', 'Legacy on 278 Dev',    24, 'leg_278',    0),
+  ('66666666-4444-4444-4444-444444444444', '${devFailed47e4}',     '${userA}', 'Legacy on 47e4 Dev',   25, 'leg_47e4',   0);
 `;
     runPsql(testDbName, seedSql);
 
@@ -540,6 +573,25 @@ SELECT public.update_game_account(
     const trans278Res = runPsql(testDbName, trans278Sql);
     assert.notEqual(trans278Res.status, 0);
     assert.match(trans278Res.stderr, /not compatible with Bach Ho server/);
+
+    // Transition on candidate 47e4 device REJECTED
+    const trans47e4Sql = `
+SET ROLE authenticated;
+SET request.jwt.claim.sub = '${userA}';
+SET request.jwt.claim.role = 'authenticated';
+
+SELECT public.update_game_account(
+  '66666666-4444-4444-4444-444444444444'::uuid,
+  'Transition on 47e4 Dev',
+  8::smallint,
+  NULL,
+  NULL,
+  1::smallint
+);
+`;
+    const trans47e4Res = runPsql(testDbName, trans47e4Sql);
+    assert.notEqual(trans47e4Res.status, 0);
+    assert.match(trans47e4Res.stderr, /not compatible with Bach Ho server/);
 
     // Verify all 3 approved are now on server 8
     const checkSql = `SELECT count(*) FROM public.accounts WHERE id IN ('22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444') AND server_index = 8;`;

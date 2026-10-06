@@ -8,8 +8,8 @@
  * 3. Migration 025 contains exactly the 3 approved Bạch Hổ JAR SHAs:
  *    - 4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d (v4.0.3 base)
  *    - 51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a (v4.0.3 movement fix)
- *    - 47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d (v4.0.3 intro dialog fix)
- * 4. Migration 025 explicitly excludes rolled-back / obsolete candidates (278f3754..., 0bdda..., d369...).
+ *    - 24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2 (v4.0.3 hardened intro dialog fix)
+ * 4. Migration 025 explicitly excludes rolled-back / obsolete candidates (278f3754..., 47e4d766..., 0bdda..., d369...).
  * 5. Migration 025 enforces exact CTL 15 and exact managed-identity-restart-v1 capability.
  * 6. Migration 025 preserves user_id / device_id immutability and ownership invariants.
  * 7. Migration 025 preserves create_game_account and update_game_account signatures and grants.
@@ -29,8 +29,9 @@ describe("Migration 025: Bạch Hổ Blacksmith Intro Dialog Fix Contract Invari
 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_DIALOG_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
+  const FORGE_DIALOG_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
   const ROLLED_BACK_FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
+  const FAILED_47E4_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
 
   it("migration 022, 023, and 024 exist and are untouched", () => {
     assert.ok(fs.existsSync(file022), "022 must exist");
@@ -55,6 +56,7 @@ describe("Migration 025: Bạch Hổ Blacksmith Intro Dialog Fix Contract Invari
     assert.match(sql024, new RegExp(MOV_SHA));
     assert.match(sql024, new RegExp(ROLLED_BACK_FORGE_SHA));
     assert.doesNotMatch(sql024, new RegExp(FORGE_DIALOG_SHA), "024 must remain strictly unmodified");
+    assert.doesNotMatch(sql024, new RegExp(FAILED_47E4_SHA), "024 must remain strictly unmodified");
   });
 
   it("migration 025 exists and is non-destructive", () => {
@@ -93,6 +95,7 @@ describe("Migration 025: Bạch Hổ Blacksmith Intro Dialog Fix Contract Invari
     while ((match = inClauseRegex.exec(sql025)) !== null) {
       const allowedList = match[1];
       assert.ok(!allowedList.includes(ROLLED_BACK_FORGE_SHA), "Candidate 278f3754 must NOT be in the NOT IN allowlist");
+      assert.ok(!allowedList.includes(FAILED_47E4_SHA), "Candidate 47e4d766 must NOT be in the NOT IN allowlist");
       clausesChecked++;
     }
     assert.equal(clausesChecked, 3, "Must verify all 3 NOT IN clauses");

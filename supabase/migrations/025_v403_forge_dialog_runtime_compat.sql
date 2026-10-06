@@ -1,17 +1,18 @@
 -- ==============================================================================
 -- Migration 025: Bạch Hổ Runtime Compatibility Update (Blacksmith Intro Dialog Fix v4.0.3)
 --
--- Task: KNIGHT_V403_R4_9_BLACKSMITH_INTRO_DIALOG_LIVE_FORENSIC_AND_FIX
+-- Task: KNIGHT_V403_R4_9_1_HARDEN_BLACKSMITH_DIALOG_OWNERSHIP_BEFORE_RELEASE
 --
 -- Replaces Bạch Hổ (server_index = 8) runtime compatibility allowlist:
 --   1. Retains audited v4.0.3 Bạch Hổ base JAR:
 --      '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d'
 --   2. Retains audited v4.0.3 movement-fixed JAR:
 --      '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a'
---   3. Adds audited v4.0.3 blacksmith intro dialog fixed JAR:
---      '47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d'
---   4. Explicitly revokes / omits failed candidate JAR:
+--   3. Adds audited v4.0.3 hardened blacksmith intro dialog fixed JAR:
+--      '24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2'
+--   4. Explicitly revokes / omits failed candidate JARs:
 --      '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
+--      '47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d'
 --
 -- Safety & Invariant Guarantees:
 --   - Does NOT modify migration 022, 023, or 024.
@@ -91,7 +92,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d'
+            '24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15
@@ -206,7 +207,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d'
+            '24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2'
           )
        OR v_device_jar_ctl_version <> 15
        OR NOT public.agent_has_exact_capability(v_device_agent_version, 'managed-identity-restart-v1') THEN
@@ -360,7 +361,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d'
+            '24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15
