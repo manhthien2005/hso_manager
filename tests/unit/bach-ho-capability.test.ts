@@ -44,7 +44,8 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
 
   const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_FIX_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
+  const FORGE_FIX_SHA = "b2bc6ceb5922ff05c7ae252741c7829e0d5cb81e74003d5035f80870744c6658";
+  const FAILED_FORGE_CANDIDATE_24E9_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
   const FAILED_FORGE_CANDIDATE_278F_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
   const FAILED_FORGE_CANDIDATE_47E4_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
   const OBSOLETE_0BDDA_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
@@ -61,6 +62,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(R2_3_SHA));
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(MOVEMENT_FIX_SHA));
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(FORGE_FIX_SHA));
+    assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_24E9_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_278F_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_47E4_SHA));
     assert.equal(COMPATIBLE_BACH_HO_JAR_SHAS.size, 3);
@@ -119,6 +121,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(isBachHoRuntimeCompatible(R1_BD15_SHA, 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(OBSOLETE_0BDDA_SHA, 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(OBSOLETE_D369_SHA, 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(FAILED_FORGE_CANDIDATE_24E9_SHA, 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(FAILED_FORGE_CANDIDATE_278F_SHA, 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(FAILED_FORGE_CANDIDATE_47E4_SHA, 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible("0000000000000000000000000000000000000000000000000000000000000000", 15, VALID_AGENT_VERSION), false);
