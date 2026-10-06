@@ -44,7 +44,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
 
   const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_FIX_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
+  const FORGE_FIX_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
   const HISTORICAL_B18_SHA = "b18baf709e7c5ecbc0c8b6b1076b1f20b784a9e3e78bdf1b4a2bfec19280d0d1";
   const R1_BD15_SHA = "bd15eea25df4b2aa929ecdf2fcf795ccebeae876f296c0502dc85ec280f33333";
 

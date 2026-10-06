@@ -10,7 +10,7 @@
  * 5. Existing server 8 rows and legacy 0..7 rows survive migration 024 unchanged.
  * 6. Base SHA 4009f070... + CTL 15 + capability => Bach Ho compatible.
  * 7. Movement-fix SHA 51cb7d4e... + CTL 15 + capability => Bach Ho compatible.
- * 8. Forge-fix SHA 0bddaee4... + CTL 15 + capability => Bach Ho compatible.
+ * 8. Forge-fix SHA d369b2ed... + CTL 15 + capability => Bach Ho compatible.
  * 9. Arbitrary SHA => rejected.
  * 10. Forge-fix SHA + CTL 14 => rejected.
  * 11. Forge-fix SHA without exact managed-identity-restart-v1 => rejected.
@@ -45,7 +45,7 @@ describe("Migration 024: Real PostgreSQL Executable Migration & Compatibility Ex
 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
-  const FORGE_SHA = "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216";
+  const FORGE_SHA = "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a";
   const ARBITRARY_SHA = "9999999999999999999999999999999999999999999999999999999999999999";
 
   const userA = "11111111-1111-1111-1111-111111111111";
@@ -233,7 +233,7 @@ VALUES ('${devMovCompat}', '${userA}', 'Mov SHA Server 8 Post-024', 11, 'movsha8
     assert.equal(res.status, 0, `Mov SHA insert failed: ${res.stderr}`);
   });
 
-  it("8. Forge-fix SHA 0bddaee4... is accepted for server 8 insert and transition", () => {
+  it("8. Forge-fix SHA d369b2ed... is accepted for server 8 insert and transition", () => {
     const insertSql = `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${accNewForgeFix}', '${devForgeCompat}', '${userA}', 'Forge SHA Server 8 Post-024', 12, 'forgesha8', 8);

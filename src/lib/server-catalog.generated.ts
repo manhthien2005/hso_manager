@@ -6,9 +6,9 @@
  *
  * PROVENANCE:
  *   source repository: https://github.com/manhthien2005/knight_build.git
- *   source commit:     761e40770d798397cb91730c5f7d1b5aecb926c3
+ *   source commit:     3e73a3051daae7eae4f8c1bbd761861dd1331338
  *   source path:       tool/crates/zeus-core/src/rms.rs
- *   source jar sha256: 0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216
+ *   source jar sha256: d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a
  *   CTL_VERSION:       15
  *   servers:           9
  */
@@ -32,8 +32,8 @@ export interface GeneratedServerCatalogMetadata {
 
 export const GENERATED_SERVER_CATALOG_METADATA: GeneratedServerCatalogMetadata = {
   "sourceRepository": "https://github.com/manhthien2005/knight_build.git",
-  "sourceCommit": "761e40770d798397cb91730c5f7d1b5aecb926c3",
-  "sourceJarSha256": "0bddaee4680f8521f4628f4d52399ceee161c4e5d0387eab3dbe48cf662e8216",
+  "sourceCommit": "3e73a3051daae7eae4f8c1bbd761861dd1331338",
+  "sourceJarSha256": "d369b2edb2682f900e26893e2a378e796e2fcc3644416245e5f8e5bc3893e47a",
   "ctlVersion": 15,
   "sourcePath": "tool/crates/zeus-core/src/rms.rs",
   "serverCount": 9
