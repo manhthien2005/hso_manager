@@ -32,7 +32,8 @@ describe("Migration 027: Bạch Hổ Forge Local NPC Menu Fix Contract Invariant
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
   const FAILED_B2BC_SHA = "b2bc6ceb5922ff05c7ae252741c7829e0d5cb81e74003d5035f80870744c6658";
-  const FORGE_LOCAL_SHA = "37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14";
+  const FORGE_LOCAL_SHA = "ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec";
+  const OBSOLETE_37D1_SHA = "37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14";
   const FAILED_24E9_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
   const ROLLED_BACK_FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
   const FAILED_47E4_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
@@ -70,6 +71,7 @@ describe("Migration 027: Bạch Hổ Forge Local NPC Menu Fix Contract Invariant
     const lines = sql027.split("\n");
     const nonCommentSql = lines.filter((l) => !l.trim().startsWith("--")).join("\n");
 
+    assert.doesNotMatch(nonCommentSql, new RegExp(OBSOLETE_37D1_SHA), "37d1 must not be in active allowlist");
     assert.doesNotMatch(nonCommentSql, new RegExp(FAILED_B2BC_SHA), "b2bc must not be in active allowlist");
     assert.doesNotMatch(nonCommentSql, new RegExp(FAILED_24E9_SHA), "24e9 must not be in active allowlist");
     assert.doesNotMatch(nonCommentSql, new RegExp(ROLLED_BACK_FORGE_SHA), "278f must not be in active allowlist");

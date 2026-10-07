@@ -8,9 +8,10 @@
 --      '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d'
 --   2. Retains audited v4.0.3 movement-fixed JAR:
 --      '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a'
---   3. Adds audited v4.0.3 local NPC menu fixed JAR:
---      '37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14'
+--   3. Adds audited v4.0.3 hardened local NPC menu fixed JAR:
+--      'ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec'
 --   4. Explicitly revokes / omits failed candidate JARs:
+--      '37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14'
 --      'b2bc6ceb5922ff05c7ae252741c7829e0d5cb81e74003d5035f80870744c6658'
 --      '24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2'
 --      '278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d'
@@ -96,7 +97,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14'
+            'ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15
@@ -211,7 +212,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14'
+            'ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec'
           )
        OR v_device_jar_ctl_version <> 15
        OR NOT public.agent_has_exact_capability(v_device_agent_version, 'managed-identity-restart-v1') THEN
@@ -365,7 +366,7 @@ BEGIN
        OR v_device_jar_sha256 NOT IN (
             '4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d',
             '51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a',
-            '37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14'
+            'ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec'
           )
        OR v_device_jar_ctl_version IS NULL
        OR v_device_jar_ctl_version <> 15

@@ -48,7 +48,8 @@ describe("Migration 027: Real PostgreSQL Executable Migration & Forge Local NPC 
   const BASE_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOV_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
   const FAILED_B2BC_SHA = "b2bc6ceb5922ff05c7ae252741c7829e0d5cb81e74003d5035f80870744c6658";
-  const FORGE_LOCAL_SHA = "37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14";
+  const FORGE_LOCAL_SHA = "ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec";
+  const OBSOLETE_37D1_SHA = "37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14";
   const FAILED_24E9_SHA = "24e9a8209337d0163c2b2c948b5964f1df6574bfa1d3fd161aca93e905e525d2";
   const ROLLED_BACK_FORGE_SHA = "278f3754c405f7ecdd49b8a83b6773dc621583b80d635ea283824558501cfb0d";
   const FAILED_47E4_SHA = "47e4d766c5b8dadb2058e1d585d6496620bda0e188276c34b0ea6cb84ec14b9d";
@@ -72,6 +73,7 @@ describe("Migration 027: Real PostgreSQL Executable Migration & Forge Local NPC 
   const devForeignB       = "22222222-aaaa-bbbb-cccc-dddddddddddd";
   const devObsolete0bdda  = "33333333-aaaa-bbbb-cccc-dddddddddddd";
   const devObsoleteD369   = "44444444-aaaa-bbbb-cccc-dddddddddddd";
+  const devObsolete37d1   = "37373737-aaaa-bbbb-cccc-dddddddddddd";
 
   const accLegacy           = "55555555-5555-5555-5555-555555555555";
   const accServer8Pre027A   = "66666666-6666-6666-6666-666666666666";
@@ -193,7 +195,8 @@ INSERT INTO public.devices (id, user_id, device_auth_id, name, status, agent_ver
   ('${devArbitrary}',      '${userA}', gen_random_uuid(), 'dev-arbitrary',      'online', '0.1.0+managed-identity-restart-v1', 15, '${ARBITRARY_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAc=', 'base64'), 20),
   ('${devForeignB}',       '${userB}', gen_random_uuid(), 'dev-foreign',        'online', '0.1.0+managed-identity-restart-v1', 15, '${FORGE_LOCAL_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAg=', 'base64'), 20),
   ('${devObsolete0bdda}',  '${userA}', gen_random_uuid(), 'dev-obsolete-0bdda', 'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_0BDDA_SHA}', decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAk=', 'base64'), 20),
-  ('${devObsoleteD369}',   '${userA}', gen_random_uuid(), 'dev-obsolete-d369',  'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_D369_SHA}',  decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAs=', 'base64'), 20);
+  ('${devObsoleteD369}',   '${userA}', gen_random_uuid(), 'dev-obsolete-d369',  'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_D369_SHA}',  decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAs=', 'base64'), 20),
+  ('${devObsolete37d1}',   '${userA}', gen_random_uuid(), 'dev-obsolete-37d1',  'online', '0.1.0+visual-qol-v1.managed-identity-restart-v1', 15, '${OBSOLETE_37D1_SHA}',  decode('BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF0=', 'base64'), 20);
 
 -- Seed accounts under migration 026 (including one on b2bc which was valid in 026)
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index) VALUES
@@ -259,7 +262,7 @@ VALUES ('${devMovCompat}', '${userA}', 'Mov SHA Server 8 Post-027', 11, 'movsha8
     assert.equal(res.status, 0, `Mov SHA insert failed: ${res.stderr}`);
   });
 
-  it("8. Forge local NPC menu fix SHA 37d18817... is accepted for server 8 insert and transition", () => {
+  it("8. Forge local NPC menu fix SHA ca3b6503... is accepted for server 8 insert and transition", () => {
     const insertSql = `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${accNewForgeLocal}', '${devForgeLocal}', '${userA}', 'New Forge Local Fix Server 8', 12, 'newforgelocal8', 8);
@@ -305,8 +308,8 @@ VALUES ('${devFailed47e4}', '${userA}', '47e4 Server 8 Should Fail', 16, 'fail47
     assert.match(res47e4.stderr, /is not compatible with Bach Ho server/);
   });
 
-  it("11. Arbitrary SHA and obsolete candidates (0bdda, d369, 24e9) remain REJECTED", () => {
-    for (const badDev of [devArbitrary, devObsolete0bdda, devObsoleteD369, devFailed24e9]) {
+  it("11. Arbitrary SHA and obsolete candidates (0bdda, d369, 24e9, 37d1) remain REJECTED", () => {
+    for (const badDev of [devArbitrary, devObsolete0bdda, devObsoleteD369, devFailed24e9, devObsolete37d1]) {
       const res = runPsql(testDbName, `
 INSERT INTO public.accounts (device_id, user_id, label, slot_index, username, server_index)
 VALUES ('${badDev}', '${userA}', 'Bad Dev Server 8 Should Fail', 17, 'failbad', 8);
@@ -367,14 +370,14 @@ UPDATE public.accounts SET label = 'Updated b2bc Label' WHERE id = '${accServer8
     assert.equal(resMeta.status, 0, `Metadata edit on existing b2bc row failed: ${resMeta.stderr}`);
   });
 
-  it("16. RPC create_game_account accepts 37d18817..., 4009..., 51cb... and rejects b2bc..., 24e9..., 278f... and arbitrary", () => {
+  it("16. RPC create_game_account accepts ca3b6503..., 4009..., 51cb... and rejects 37d18817..., b2bc..., 24e9..., 278f... and arbitrary", () => {
     const asUserASql = `
 SET SESSION "request.jwt.claim.sub" = '${userA}';
 SET SESSION "request.jwt.claim.role" = 'authenticated';
 `;
-    // 37d1 device -> SUCCESS
+    // ca3b device -> SUCCESS
     const resLocal = runPsql(testDbName, `${asUserASql} SELECT public.create_game_account('${devForgeLocal}', 'RPC Local', 'rpclocal', '${validSealedJson}'::jsonb, 8::smallint, 15, '{}'::jsonb, 1::smallint);`);
-    assert.equal(resLocal.status, 0, `RPC 37d1 failed: ${resLocal.stderr}`);
+    assert.equal(resLocal.status, 0, `RPC ca3b failed: ${resLocal.stderr}`);
 
     // Base device -> SUCCESS
     const resBase = runPsql(testDbName, `${asUserASql} SELECT public.create_game_account('${devBaseCompat}', 'RPC Base', 'rpcbase', '${validSealedJson}'::jsonb, 8::smallint, 15, '{}'::jsonb, 1::smallint);`);
@@ -383,6 +386,11 @@ SET SESSION "request.jwt.claim.role" = 'authenticated';
     // Movement device -> SUCCESS
     const resMov = runPsql(testDbName, `${asUserASql} SELECT public.create_game_account('${devMovCompat}', 'RPC Mov', 'rpcmov', '${validSealedJson}'::jsonb, 8::smallint, 15, '{}'::jsonb, 1::smallint);`);
     assert.equal(resMov.status, 0, `RPC 51cb failed: ${resMov.stderr}`);
+
+    // 37d1 device -> REJECTED
+    const res37d = runPsql(testDbName, `${asUserASql} SELECT public.create_game_account('${devObsolete37d1}', 'RPC 37d1', 'rpc37d', '${validSealedJson}'::jsonb, 8::smallint, 15, '{}'::jsonb, 1::smallint);`);
+    assert.notEqual(res37d.status, 0, "RPC 37d1 must fail");
+    assert.match(res37d.stderr, /is not compatible with Bach Ho server/);
 
     // b2bc device -> REJECTED
     const resB2bc = runPsql(testDbName, `${asUserASql} SELECT public.create_game_account('${devFailedB2bc}', 'RPC b2bc', 'rpcb2bc', '${validSealedJson}'::jsonb, 8::smallint, 15, '{}'::jsonb, 1::smallint);`);
@@ -398,7 +406,7 @@ SET SESSION "request.jwt.claim.role" = 'authenticated';
     assert.notEqual(res278.status, 0, "RPC 278f must fail");
   });
 
-  it("17. RPC update_game_account accepts 37d18817..., 4009..., 51cb... and rejects b2bc..., 24e9..., 278f... and arbitrary", () => {
+  it("17. RPC update_game_account accepts ca3b6503..., 4009..., 51cb... and rejects 37d18817..., b2bc..., 24e9..., 278f... and arbitrary", () => {
     const asUserASql = `
 SET SESSION "request.jwt.claim.sub" = '${userA}';
 SET SESSION "request.jwt.claim.role" = 'authenticated';
@@ -406,20 +414,27 @@ SET SESSION "request.jwt.claim.role" = 'authenticated';
     // Create legacy accounts
     const accToLocal = "20202020-0001-0000-0000-000000000001";
     const accToB2bc  = "20202020-0002-0000-0000-000000000002";
+    const accTo37d1  = "20202020-0003-0000-0000-000000000003";
     runPsql(testDbName, `
 INSERT INTO public.accounts (id, device_id, user_id, label, slot_index, username, server_index) VALUES
   ('${accToLocal}', '${devForgeLocal}', '${userA}', 'To Local', 30, 'tolocal', 0),
-  ('${accToB2bc}',  '${devFailedB2bc}', '${userA}', 'To b2bc',  31, 'tob2bc',  0);
+  ('${accToB2bc}',  '${devFailedB2bc}', '${userA}', 'To b2bc',  31, 'tob2bc',  0),
+  ('${accTo37d1}',  '${devObsolete37d1}', '${userA}', 'To 37d1',  32, 'to37d1',  0);
 `);
 
-    // Transition account on 37d1 device from 0 to 8 -> SUCCESS
+    // Transition account on ca3b device from 0 to 8 -> SUCCESS
     const resUpLocal = runPsql(testDbName, `${asUserASql} SELECT public.update_game_account('${accToLocal}', 'Now Local 8', 8::smallint);`);
-    assert.equal(resUpLocal.status, 0, `Update to server 8 on 37d1 failed: ${resUpLocal.stderr}`);
+    assert.equal(resUpLocal.status, 0, `Update to server 8 on ca3b failed: ${resUpLocal.stderr}`);
 
     // Transition account on b2bc device from 0 to 8 -> REJECTED
     const resUpB2bc = runPsql(testDbName, `${asUserASql} SELECT public.update_game_account('${accToB2bc}', 'Now b2bc 8', 8::smallint);`);
     assert.notEqual(resUpB2bc.status, 0, "Update to server 8 on b2bc must fail");
     assert.match(resUpB2bc.stderr, /is not compatible with Bach Ho server/);
+
+    // Transition account on 37d1 device from 0 to 8 -> REJECTED
+    const resUp37d = runPsql(testDbName, `${asUserASql} SELECT public.update_game_account('${accTo37d1}', 'Now 37d1 8', 8::smallint);`);
+    assert.notEqual(resUp37d.status, 0, "Update to server 8 on 37d1 must fail");
+    assert.match(resUp37d.stderr, /is not compatible with Bach Ho server/);
 
     // Teardown
     spawnSync("wsl", ["-u", "postgres", "dropdb", "--if-exists", testDbName], { encoding: "utf-8" });
