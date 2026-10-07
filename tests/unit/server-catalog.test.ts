@@ -55,8 +55,8 @@ describe("Stable Server Catalog & Facade Tests", async () => {
 
   it("metadata contains required provenance fields", () => {
     assert.equal(GENERATED_SERVER_CATALOG_METADATA.ctlVersion, 15);
-    assert.equal(GENERATED_SERVER_CATALOG_METADATA.sourceJarSha256, "ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec");
-    assert.equal(GENERATED_SERVER_CATALOG_METADATA.sourceCommit, "6b0937fbb8bf0156cbf21e063e8e5a3abd2301a0");
+    assert.equal(GENERATED_SERVER_CATALOG_METADATA.sourceJarSha256, "c177d9ace4cd2c45fbebb4422c0bec8c8021e81872254e84b3d0960c8c510bd5");
+    assert.equal(GENERATED_SERVER_CATALOG_METADATA.sourceCommit, "fab5854a98f5a9febd5ba737ba3ac6fe14656c1a");
     assert.equal(GENERATED_SERVER_CATALOG_METADATA.serverCount, 9);
     assert.ok(GENERATED_SERVER_CATALOG_METADATA.sourceCommit.length >= 7);
   });
