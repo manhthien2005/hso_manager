@@ -45,6 +45,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
   const R2_3_SHA = "4009f070808d72bde555b7763d9c9e2924e9385a62ac1a96494d71cc3c4b657d";
   const MOVEMENT_FIX_SHA = "51cb7d4eb8d8d3037a0aa7808563e06a55a3e1765adef58b62911074d81e6d9a";
   const FORGE_FIX_SHA = "c177d9ace4cd2c45fbebb4422c0bec8c8021e81872254e84b3d0960c8c510bd5";
+  const CLEAN_FORGE_RELEASE_SHA = "31c8fbed80a2d18dbf3641b78056034a7136f551f3e27b73dcf6d2d0f0e0ae36";
   const FAILED_FORGE_CANDIDATE_CA3B_SHA = "ca3b65038a1416a9fcd7eedc9127a1ba4702d48628b0030fda701ceb77c84dec";
   const OBSOLETE_37D1_SHA = "37d18817d6b9b49fa1c20b1859a2d300272506101d7de7d8cf51ec3dd1f15d14";
   const FAILED_FORGE_CANDIDATE_B2BC_SHA = "b2bc6ceb5922ff05c7ae252741c7829e0d5cb81e74003d5035f80870744c6658";
@@ -65,12 +66,13 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(R2_3_SHA));
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(MOVEMENT_FIX_SHA));
     assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(FORGE_FIX_SHA));
+    assert.ok(COMPATIBLE_BACH_HO_JAR_SHAS.has(CLEAN_FORGE_RELEASE_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_CA3B_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_B2BC_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_24E9_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_278F_SHA));
     assert.ok(!COMPATIBLE_BACH_HO_JAR_SHAS.has(FAILED_FORGE_CANDIDATE_47E4_SHA));
-    assert.equal(COMPATIBLE_BACH_HO_JAR_SHAS.size, 3);
+    assert.equal(COMPATIBLE_BACH_HO_JAR_SHAS.size, 4);
     assert.equal(MANAGED_IDENTITY_RESTART_CAPABILITY_TOKEN, "managed-identity-restart-v1");
   });
 
@@ -85,7 +87,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(hasManagedIdentityRestartCapability(""), false);
   });
 
-  it("correct JAR + CTL15 + token -> compatible (R2.3, movement-fix, and forge-fix JARs)", () => {
+  it("correct JAR + CTL15 + token -> compatible (R2.3, movement-fix, forge-fix, and clean forge release JARs)", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, VALID_AGENT_VERSION), true);
     // Case insensitivity of JAR SHA
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
@@ -97,18 +99,24 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     // Forge-fix SHA
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, VALID_AGENT_VERSION), true);
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
+
+    // Clean Forge Release candidate SHA
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA, 15, VALID_AGENT_VERSION), true);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA.toUpperCase(), 15, VALID_AGENT_VERSION), true);
   });
 
   it("correct JAR + CTL15 + no token -> incompatible", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA, 15, NO_TOKEN_AGENT_VERSION), false);
   });
 
   it("correct JAR + CTL15 + near-match token -> incompatible", () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(MOVEMENT_FIX_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA, 15, NEAR_MATCH_TOKEN_AGENT_VERSION), false);
   });
 
   it("substring, prefix, or suffix tampering on valid SHA -> incompatible", () => {
@@ -119,6 +127,9 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA.slice(0, 32), 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(FORGE_FIX_SHA + "a", 15, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible("a" + FORGE_FIX_SHA, 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA.slice(0, 32), 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA + "a", 15, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible("a" + CLEAN_FORGE_RELEASE_SHA, 15, VALID_AGENT_VERSION), false);
   });
 
   it("old JAR or obsolete candidate JAR + token -> incompatible", () => {
@@ -140,6 +151,7 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, 13, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, null, VALID_AGENT_VERSION), false);
     assert.equal(isBachHoRuntimeCompatible(R2_3_SHA, undefined, VALID_AGENT_VERSION), false);
+    assert.equal(isBachHoRuntimeCompatible(CLEAN_FORGE_RELEASE_SHA, 14, VALID_AGENT_VERSION), false);
   });
 
   it("null or undefined agentVersion -> incompatible", () => {
@@ -178,6 +190,14 @@ describe("Bạch Hổ Runtime Capability Evaluator Tests", async () => {
       agentVersion: VALID_AGENT_VERSION,
     };
     assert.equal(isBachHoSupportedOnDevice(capableForgeFixDevice), true);
+
+    // Capable device with clean forge release JAR
+    const capableCleanForgeReleaseDevice = {
+      jar_sha256: CLEAN_FORGE_RELEASE_SHA,
+      jar_ctl_version: 15,
+      agentVersion: VALID_AGENT_VERSION,
+    };
+    assert.equal(isBachHoSupportedOnDevice(capableCleanForgeReleaseDevice), true);
 
     // Support camelCase or snake_case agent_version
     const snakeCaseDevice = {
